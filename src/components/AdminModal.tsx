@@ -75,13 +75,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   const handleSetApproval = (player: Player, newStatus: 'APPROVED' | 'REJECTED') => {
     if (onUpdatePlayer) {
+      // Al aprobar/rechazar se elimina el documento de respaldo para no
+      // acumular archivos pesados en la base de datos: ya cumplió su función.
       onUpdatePlayer({
         ...player,
         approvalStatus: newStatus,
+        verificationDoc: undefined,
       });
-      if (selectedDocPlayer && selectedDocPlayer.id === player.id) {
-        setSelectedDocPlayer({ ...selectedDocPlayer, approvalStatus: newStatus });
-      }
+      // Cerrar la vista del respaldo (el documento ya se eliminó)
+      setSelectedDocPlayer(null);
     }
   };
 
