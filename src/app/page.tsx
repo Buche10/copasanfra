@@ -104,8 +104,44 @@ export default function Home() {
     };
   }, []);
 
-  // Update Match and persist
+  // Update Match and persist. If the match's slot (fecha+hora+cancha) changed
+  // and lands on a slot already used by another match, warn and SWAP: the other
+  // match takes this match's original slot.
   const handleUpdateMatch = async (updatedMatch: Match) => {
+    const old = matches.find((m) => m.id === updatedMatch.id);
+    const slotChanged =
+      !!old &&
+      (old.time !== updatedMatch.time || old.stadium !== updatedMatch.stadium || old.date !== updatedMatch.date);
+    const conflict = slotChanged
+      ? matches.find(
+          (m) =>
+            m.id !== updatedMatch.id &&
+            m.date === updatedMatch.date &&
+            m.time === updatedMatch.time &&
+            m.stadium === updatedMatch.stadium
+        )
+      : undefined;
+
+    if (conflict && old) {
+      const ok = window.confirm(
+        `⚠️ Ese horario (${updatedMatch.date} ${updatedMatch.time} · ${updatedMatch.stadium}) ya está ocupado por otro partido.\n\n` +
+          `Se intercambiarán los horarios: ese partido pasará al horario original de este (${old.time} · ${old.stadium}).\n\n¿Continuar?`
+      );
+      if (!ok) return;
+
+      const swapped: Match = { ...conflict, date: old.date, time: old.time, stadium: old.stadium };
+      setMatches((prev) =>
+        prev.map((m) => (m.id === updatedMatch.id ? updatedMatch : m.id === conflict.id ? swapped : m))
+      );
+      try {
+        await upsertMatch(updatedMatch);
+        await upsertMatch(swapped);
+      } catch (err) {
+        alert(`No se pudo guardar el intercambio de horarios: ${errMsg(err)}`);
+      }
+      return;
+    }
+
     setMatches((prev) => prev.map((m) => (m.id === updatedMatch.id ? updatedMatch : m)));
     try {
       await upsertMatch(updatedMatch);
