@@ -31,6 +31,7 @@ import {
   resetAllDataToDefault
 } from '@/lib/store';
 import { signIn, signOut, getCurrentSessionEmail } from '@/lib/auth';
+import { recomputePlayoffs, changedPlayoffMatches } from '@/lib/playoffs';
 import { generateRandomFixture } from '@/lib/fixtureGenerator';
 import { Header, TabType } from '@/components/Header';
 import { CategorySelector } from '@/components/CategorySelector';
@@ -68,6 +69,18 @@ export default function Home() {
 
   const errMsg = (err: unknown) => (err instanceof Error ? err.message : 'Error inesperado.');
 
+  // Persiste en la base los partidos de play off cuyos equipos cambiaron al
+  // recalcular el cuadro (siembra desde posiciones / ganadores).
+  const persistPlayoffs = async (before: Match[], after: Match[]) => {
+    for (const m of changedPlayoffMatches(before, after)) {
+      try {
+        await upsertMatch(m);
+      } catch {
+        /* ignore: se reintenta en la próxima recomputación */
+      }
+    }
+  };
+
   // Load public data on mount, and restore the auth session.
   // The `users` table (which holds staff emails) is readable only when
   // authenticated, so it is fetched only after confirming a session.
@@ -79,7 +92,10 @@ export default function Home() {
         if (cancelled) return;
         setTeams(t);
         setPlayers(p);
-        setMatches(m);
+        // Sembrar el cuadro de play offs según la tabla / ganadores.
+        const reconciled = recomputePlayoffs(m, t);
+        setMatches(reconciled);
+        persistPlayoffs(m, reconciled);
 
         // Restore who is logged in (Supabase persists the session).
         const email = await getCurrentSessionEmail();
@@ -122,32 +138,38 @@ export default function Home() {
         )
       : undefined;
 
+    // Construir el arreglo con el cambio del usuario (y el intercambio si aplica).
+    let nextRaw: Match[];
     if (conflict && old) {
       const ok = window.confirm(
         `⚠️ Ese horario (${updatedMatch.date} ${updatedMatch.time} · ${updatedMatch.stadium}) ya está ocupado por otro partido.\n\n` +
           `Se intercambiarán los horarios: ese partido pasará al horario original de este (${old.time} · ${old.stadium}).\n\n¿Continuar?`
       );
       if (!ok) return;
-
       const swapped: Match = { ...conflict, date: old.date, time: old.time, stadium: old.stadium };
-      setMatches((prev) =>
-        prev.map((m) => (m.id === updatedMatch.id ? updatedMatch : m.id === conflict.id ? swapped : m))
-      );
+      nextRaw = matches.map((m) => (m.id === updatedMatch.id ? updatedMatch : m.id === conflict.id ? swapped : m));
       try {
         await upsertMatch(updatedMatch);
         await upsertMatch(swapped);
       } catch (err) {
         alert(`No se pudo guardar el intercambio de horarios: ${errMsg(err)}`);
+        return;
       }
-      return;
+    } else {
+      nextRaw = matches.map((m) => (m.id === updatedMatch.id ? updatedMatch : m));
+      try {
+        await upsertMatch(updatedMatch);
+      } catch (err) {
+        alert(`No se pudo guardar el partido: ${errMsg(err)}`);
+        return;
+      }
     }
 
-    setMatches((prev) => prev.map((m) => (m.id === updatedMatch.id ? updatedMatch : m)));
-    try {
-      await upsertMatch(updatedMatch);
-    } catch (err) {
-      alert(`No se pudo guardar el partido: ${errMsg(err)}`);
-    }
+    // Recalcular el cuadro de play offs (avanzar ganadores, re-sembrar) y
+    // persistir los partidos del cuadro que hayan cambiado.
+    const reconciled = recomputePlayoffs(nextRaw, teams);
+    setMatches(reconciled);
+    persistPlayoffs(nextRaw, reconciled);
   };
 
   // Add Team
@@ -196,7 +218,9 @@ export default function Home() {
       const [t, p, m] = await Promise.all([getTeams(), getPlayers(), getMatches()]);
       setTeams(t);
       setPlayers(p);
-      setMatches(m);
+      const reconciled = recomputePlayoffs(m, t);
+      setMatches(reconciled);
+      persistPlayoffs(m, reconciled);
     } catch (err) {
       alert(`No se pudieron restablecer los datos: ${errMsg(err)}`);
     }
@@ -204,7 +228,7 @@ export default function Home() {
 
   // Generate Random Fixture
   const handleGenerateFixture = async () => {
-    const newMatches = generateRandomFixture(teams);
+    const newMatches = recomputePlayoffs(generateRandomFixture(teams), teams);
     setMatches(newMatches);
     try {
       await replaceMatches(newMatches);

@@ -25,6 +25,7 @@ interface UnscheduledMatch {
   awayTeamId: string;
   isPlayoff?: boolean;
   playoffStage?: 'CUARTOS' | 'SEMIS' | 'FINAL';
+  bracketSlot?: 'C1' | 'C2' | 'C3' | 'C4' | 'S1' | 'S2' | 'F';
 }
 
 interface Placement {
@@ -330,6 +331,7 @@ export function generateRandomFixture(teams: Team[]): Match[] {
           awayTeamId: top2.id,
           isPlayoff: true,
           playoffStage: 'FINAL',
+          bracketSlot: 'F',
         });
       }
     } else {
@@ -342,39 +344,26 @@ export function generateRandomFixture(teams: Team[]): Match[] {
       if (!roundMatchesMap[semisRound]) roundMatchesMap[semisRound] = [];
       if (!roundMatchesMap[finalRound]) roundMatchesMap[finalRound] = [];
 
-      // Cuartos de Final (1° vs 8°, 2° vs 7°, 3° vs 6°, 4° vs 5°)
+      // Cuartos de Final (1° vs 8°, 2° vs 7°, 3° vs 6°, 4° vs 5°).
+      // Los equipos aquí son provisionales (para agendar); las posiciones
+      // reales se asignan luego con recomputePlayoffs según la tabla.
       if (categoryTeams.length >= 8) {
-        roundMatchesMap[cuartosRound].push({
-          category: cat,
-          round: cuartosRound,
-          homeTeamId: categoryTeams[0].id, // 1°
-          awayTeamId: categoryTeams[7].id, // 8°
-          isPlayoff: true,
-          playoffStage: 'CUARTOS',
-        });
-        roundMatchesMap[cuartosRound].push({
-          category: cat,
-          round: cuartosRound,
-          homeTeamId: categoryTeams[1].id, // 2°
-          awayTeamId: categoryTeams[6].id, // 7°
-          isPlayoff: true,
-          playoffStage: 'CUARTOS',
-        });
-        roundMatchesMap[cuartosRound].push({
-          category: cat,
-          round: cuartosRound,
-          homeTeamId: categoryTeams[2].id, // 3°
-          awayTeamId: categoryTeams[5].id, // 6°
-          isPlayoff: true,
-          playoffStage: 'CUARTOS',
-        });
-        roundMatchesMap[cuartosRound].push({
-          category: cat,
-          round: cuartosRound,
-          homeTeamId: categoryTeams[3].id, // 4°
-          awayTeamId: categoryTeams[4].id, // 5°
-          isPlayoff: true,
-          playoffStage: 'CUARTOS',
+        const cuartosPairs: [number, number, 'C1' | 'C2' | 'C3' | 'C4'][] = [
+          [0, 7, 'C1'],
+          [1, 6, 'C2'],
+          [2, 5, 'C3'],
+          [3, 4, 'C4'],
+        ];
+        cuartosPairs.forEach(([h, a, slot]) => {
+          roundMatchesMap[cuartosRound].push({
+            category: cat,
+            round: cuartosRound,
+            homeTeamId: categoryTeams[h].id,
+            awayTeamId: categoryTeams[a].id,
+            isPlayoff: true,
+            playoffStage: 'CUARTOS',
+            bracketSlot: slot,
+          });
         });
       } else {
         // Fallback for smaller category
@@ -385,10 +374,11 @@ export function generateRandomFixture(teams: Team[]): Match[] {
           awayTeamId: categoryTeams[categoryTeams.length - 1].id,
           isPlayoff: true,
           playoffStage: 'CUARTOS',
+          bracketSlot: 'C1',
         });
       }
 
-      // Semifinales
+      // Semifinales: S1 = ganador C1 vs ganador C4, S2 = ganador C2 vs C3.
       if (categoryTeams.length >= 4) {
         roundMatchesMap[semisRound].push({
           category: cat,
@@ -397,6 +387,7 @@ export function generateRandomFixture(teams: Team[]): Match[] {
           awayTeamId: categoryTeams[3].id,
           isPlayoff: true,
           playoffStage: 'SEMIS',
+          bracketSlot: 'S1',
         });
         roundMatchesMap[semisRound].push({
           category: cat,
@@ -405,6 +396,7 @@ export function generateRandomFixture(teams: Team[]): Match[] {
           awayTeamId: categoryTeams[2].id,
           isPlayoff: true,
           playoffStage: 'SEMIS',
+          bracketSlot: 'S2',
         });
       }
 
@@ -417,6 +409,7 @@ export function generateRandomFixture(teams: Team[]): Match[] {
           awayTeamId: categoryTeams[1].id,
           isPlayoff: true,
           playoffStage: 'FINAL',
+          bracketSlot: 'F',
         });
       }
     }
@@ -470,6 +463,9 @@ export function generateRandomFixture(teams: Team[]): Match[] {
         awayLineup: [],
         events: [],
         refereeSigned: false,
+        isPlayoff: m.isPlayoff,
+        playoffStage: m.playoffStage,
+        bracketSlot: m.bracketSlot,
       });
     });
   });

@@ -25,10 +25,19 @@ export const MatchEditModal: React.FC<MatchEditModalProps> = ({
     !(MATCH_TIME_SLOTS as readonly string[]).includes(match.time)
   );
   const [stadium, setStadium] = useState(match.stadium || 'Cancha 1');
+  const [winnerTeamId, setWinnerTeamId] = useState(match.winnerTeamId || '');
 
   const teamMap = new Map(teams.map((t) => [t.id, t]));
   const homeTeam = teamMap.get(match.homeTeamId);
   const awayTeam = teamMap.get(match.awayTeamId);
+
+  // Empate en un partido de play off: el admin debe definir quién avanza.
+  const isPlayoffTie =
+    !!match.isPlayoff &&
+    match.status === 'FINISHED' &&
+    !!match.homeTeamId &&
+    !!match.awayTeamId &&
+    match.homeScore === match.awayScore;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +48,7 @@ export const MatchEditModal: React.FC<MatchEditModalProps> = ({
       date,
       time: finalTime,
       stadium,
+      winnerTeamId: match.isPlayoff ? winnerTeamId || undefined : match.winnerTeamId,
     });
     onClose();
   };
@@ -164,6 +174,27 @@ export const MatchEditModal: React.FC<MatchEditModalProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Ganador en caso de empate (solo play offs) */}
+          {isPlayoffTie && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
+              <label className="block text-xs font-black text-amber-900 flex items-center gap-1.5">
+                🏆 Empate en play off — ¿Quién avanza?
+              </label>
+              <p className="text-[11px] text-amber-700">
+                Este partido terminó {match.homeScore}-{match.awayScore}. Define a mano el equipo que pasa a la siguiente ronda (p. ej. tras penales).
+              </p>
+              <select
+                value={winnerTeamId}
+                onChange={(e) => setWinnerTeamId(e.target.value)}
+                className="w-full bg-white text-slate-900 font-bold text-xs p-3 rounded-xl border border-amber-300 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              >
+                <option value="">— Sin definir —</option>
+                <option value={match.homeTeamId}>{homeTeam?.name || 'Local'}</option>
+                <option value={match.awayTeamId}>{awayTeam?.name || 'Visitante'}</option>
+              </select>
+            </div>
+          )}
 
           {/* Buttons */}
           <div className="flex items-center space-x-3 pt-4 border-t border-slate-100">

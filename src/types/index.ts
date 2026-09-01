@@ -135,6 +135,13 @@ export interface Match {
   refereeSigned?: boolean;
   signedAt?: string;
   financials?: MatchFinancials;
+  // Play offs
+  isPlayoff?: boolean;
+  playoffStage?: 'CUARTOS' | 'SEMIS' | 'FINAL';
+  // Posición en el cuadro: C1-C4 (cuartos), S1-S2 (semis), F (final).
+  bracketSlot?: 'C1' | 'C2' | 'C3' | 'C4' | 'S1' | 'S2' | 'F';
+  // Ganador definido a mano cuando el partido de play off termina empatado.
+  winnerTeamId?: string;
 }
 
 export interface TeamStanding {
