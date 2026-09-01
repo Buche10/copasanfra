@@ -5,6 +5,7 @@ import { toPng } from 'html-to-image';
 import { Player, Team } from '@/types';
 import { QRCodeGenerator } from './QRCodeGenerator';
 import { TeamShield } from './TeamShield';
+import { asset } from '@/lib/basePath';
 import { ShieldCheck, Download, QrCode, User, CheckCircle2, Building2, Eye, FileText, X } from 'lucide-react';
 
 interface CarnetDigitalProps {
@@ -59,7 +60,7 @@ export const CarnetDigital: React.FC<CarnetDigitalProps> = ({ player, team, onCl
           <div className="flex items-center space-x-3 min-w-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/colegio-abogados-tungurahua.jpg"
+              src={asset('/colegio-abogados-tungurahua.jpg')}
               alt="Colegio Abogados"
               className="w-10 h-10 rounded-full border-2 border-[#00A859] object-cover shrink-0"
             />

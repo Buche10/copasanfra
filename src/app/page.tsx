@@ -32,6 +32,7 @@ import {
   resetAllDataToDefault
 } from '@/lib/store';
 import { signIn, signOut, getCurrentSessionEmail } from '@/lib/auth';
+import { asset } from '@/lib/basePath';
 import { recomputePlayoffs, changedPlayoffMatches } from '@/lib/playoffs';
 import { generateRandomFixture } from '@/lib/fixtureGenerator';
 import { Header, TabType } from '@/components/Header';
@@ -468,7 +469,7 @@ export default function Home() {
           <div className="flex items-center space-x-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img 
-              src="/colegio-abogados-tungurahua.jpg" 
+              src={asset('/colegio-abogados-tungurahua.jpg')}
               alt="Colegio de Abogados de Tungurahua" 
               className="w-8 h-8 rounded-full border border-slate-700 object-cover"
             />

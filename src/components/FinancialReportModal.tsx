@@ -3,6 +3,7 @@
 import React from 'react';
 import { Match, Team, Player, PaymentMethod } from '@/types';
 import { TeamShield } from './TeamShield';
+import { asset } from '@/lib/basePath';
 import { DollarSign, Printer, X, FileSpreadsheet } from 'lucide-react';
 
 interface FinancialReportModalProps {
@@ -114,7 +115,7 @@ export const FinancialReportModal: React.FC<FinancialReportModalProps> = ({
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-[#00A859] p-0.5 shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/colegio-abogados-tungurahua.jpg" alt="Copa Sanfra" className="w-full h-full object-cover rounded-full" />
+                <img src={asset('/colegio-abogados-tungurahua.jpg')} alt="Copa Sanfra" className="w-full h-full object-cover rounded-full" />
               </div>
               <div>
                 <span className="text-[10px] font-black tracking-widest text-[#00A859] uppercase block">

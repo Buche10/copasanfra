@@ -1,5 +1,6 @@
 import React from 'react';
 import { User } from '@/types';
+import { asset } from '@/lib/basePath';
 import { 
   Trophy, 
   Calendar, 
@@ -54,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="w-10 h-10 rounded-full overflow-hidden p-0.5 border-2 border-[#00A859] shadow-sm group-hover:scale-105 transition-transform shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img 
-                src="/colegio-abogados-tungurahua.jpg" 
+                src={asset('/colegio-abogados-tungurahua.jpg')} 
                 alt="Copa Sanfra" 
                 className="w-full h-full object-cover rounded-full"
               />
