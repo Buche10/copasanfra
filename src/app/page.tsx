@@ -123,19 +123,23 @@ export default function Home() {
     }
   };
 
-  // Add Player (enforces the 20-per-team roster cap as a safety net)
-  const handleAddPlayer = async (newPlayer: Player) => {
+  // Add Player. Persists FIRST, then updates local state only on success, and
+  // returns whether it saved (so the registration UI doesn't show a false
+  // "success"). Enforces the 20-per-team cap as a safety net.
+  const handleAddPlayer = async (newPlayer: Player): Promise<boolean> => {
     const teamCount = players.filter((p) => p.teamId === newPlayer.teamId).length;
     if (teamCount >= MAX_PLAYERS_PER_TEAM) {
       alert(`Este equipo ya alcanzó el máximo de ${MAX_PLAYERS_PER_TEAM} jugadores. No se puede agregar más.`);
-      return;
+      return false;
     }
-    setPlayers((prev) => [...prev, newPlayer]);
     try {
       await upsertPlayer(newPlayer);
     } catch (err) {
       alert(`No se pudo guardar el jugador: ${errMsg(err)}`);
+      return false;
     }
+    setPlayers((prev) => [...prev, newPlayer]);
+    return true;
   };
 
   // Update Player

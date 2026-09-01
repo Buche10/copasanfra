@@ -26,7 +26,8 @@ import {
 interface RegistrationViewProps {
   teams: Team[];
   players: Player[];
-  onAddPlayer: (player: Player) => void;
+  // Devuelve true si el jugador se guardó correctamente (false si falló).
+  onAddPlayer: (player: Player) => Promise<boolean> | void;
   onCancel?: () => void;
 }
 
@@ -104,9 +105,10 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
   const canProceedFromStep4 = photoUrl !== '';
 
   // Final Form Submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedTeam) return;
+    if (!selectedTeam || submitting) return;
     if (teamCount(selectedTeam.id) >= MAX_PLAYERS_PER_TEAM) {
       setStep(1);
       return;
@@ -127,8 +129,11 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
       approvalStatus: 'PENDING',
     };
 
-    // Guardar en la base (sin foto)
-    onAddPlayer(playerToSave);
+    // Guardar en la base (sin foto). Solo avanzar si se guardó correctamente.
+    setSubmitting(true);
+    const saved = await onAddPlayer(playerToSave);
+    setSubmitting(false);
+    if (saved === false) return; // el handler ya mostró el error
 
     // Para el carnet que se muestra/imprime ahora sí usamos la foto (solo local)
     setRegisteredPlayer({ ...playerToSave, photo: photoUrl });
@@ -583,11 +588,11 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
 
               <button
                 type="button"
-                disabled={!canProceedFromStep4 || isWatermarking}
+                disabled={!canProceedFromStep4 || isWatermarking || submitting}
                 onClick={handleSubmit}
                 className="flex items-center space-x-2 px-8 py-3.5 bg-[#00A859] hover:bg-[#008e4b] disabled:bg-slate-200 disabled:cursor-not-allowed text-white font-black text-sm rounded-xl shadow-lg transition-all"
               >
-                <span>Finalizar e Inscribir</span>
+                <span>{submitting ? 'Guardando…' : 'Finalizar e Inscribir'}</span>
                 <CheckCircle2 className="w-5 h-5" />
               </button>
             </div>

@@ -100,8 +100,8 @@ export const CarnetDigital: React.FC<CarnetDigitalProps> = ({ player, team, onCl
           <div className="grid grid-cols-12 gap-4 items-center">
             
             {/* Watermarked Photo Container */}
-            <div className="col-span-5 flex flex-col items-center">
-              <div className="relative w-32 h-32 rounded-2xl overflow-hidden border-2 border-slate-900 shadow-lg bg-slate-100 group">
+            <div className="col-span-5 flex flex-col items-center min-w-0">
+              <div className="relative w-full max-w-[128px] aspect-square rounded-2xl overflow-hidden border-2 border-slate-900 shadow-lg bg-slate-100 group">
                 {player.photo ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img 
