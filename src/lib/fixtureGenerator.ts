@@ -1,0 +1,478 @@
+import { Team, Match, CATEGORIES, Category, CANCHAS, MATCH_TIME_SLOTS } from '@/types';
+
+/**
+ * Fisher-Yates array shuffle helper
+ */
+function shuffleArray<T>(array: T[]): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Fields and time slots come from the shared constants in @/types so the
+// generator and the manual match editor never drift apart.
+// Each match ~75 min (30 + 5 break + 30 + buffer). 8 slots x 2 fields = 16/day.
+const STADIUMS: readonly string[] = CANCHAS;
+const MATCH_TIMES: readonly string[] = MATCH_TIME_SLOTS;
+
+interface UnscheduledMatch {
+  category: Category;
+  round: number;
+  homeTeamId: string;
+  awayTeamId: string;
+  isPlayoff?: boolean;
+  playoffStage?: 'CUARTOS' | 'SEMIS' | 'FINAL';
+}
+
+interface Placement {
+  match: UnscheduledMatch;
+  slotIndex: number;
+  canchaIndex: number;
+}
+
+/**
+ * Assigns the matches of a single matchday to time slots and fields respecting
+ * owner constraints:
+ *   - HARD: two teams of the same owner (club) never play at the same time.
+ *   - SOFT: an owner's teams play in consecutive slots (e.g. 08:00 then 09:15).
+ *
+ * A single processing order can't keep every owner's matches together when
+ * owners face opponents of different "sizes", so we run a greedy placement
+ * (that prefers slots adjacent to an owner's already-used slots) over many
+ * randomized orderings and keep the arrangement with the fewest violations.
+ * The hard constraint is always honored; the soft one is minimized.
+ */
+function scheduleMatchday(
+  dayMatches: UnscheduledMatch[],
+  clubOf: Map<string, string>,
+  slotCount: number,
+  fieldsPerSlot: number
+): Placement[] {
+  const clubsOfMatch = (m: UnscheduledMatch): string[] => [
+    clubOf.get(m.homeTeamId) ?? m.homeTeamId,
+    clubOf.get(m.awayTeamId) ?? m.awayTeamId,
+  ];
+
+  const clubMatchCount = new Map<string, number>();
+  dayMatches.forEach((m) => {
+    clubsOfMatch(m).forEach((c) => clubMatchCount.set(c, (clubMatchCount.get(c) ?? 0) + 1));
+  });
+
+  // Multi-team owners (the only ones with a contiguity constraint), and, for a
+  // given club, the matches it plays this day.
+  const multiClubs = [...clubMatchCount.entries()].filter(([, n]) => n >= 2).map(([c]) => c);
+  const matchesOfClub = (club: string) => dayMatches.filter((m) => clubsOfMatch(m).includes(club));
+
+  // Assign each match to a distinct slot from `slots` (backtracking), honoring
+  // the field/owner rules via `canPlace`. Returns the mapping or null.
+  const assignToSlots = (
+    matches: UnscheduledMatch[],
+    slots: number[],
+    canPlace: (m: UnscheduledMatch, s: number) => boolean
+  ): Map<UnscheduledMatch, number> | null => {
+    const result = new Map<UnscheduledMatch, number>();
+    const used = new Set<number>();
+    const bt = (i: number): boolean => {
+      if (i >= matches.length) return true;
+      for (const s of slots) {
+        if (used.has(s) || !canPlace(matches[i], s)) continue;
+        used.add(s);
+        result.set(matches[i], s);
+        if (bt(i + 1)) return true;
+        used.delete(s);
+        result.delete(matches[i]);
+      }
+      return false;
+    };
+    return bt(0) ? result : null;
+  };
+
+  // One full placement given an order in which to process the multi-team clubs.
+  const attempt = (clubOrder: string[]): { placements: Placement[]; score: number } => {
+    const slotMatches: UnscheduledMatch[][] = Array.from({ length: slotCount }, () => []);
+    const slotClubs: Set<string>[] = Array.from({ length: slotCount }, () => new Set());
+    const matchSlot = new Map<UnscheduledMatch, number>();
+    let hardViolations = 0;
+
+    const canPlace = (m: UnscheduledMatch, s: number) =>
+      slotMatches[s].length < fieldsPerSlot && !clubsOfMatch(m).some((c) => slotClubs[s].has(c));
+    const commit = (m: UnscheduledMatch, s: number) => {
+      slotMatches[s].push(m);
+      clubsOfMatch(m).forEach((c) => slotClubs[s].add(c));
+      matchSlot.set(m, s);
+    };
+    const placeAnywhere = (m: UnscheduledMatch) => {
+      let s = -1;
+      for (let i = 0; i < slotCount; i++) if (canPlace(m, i)) { s = i; break; }
+      if (s === -1) {
+        // never drop a match: force the least-full slot (soft/hard violation).
+        s = slotMatches.reduce((best, arr, i) => (arr.length < slotMatches[best].length ? i : best), 0);
+        hardViolations += 1;
+      }
+      commit(m, s);
+    };
+
+    // Place each multi-team owner's matches inside one contiguous window.
+    for (const club of clubOrder) {
+      const cms = matchesOfClub(club);
+      const k = cms.length;
+      const placed = cms.filter((m) => matchSlot.has(m));
+      const unplaced = cms.filter((m) => !matchSlot.has(m));
+      const placedSlots = placed.map((m) => matchSlot.get(m)!);
+
+      let done = false;
+      for (let start = 0; start + k <= slotCount && !done; start++) {
+        const end = start + k - 1;
+        if (!placedSlots.every((s) => s >= start && s <= end)) continue;
+        const freeWindow: number[] = [];
+        for (let s = start; s <= end; s++) if (!placedSlots.includes(s)) freeWindow.push(s);
+        const assign = assignToSlots(unplaced, freeWindow, canPlace);
+        if (assign) {
+          assign.forEach((s, m) => commit(m, s));
+          done = true;
+        }
+      }
+      if (!done) unplaced.forEach(placeAnywhere); // no clean window: best-effort
+    }
+
+    // Remaining matches (single-owner) fill the rest.
+    for (const m of dayMatches) if (!matchSlot.has(m)) placeAnywhere(m);
+
+    const placements: Placement[] = [];
+    slotMatches.forEach((arr, s) => arr.forEach((m, cancha) => placements.push({ match: m, slotIndex: s, canchaIndex: cancha })));
+
+    // Score: hard clashes weigh heavily; soft = gaps in each owner's block.
+    let score = hardViolations * 1000;
+    for (const club of multiClubs) {
+      const sorted = matchesOfClub(club).map((m) => matchSlot.get(m)!).sort((a, b) => a - b);
+      for (let i = 1; i < sorted.length; i++) score += Math.max(0, sorted[i] - sorted[i - 1] - 1);
+    }
+    return { placements, score };
+  };
+
+  // Local repair: swap two matches' slots whenever it reduces the total gap
+  // score without creating an owner clash. Closes the occasional 1-slot gap
+  // the constructive pass leaves behind. Never introduces a simultaneous clash.
+  const repair = (placements: Placement[]): Placement[] => {
+    const bySlot: UnscheduledMatch[][] = Array.from({ length: slotCount }, () => []);
+    const matchSlot = new Map<UnscheduledMatch, number>();
+    placements.forEach((p) => {
+      bySlot[p.slotIndex].push(p.match);
+      matchSlot.set(p.match, p.slotIndex);
+    });
+
+    const clubsInSlotExcept = (s: number, skip: UnscheduledMatch) => {
+      const set = new Set<string>();
+      bySlot[s].forEach((m) => { if (m !== skip) clubsOfMatch(m).forEach((c) => set.add(c)); });
+      return set;
+    };
+    const gapScore = () => {
+      let sc = 0;
+      for (const club of multiClubs) {
+        const sorted = matchesOfClub(club).map((m) => matchSlot.get(m)!).sort((a, b) => a - b);
+        for (let i = 1; i < sorted.length; i++) sc += Math.max(0, sorted[i] - sorted[i - 1] - 1);
+      }
+      return sc;
+    };
+
+    let improved = true;
+    let guard = 0;
+    while (improved && guard++ < 500 && gapScore() > 0) {
+      improved = false;
+      const all = [...matchSlot.keys()];
+      for (let i = 0; i < all.length && !improved; i++) {
+        for (let j = i + 1; j < all.length && !improved; j++) {
+          const m1 = all[i];
+          const m2 = all[j];
+          const s1 = matchSlot.get(m1)!;
+          const s2 = matchSlot.get(m2)!;
+          if (s1 === s2) continue;
+          // Swap must not put an owner twice in the same slot.
+          if (clubsOfMatch(m2).some((c) => clubsInSlotExcept(s1, m1).has(c))) continue;
+          if (clubsOfMatch(m1).some((c) => clubsInSlotExcept(s2, m2).has(c))) continue;
+
+          const before = gapScore();
+          matchSlot.set(m1, s2);
+          matchSlot.set(m2, s1);
+          if (gapScore() < before) {
+            bySlot[s1] = bySlot[s1].map((m) => (m === m1 ? m2 : m));
+            bySlot[s2] = bySlot[s2].map((m) => (m === m2 ? m1 : m));
+            improved = true;
+          } else {
+            matchSlot.set(m1, s1); // revert
+            matchSlot.set(m2, s2);
+          }
+        }
+      }
+    }
+
+    const out: Placement[] = [];
+    bySlot.forEach((arr, s) => arr.forEach((m, cancha) => out.push({ match: m, slotIndex: s, canchaIndex: cancha })));
+    return out;
+  };
+
+  // Seed: biggest owners first; then randomized restarts to escape dead ends.
+  const baseOrder = [...multiClubs].sort((a, b) => (clubMatchCount.get(b)! - clubMatchCount.get(a)!));
+  let best = attempt(baseOrder);
+  for (let k = 0; k < 400 && best.score > 0; k++) {
+    const candidate = attempt(shuffleArray(multiClubs));
+    if (candidate.score < best.score) best = candidate;
+  }
+
+  return repair(best.placements);
+}
+
+/**
+ * Generates a full fixture for all 4 categories.
+ * Damas and +50 Varones: Double round-robin (Ida y Vuelta) + Gran Final.
+ * Abierta Varones and +40 Varones: Single round-robin (Ida) + Eliminación directa (Cuartos 1°v8°, 2°v7°, 3°v6°, 4°v5° -> Semis -> Final).
+ */
+export function generateRandomFixture(teams: Team[]): Match[] {
+  const generatedMatches: Match[] = [];
+  let globalMatchCounter = 100;
+  const startDate = new Date('2026-09-05'); // First Saturday of Sept 2026
+
+  // Store unscheduled matches grouped by round
+  const roundMatchesMap: Record<number, UnscheduledMatch[]> = {};
+
+  CATEGORIES.forEach((cat) => {
+    const categoryTeams = shuffleArray(teams.filter((t) => t.category === cat));
+    
+    // Skip if less than 2 teams in category
+    if (categoryTeams.length < 2) return;
+
+    // Handle odd number of teams by adding a dummy 'BYE' team
+    const teamList: (Team | null)[] = [...categoryTeams];
+    if (teamList.length % 2 !== 0) {
+      teamList.push(null);
+    }
+
+    const numTeams = teamList.length;
+    const numRoundsIda = numTeams - 1;
+    const matchesPerRound = numTeams / 2;
+
+    const isDoubleRoundRobin = cat === 'Damas' || cat === '+50 Varones';
+    const totalRegularRounds = isDoubleRoundRobin ? numRoundsIda * 2 : numRoundsIda;
+
+    // 1. Generate Ida (Ronda 1 to numRoundsIda)
+    for (let round = 0; round < numRoundsIda; round++) {
+      const roundNumber = round + 1;
+      if (!roundMatchesMap[roundNumber]) roundMatchesMap[roundNumber] = [];
+
+      for (let matchIdx = 0; matchIdx < matchesPerRound; matchIdx++) {
+        const homeIndex = (round + matchIdx) % (numTeams - 1);
+        let awayIndex = (numTeams - 1 - matchIdx + round) % (numTeams - 1);
+
+        if (matchIdx === 0) {
+          awayIndex = numTeams - 1;
+        }
+
+        const homeTeam = teamList[homeIndex];
+        const awayTeam = teamList[awayIndex];
+
+        if (!homeTeam || !awayTeam) continue;
+
+        const isAlternate = round % 2 === 1;
+        roundMatchesMap[roundNumber].push({
+          category: cat,
+          round: roundNumber,
+          homeTeamId: isAlternate ? awayTeam.id : homeTeam.id,
+          awayTeamId: isAlternate ? homeTeam.id : awayTeam.id,
+        });
+      }
+    }
+
+    // 2. Generate Vuelta if double round-robin
+    if (isDoubleRoundRobin) {
+      for (let round = 0; round < numRoundsIda; round++) {
+        const roundNumber = numRoundsIda + round + 1;
+        if (!roundMatchesMap[roundNumber]) roundMatchesMap[roundNumber] = [];
+
+        for (let matchIdx = 0; matchIdx < matchesPerRound; matchIdx++) {
+          const homeIndex = (round + matchIdx) % (numTeams - 1);
+          let awayIndex = (numTeams - 1 - matchIdx + round) % (numTeams - 1);
+
+          if (matchIdx === 0) {
+            awayIndex = numTeams - 1;
+          }
+
+          const homeTeam = teamList[homeIndex];
+          const awayTeam = teamList[awayIndex];
+
+          if (!homeTeam || !awayTeam) continue;
+
+          // Swap home and away for Vuelta
+          const isAlternate = round % 2 === 1;
+          roundMatchesMap[roundNumber].push({
+            category: cat,
+            round: roundNumber,
+            homeTeamId: isAlternate ? homeTeam.id : awayTeam.id,
+            awayTeamId: isAlternate ? awayTeam.id : homeTeam.id,
+          });
+        }
+      }
+
+      // 3. Add Gran Final for Damas & +50 Varones
+      const finalRoundNumber = totalRegularRounds + 1;
+      if (!roundMatchesMap[finalRoundNumber]) roundMatchesMap[finalRoundNumber] = [];
+
+      const top1 = categoryTeams[0];
+      const top2 = categoryTeams[1];
+
+      if (top1 && top2) {
+        roundMatchesMap[finalRoundNumber].push({
+          category: cat,
+          round: finalRoundNumber,
+          homeTeamId: top1.id,
+          awayTeamId: top2.id,
+          isPlayoff: true,
+          playoffStage: 'FINAL',
+        });
+      }
+    } else {
+      // 4. Generate Playoffs (Cuartos 1°v8°, 2°v7°, 3°v6°, 4°v5° -> Semis -> Final) for Abierta & +40
+      const cuartosRound = totalRegularRounds + 1;
+      const semisRound = totalRegularRounds + 2;
+      const finalRound = totalRegularRounds + 3;
+
+      if (!roundMatchesMap[cuartosRound]) roundMatchesMap[cuartosRound] = [];
+      if (!roundMatchesMap[semisRound]) roundMatchesMap[semisRound] = [];
+      if (!roundMatchesMap[finalRound]) roundMatchesMap[finalRound] = [];
+
+      // Cuartos de Final (1° vs 8°, 2° vs 7°, 3° vs 6°, 4° vs 5°)
+      if (categoryTeams.length >= 8) {
+        roundMatchesMap[cuartosRound].push({
+          category: cat,
+          round: cuartosRound,
+          homeTeamId: categoryTeams[0].id, // 1°
+          awayTeamId: categoryTeams[7].id, // 8°
+          isPlayoff: true,
+          playoffStage: 'CUARTOS',
+        });
+        roundMatchesMap[cuartosRound].push({
+          category: cat,
+          round: cuartosRound,
+          homeTeamId: categoryTeams[1].id, // 2°
+          awayTeamId: categoryTeams[6].id, // 7°
+          isPlayoff: true,
+          playoffStage: 'CUARTOS',
+        });
+        roundMatchesMap[cuartosRound].push({
+          category: cat,
+          round: cuartosRound,
+          homeTeamId: categoryTeams[2].id, // 3°
+          awayTeamId: categoryTeams[5].id, // 6°
+          isPlayoff: true,
+          playoffStage: 'CUARTOS',
+        });
+        roundMatchesMap[cuartosRound].push({
+          category: cat,
+          round: cuartosRound,
+          homeTeamId: categoryTeams[3].id, // 4°
+          awayTeamId: categoryTeams[4].id, // 5°
+          isPlayoff: true,
+          playoffStage: 'CUARTOS',
+        });
+      } else {
+        // Fallback for smaller category
+        roundMatchesMap[cuartosRound].push({
+          category: cat,
+          round: cuartosRound,
+          homeTeamId: categoryTeams[0].id,
+          awayTeamId: categoryTeams[categoryTeams.length - 1].id,
+          isPlayoff: true,
+          playoffStage: 'CUARTOS',
+        });
+      }
+
+      // Semifinales
+      if (categoryTeams.length >= 4) {
+        roundMatchesMap[semisRound].push({
+          category: cat,
+          round: semisRound,
+          homeTeamId: categoryTeams[0].id,
+          awayTeamId: categoryTeams[3].id,
+          isPlayoff: true,
+          playoffStage: 'SEMIS',
+        });
+        roundMatchesMap[semisRound].push({
+          category: cat,
+          round: semisRound,
+          homeTeamId: categoryTeams[1].id,
+          awayTeamId: categoryTeams[2].id,
+          isPlayoff: true,
+          playoffStage: 'SEMIS',
+        });
+      }
+
+      // Gran Final
+      if (categoryTeams.length >= 2) {
+        roundMatchesMap[finalRound].push({
+          category: cat,
+          round: finalRound,
+          homeTeamId: categoryTeams[0].id,
+          awayTeamId: categoryTeams[1].id,
+          isPlayoff: true,
+          playoffStage: 'FINAL',
+        });
+      }
+    }
+  });
+
+  // Map each team to its owner/club (falls back to the team's own id).
+  const clubOf = new Map<string, string>();
+  teams.forEach((t) => clubOf.set(t.id, t.clubId || t.id));
+
+  // Schedule all roundMatchesMap onto calendar dates (Saturdays), times, and fields
+  const allRoundNumbers = Object.keys(roundMatchesMap)
+    .map(Number)
+    .sort((a, b) => a - b);
+
+  allRoundNumbers.forEach((roundNum) => {
+    // Calculate round date (each round incremented by 1 week)
+    const roundDateObj = new Date(startDate);
+    roundDateObj.setDate(startDate.getDate() + (roundNum - 1) * 7);
+    const dateString = roundDateObj.toISOString().split('T')[0];
+
+    // Assign slots/fields respecting owner constraints.
+    const placements = scheduleMatchday(
+      roundMatchesMap[roundNum],
+      clubOf,
+      MATCH_TIMES.length,
+      STADIUMS.length
+    );
+
+    // Order by slot then field so match ids are sequential across the day.
+    placements.sort((a, b) => a.slotIndex - b.slotIndex || a.canchaIndex - b.canchaIndex);
+
+    placements.forEach(({ match: m, slotIndex, canchaIndex }) => {
+      globalMatchCounter++;
+
+      const time = MATCH_TIMES[slotIndex];
+      const stadium = STADIUMS[canchaIndex];
+
+      generatedMatches.push({
+        id: `m-${m.category.toLowerCase().replace(/[^a-z0-9]/g, '')}-${globalMatchCounter}`,
+        category: m.category,
+        round: m.round,
+        date: dateString,
+        time: time,
+        stadium: stadium,
+        homeTeamId: m.homeTeamId,
+        awayTeamId: m.awayTeamId,
+        homeScore: 0,
+        awayScore: 0,
+        status: 'SCHEDULED',
+        homeLineup: [],
+        awayLineup: [],
+        events: [],
+        refereeSigned: false,
+      });
+    });
+  });
+
+  return generatedMatches;
+}

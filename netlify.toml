@@ -1,0 +1,12 @@
+# Configuración de despliegue en Netlify (sitio estático de Next.js).
+# Las variables NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY
+# deben configurarse en: Site settings -> Environment variables.
+
+[build]
+  command = "npm run build"
+  publish = "out"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

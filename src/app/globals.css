@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --tungurahua-green: #00A859;
+    --tungurahua-green-hover: #059669;
+    --tungurahua-red: #DC2626;
+    --tungurahua-red-hover: #B91C1C;
+    --tungurahua-white: #FFFFFF;
+    --tungurahua-slate: #0F172A;
+  }
+  
+  body {
+    background-color: #F8FAFC;
+    color: #0F172A;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  }
+}
+
+/* Custom Utilities for Tungurahua Branding */
+.bg-tungurahua-green {
+  background-color: #00A859;
+}
+
+.text-tungurahua-green {
+  color: #00A859;
+}
+
+.border-tungurahua-green {
+  border-color: #00A859;
+}
+
+.bg-tungurahua-red {
+  background-color: #DC2626;
+}
+
+.text-tungurahua-red {
+  color: #DC2626;
+}
+
+.border-tungurahua-red {
+  border-color: #DC2626;
+}
+
+/* Glassmorphism Card Style */
+.glass-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.04), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+}
+
+.badge-live {
+  background: linear-gradient(135deg, #DC2626 0%, #E11D48 100%);
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Hide scrollbars */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
