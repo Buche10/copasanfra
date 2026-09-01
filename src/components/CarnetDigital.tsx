@@ -15,19 +15,9 @@ interface CarnetDigitalProps {
 export const CarnetDigital: React.FC<CarnetDigitalProps> = ({ player, team, onClose }) => {
   const [showDocModal, setShowDocModal] = React.useState(false);
 
-  const status = player.approvalStatus || 'APPROVED';
-
-  const qrPayload = JSON.stringify({
-    copa: 'Copa Abogados 2026',
-    id: player.id,
-    nombre: player.name,
-    dorsal: player.dorsal,
-    equipo: team.name,
-    categoria: team.category,
-    cedula: player.cedula,
-    afiliacion: player.affiliation || 'Foro de Abogados',
-    estado: status === 'APPROVED' ? 'HABILITADO OFICIAL' : status === 'PENDING' ? 'PENDIENTE DE APROBACION' : 'NO HABILITADO',
-  });
+  // The QR encodes only the player id: a short payload scans reliably at small
+  // sizes. The referee's scanner matches this id to the player.
+  const qrPayload = player.id;
 
   const handlePrint = () => {
     window.print();

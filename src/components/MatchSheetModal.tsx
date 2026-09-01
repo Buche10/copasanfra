@@ -5,13 +5,14 @@ import { Match, Team, Player, EventType, GoalType, CardReason, MatchEvent, Lineu
 import { calculateSanctions } from '@/lib/store';
 import { TeamShield } from './TeamShield';
 import { FinancialReportModal } from './FinancialReportModal';
+import { CameraQrScanner } from './CameraQrScanner';
 import confetti from 'canvas-confetti';
-import { 
-  ClipboardList, 
-  Trash2, 
-  UserCheck, 
-  FileText, 
-  Play, 
+import {
+  ClipboardList,
+  Trash2,
+  UserCheck,
+  FileText,
+  Play,
   CheckCheck,
   PlusCircle,
   Shield,
@@ -24,7 +25,8 @@ import {
   Search,
   X,
   DollarSign,
-  Printer
+  Printer,
+  Camera
 } from 'lucide-react';
 
 interface MatchSheetModalProps {
@@ -54,6 +56,7 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
   // Automatic Lineup QR Check-in State
   const [qrScanInput, setQrScanInput] = useState('');
   const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
 
   // Financial Report Modal State
   const [showFinancialReportModal, setShowFinancialReportModal] = useState(false);
@@ -567,16 +570,27 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
               <span className="text-[10px] text-slate-400 font-bold">Autollenado en tiempo real</span>
             </div>
 
-            <div className="relative">
-              <input
-                type="text"
-                value={qrScanInput}
-                onChange={(e) => handleScanAutoCheckin(e.target.value)}
-                placeholder="Escanee el carnet o pegue/ingrese el código QR o N° de Cédula..."
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={qrScanInput}
+                  onChange={(e) => handleScanAutoCheckin(e.target.value)}
+                  placeholder="Escanee el carnet o ingrese el código / N° de Cédula..."
+                  disabled={currentMatch.status === 'FINISHED'}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-medium text-xs focus:bg-slate-950 focus:ring-2 focus:ring-[#00A859] outline-none transition-all placeholder:text-slate-500"
+                />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCamera(true)}
                 disabled={currentMatch.status === 'FINISHED'}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-medium text-xs focus:bg-slate-950 focus:ring-2 focus:ring-[#00A859] outline-none transition-all placeholder:text-slate-500"
-              />
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-[#00A859] hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-xs rounded-xl transition-colors"
+              >
+                <Camera className="w-4 h-4" />
+                <span className="hidden sm:inline">Escanear</span>
+              </button>
             </div>
 
             {scanMessage && (
@@ -1083,6 +1097,15 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
           teams={teams}
           players={players}
           onClose={() => setShowFinancialReportModal(false)}
+        />
+      )}
+
+      {showCamera && (
+        <CameraQrScanner
+          title="Escanear carnet del jugador"
+          hint="Apunta al QR del carnet. Se irán registrando en la nómina automáticamente."
+          onDetected={(text) => handleScanAutoCheckin(text)}
+          onClose={() => setShowCamera(false)}
         />
       )}
     </div>

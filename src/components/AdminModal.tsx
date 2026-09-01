@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Team, Player, Category, CATEGORIES } from '@/types';
+import { Team, Player, Category, CATEGORIES, MAX_PLAYERS_PER_TEAM } from '@/types';
 import { TeamShield } from './TeamShield';
 import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Download, Upload } from 'lucide-react';
 import { exportAllData, importAllData } from '@/lib/store';
@@ -134,6 +134,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const handleCreatePlayer = (e: React.FormEvent) => {
     e.preventDefault();
     if (!playerName || !playerTeamId) return;
+
+    if (players.filter((p) => p.teamId === playerTeamId).length >= MAX_PLAYERS_PER_TEAM) {
+      alert(`Este equipo ya tiene ${MAX_PLAYERS_PER_TEAM} jugadores (máximo permitido).`);
+      return;
+    }
 
     const newPlayer: Player = {
       id: `p-${crypto.randomUUID()}`,

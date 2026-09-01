@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { Player, Team, Match } from '@/types';
 import { calculateSanctions } from '@/lib/store';
 import { TeamShield } from './TeamShield';
-import { QrCode, Search, CheckCircle2, ShieldAlert, X, User, Sparkles } from 'lucide-react';
+import { CameraQrScanner } from './CameraQrScanner';
+import { QrCode, Search, CheckCircle2, ShieldAlert, X, User, Sparkles, Camera } from 'lucide-react';
 
 interface QRScannerModalProps {
   players: Player[];
@@ -21,6 +22,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 }) => {
   const [searchInput, setSearchInput] = useState('');
   const [scannedPlayer, setScannedPlayer] = useState<Player | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
 
   const teamMap = new Map(teams.map((t) => [t.id, t]));
 
@@ -97,16 +99,26 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
               Escanear o Pegar Código QR / Cédula / Nombre del Jugador
             </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(e) => handleSearch(e.target.value)}
-                placeholder="Pegue aquí los datos del QR o busque por N° Cédula o Nombre..."
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium text-xs focus:bg-white focus:ring-2 focus:ring-[#00A859] outline-none transition-all"
-                autoFocus
-              />
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  placeholder="Escanee, pegue el QR o busque por N° Cédula o Nombre..."
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium text-xs focus:bg-white focus:ring-2 focus:ring-[#00A859] outline-none transition-all"
+                  autoFocus
+                />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCamera(true)}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-3 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition-colors"
+              >
+                <Camera className="w-4 h-4 text-[#00A859]" />
+                <span className="hidden sm:inline">Cámara</span>
+              </button>
             </div>
             <p className="text-[11px] text-slate-500 flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-[#00A859]" />
@@ -238,6 +250,18 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         </div>
 
       </div>
+
+      {showCamera && (
+        <CameraQrScanner
+          title="Escanear carnet"
+          hint="Apunta la cámara al código QR del carnet del jugador."
+          onDetected={(text) => {
+            handleSearch(text);
+            setShowCamera(false);
+          }}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
     </div>
   );
 };

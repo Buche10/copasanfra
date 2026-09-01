@@ -10,7 +10,8 @@ import {
   PlayerScorer, 
   PlayerSanction,
   GoalkeeperStat,
-  Category 
+  Category,
+  MAX_PLAYERS_PER_TEAM
 } from '@/types';
 import {
   getTeams,
@@ -122,8 +123,13 @@ export default function Home() {
     }
   };
 
-  // Add Player
+  // Add Player (enforces the 20-per-team roster cap as a safety net)
   const handleAddPlayer = async (newPlayer: Player) => {
+    const teamCount = players.filter((p) => p.teamId === newPlayer.teamId).length;
+    if (teamCount >= MAX_PLAYERS_PER_TEAM) {
+      alert(`Este equipo ya alcanzó el máximo de ${MAX_PLAYERS_PER_TEAM} jugadores. No se puede agregar más.`);
+      return;
+    }
     setPlayers((prev) => [...prev, newPlayer]);
     try {
       await upsertPlayer(newPlayer);
@@ -391,6 +397,7 @@ export default function Home() {
         {activeTab === 'registration' && (
           <RegistrationView
             teams={teams}
+            players={players}
             onAddPlayer={handleAddPlayer}
             onCancel={() => setActiveTab('standings')}
           />

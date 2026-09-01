@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Category, CATEGORIES, Player, PlayerPosition, Team } from '@/types';
+import { Category, CATEGORIES, MAX_PLAYERS_PER_TEAM, Player, PlayerPosition, Team } from '@/types';
 import { applyWatermarkToPhoto } from '@/lib/watermark';
 import { CarnetDigital } from './CarnetDigital';
 import { TeamShield } from './TeamShield';
@@ -25,12 +25,14 @@ import {
 
 interface RegistrationViewProps {
   teams: Team[];
+  players: Player[];
   onAddPlayer: (player: Player) => void;
   onCancel?: () => void;
 }
 
 export const RegistrationView: React.FC<RegistrationViewProps> = ({
   teams,
+  players,
   onAddPlayer,
   onCancel,
 }) => {
@@ -59,6 +61,10 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
   // Filter teams by currently selected category
   const filteredTeams = teams.filter((t) => t.category === selectedCategory);
   const selectedTeam = teams.find((t) => t.id === selectedTeamId);
+
+  // Roster count per team (to enforce the max players per team).
+  const teamCount = (teamId: string) => players.filter((p) => p.teamId === teamId).length;
+  const selectedTeamFull = selectedTeam ? teamCount(selectedTeam.id) >= MAX_PLAYERS_PER_TEAM : false;
 
   // Handle Photo Upload & Automatic Watermarking
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,7 +98,7 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
   };
 
   // Validations per Step
-  const canProceedFromStep1 = selectedTeamId !== '';
+  const canProceedFromStep1 = selectedTeamId !== '' && !selectedTeamFull;
   const canProceedFromStep2 = name.trim() !== '' && dorsal !== '' && cedula.trim() !== '';
   const canProceedFromStep3 = verificationDoc !== '';
   const canProceedFromStep4 = photoUrl !== '';
@@ -101,6 +107,10 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTeam) return;
+    if (teamCount(selectedTeam.id) >= MAX_PLAYERS_PER_TEAM) {
+      setStep(1);
+      return;
+    }
 
     const newPlayer: Player = {
       id: `player-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -216,32 +226,45 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
-                  {filteredTeams.map((t) => (
-                    <div
-                      key={t.id}
-                      onClick={() => setSelectedTeamId(t.id)}
-                      className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                        selectedTeamId === t.id
-                          ? 'border-[#00A859] bg-[#00A859]/5 ring-2 ring-[#00A859]'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <TeamShield logoKey={t.logo} name={t.name} primaryColor={t.primaryColor} size="md" />
-                        <div>
-                          <h4 className="font-extrabold text-slate-900 text-sm">
-                            {t.name}
-                          </h4>
-                          <span className="text-xs text-slate-500 font-semibold">
-                            {t.shortName}
+                  {filteredTeams.map((t) => {
+                    const count = teamCount(t.id);
+                    const full = count >= MAX_PLAYERS_PER_TEAM;
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={() => { if (!full) setSelectedTeamId(t.id); }}
+                        className={`p-4 rounded-2xl border transition-all flex items-center justify-between ${
+                          full
+                            ? 'border-slate-200 bg-slate-100 opacity-60 cursor-not-allowed'
+                            : selectedTeamId === t.id
+                            ? 'border-[#00A859] bg-[#00A859]/5 ring-2 ring-[#00A859] cursor-pointer'
+                            : 'border-slate-200 bg-white hover:border-slate-300 cursor-pointer'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <TeamShield logoKey={t.logo} name={t.name} primaryColor={t.primaryColor} size="md" />
+                          <div>
+                            <h4 className="font-extrabold text-slate-900 text-sm">
+                              {t.name}
+                            </h4>
+                            <span className="text-xs text-slate-500 font-semibold">
+                              {t.shortName}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                            full ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {full ? 'Cupo lleno' : `${count}/${MAX_PLAYERS_PER_TEAM}`}
                           </span>
+                          {selectedTeamId === t.id && !full && (
+                            <CheckCircle2 className="w-5 h-5 text-[#00A859]" />
+                          )}
                         </div>
                       </div>
-                      {selectedTeamId === t.id && (
-                        <CheckCircle2 className="w-5 h-5 text-[#00A859]" />
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
