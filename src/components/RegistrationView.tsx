@@ -112,23 +112,26 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
       return;
     }
 
-    const newPlayer: Player = {
+    // Jugador que se GUARDA en la base: sin la foto (solo se usa para el
+    // carnet en el momento, no se persiste para no llenar la base de datos).
+    const playerToSave: Player = {
       id: `player-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       teamId: selectedTeam.id,
       name: name.trim(),
       dorsal: parseInt(dorsal, 10) || 1,
       cedula: cedula.trim(),
       position: position,
-      photo: photoUrl,
       affiliation: affiliation,
       verificationDoc: verificationDoc,
       registeredAt: new Date().toISOString(),
       approvalStatus: 'PENDING',
     };
 
-    // Save to App State / Store
-    onAddPlayer(newPlayer);
-    setRegisteredPlayer(newPlayer);
+    // Guardar en la base (sin foto)
+    onAddPlayer(playerToSave);
+
+    // Para el carnet que se muestra/imprime ahora sí usamos la foto (solo local)
+    setRegisteredPlayer({ ...playerToSave, photo: photoUrl });
     setStep(5);
   };
 
@@ -510,6 +513,10 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
                 Al seleccionar la foto, el sistema estampará automáticamente la <strong className="text-white">marca de agua digital oficial y sello de seguridad</strong> para proteger su carnet contra adulteraciones.
               </p>
             </div>
+
+            <p className="text-[11px] text-slate-500 text-center px-4">
+              🔒 La foto se usa <strong>solo para generar tu carnet</strong> en este momento; <strong>no se almacena</strong>. Descárgalo o imprímelo al finalizar.
+            </p>
 
             {errorMsg && (
               <div className="p-4 bg-red-50 text-red-700 rounded-xl border border-red-200 text-xs font-bold flex items-center gap-2">
