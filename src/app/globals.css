@@ -64,6 +64,15 @@
   }
 }
 
+/* Fade-in usado por modales/vistas (la clase se referenciaba sin definir) */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out;
+}
+
 /* Hide scrollbars */
 .scrollbar-none::-webkit-scrollbar {
   display: none;
@@ -71,4 +80,48 @@
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* ----------------------------------------------------
+   Impresión / Guardar como PDF
+   Solo se imprime el elemento marcado con .print-area
+   (carnet o reporte financiero); se oculta todo lo demás.
+   ---------------------------------------------------- */
+@media print {
+  /* Colores e imágenes fieles (QR, escudos, badges) */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Ocultar controles que no deben imprimirse */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Ocultar todo, luego mostrar solo el área imprimible */
+  body * {
+    visibility: hidden !important;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible !important;
+  }
+  .print-area {
+    position: absolute !important;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Evitar fondos oscuros de overlays al imprimir */
+  .print-backdrop {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    display: block !important;
+  }
 }

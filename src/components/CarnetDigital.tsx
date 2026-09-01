@@ -26,9 +26,9 @@ export const CarnetDigital: React.FC<CarnetDigitalProps> = ({ player, team, onCl
   return (
     <div className="flex flex-col items-center justify-center p-4">
       {/* Printable Area Wrapper */}
-      <div 
+      <div
         id="carnet-digital-printable"
-        className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden relative"
+        className="print-area w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden relative"
       >
         {/* Header Ribbon - Tungurahua Colors */}
         <div className="h-3 w-full grid grid-cols-2">

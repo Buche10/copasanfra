@@ -74,8 +74,8 @@ export const FinancialReportModal: React.FC<FinancialReportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto print:p-0 print:bg-white print:static">
-      <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden border border-slate-200 relative my-8 print:shadow-none print:border-none print:my-0 print:max-w-none print:w-full">
+    <div className="print-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto print:p-0 print:bg-white print:static">
+      <div className="print-area bg-white rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden border border-slate-200 relative my-8 print:shadow-none print:border-none print:my-0 print:max-w-none print:w-full">
         
         {/* Modal Header Actions (Hidden when printing) */}
         <div className="bg-slate-900 text-white p-5 flex items-center justify-between print:hidden">
