@@ -23,11 +23,22 @@ export function applyWatermarkToPhoto(
         canvas.width = width;
         canvas.height = height;
 
+        // MANDATORY: Fill canvas background with white FIRST so canvas conversion to JPEG never produces black transparent pixels
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+
+        const naturalW = img.naturalWidth || img.width;
+        const naturalH = img.naturalHeight || img.height;
+
+        if (!naturalW || !naturalH) {
+          throw new Error('No se pudieron obtener las dimensiones de la imagen.');
+        }
+
         // Draw image scaled & centered (cover object-fit)
-        const scale = Math.max(width / img.width, height / img.height);
-        const x = (width - img.width * scale) / 2;
-        const y = (height - img.height * scale) / 2;
-        ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+        const scale = Math.max(width / naturalW, height / naturalH);
+        const x = (width - naturalW * scale) / 2;
+        const y = (height - naturalH * scale) / 2;
+        ctx.drawImage(img, x, y, naturalW * scale, naturalH * scale);
 
         // --- WATERMARK OVERLAY ---
 
@@ -36,9 +47,9 @@ export function applyWatermarkToPhoto(
         ctx.translate(width / 2, height / 2);
         ctx.rotate((-35 * Math.PI) / 180);
 
-        ctx.font = '900 22px Inter, system-ui, sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+        ctx.font = '900 20px Inter, system-ui, -apple-system, sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
         ctx.shadowBlur = 4;
         ctx.textAlign = 'center';
 
@@ -56,7 +67,7 @@ export function applyWatermarkToPhoto(
         // Circular background
         ctx.beginPath();
         ctx.arc(badgeX, badgeY, 45, 0, 2 * Math.PI);
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
         ctx.fill();
         ctx.lineWidth = 3;
         ctx.strokeStyle = '#00A859';
@@ -78,7 +89,7 @@ export function applyWatermarkToPhoto(
 
         ctx.restore();
 
-        // Return Data URL
+        // Return Data URL (JPEG with 92% quality)
         const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
         resolve(dataUrl);
       } catch (err) {
@@ -86,19 +97,24 @@ export function applyWatermarkToPhoto(
       }
     };
 
-    img.onerror = (err) => reject(err);
+    img.onerror = () => {
+      reject(new Error('Formato de imagen no soportado o archivo dañado. Intenta con una foto JPG o PNG.'));
+    };
 
     if (typeof fileOrBase64 === 'string') {
+      img.crossOrigin = 'anonymous';
+      img.onload = processImage;
       img.src = fileOrBase64;
-      if (img.complete) processImage();
-      else img.onload = processImage;
+      if (img.complete && (img.naturalWidth > 0 || img.width > 0)) {
+        processImage();
+      }
     } else {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        img.src = e.target?.result as string;
-        img.onload = processImage;
+      const objectUrl = URL.createObjectURL(fileOrBase64);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        processImage();
       };
-      reader.readAsDataURL(fileOrBase64);
+      img.src = objectUrl;
     }
   });
 }

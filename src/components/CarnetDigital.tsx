@@ -119,7 +119,7 @@ export const CarnetDigital: React.FC<CarnetDigitalProps> = ({ player, team, onCl
             
             {/* Watermarked Photo Container */}
             <div className="col-span-5 flex flex-col items-center min-w-0">
-              <div className="relative w-full max-w-[128px] aspect-square rounded-2xl overflow-hidden border-2 border-slate-900 shadow-lg bg-slate-100 group">
+              <div className="relative w-full max-w-[128px] aspect-square rounded-2xl overflow-hidden border-2 border-slate-900 shadow-lg bg-white group">
                 {player.photo ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img 
@@ -128,8 +128,9 @@ export const CarnetDigital: React.FC<CarnetDigitalProps> = ({ player, team, onCl
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-slate-200 text-slate-400">
-                    <User className="w-12 h-12" />
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-400 p-2 text-center">
+                    <User className="w-10 h-10 mb-1" />
+                    <span className="text-[9px] font-bold text-slate-400">Sin Foto</span>
                   </div>
                 )}
 
@@ -178,7 +179,7 @@ export const CarnetDigital: React.FC<CarnetDigitalProps> = ({ player, team, onCl
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Afiliación Institucional
                 </span>
-                <div className="flex flex-col gap-1 mt-0.5">
+                <div className="flex flex-col items-start gap-1 mt-0.5">
                   <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-800">
                     <Building2 className="w-3.5 h-3.5 text-[#00A859]" />
                     <span>{player.affiliation || 'Foro de Abogados'}</span>
@@ -187,7 +188,7 @@ export const CarnetDigital: React.FC<CarnetDigitalProps> = ({ player, team, onCl
                   {player.verificationDoc && (
                     <button
                       onClick={() => setShowDocModal(true)}
-                      className="inline-flex items-center space-x-1 text-[11px] font-extrabold text-[#00A859] hover:underline"
+                      className="no-print inline-flex items-center space-x-1 text-[11px] font-extrabold text-[#00A859] hover:underline pt-0.5"
                     >
                       <Eye className="w-3 h-3" />
                       <span>Ver Evidencia Adjunta</span>
