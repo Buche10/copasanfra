@@ -1,10 +1,11 @@
 'use client';
 
 import React from 'react';
+import { toPng } from 'html-to-image';
 import { Player, Team } from '@/types';
 import { QRCodeGenerator } from './QRCodeGenerator';
 import { TeamShield } from './TeamShield';
-import { ShieldCheck, Printer, QrCode, User, CheckCircle2, Building2, Eye, FileText, X } from 'lucide-react';
+import { ShieldCheck, Download, QrCode, User, CheckCircle2, Building2, Eye, FileText, X } from 'lucide-react';
 
 interface CarnetDigitalProps {
   player: Player;
@@ -14,13 +15,30 @@ interface CarnetDigitalProps {
 
 export const CarnetDigital: React.FC<CarnetDigitalProps> = ({ player, team, onClose }) => {
   const [showDocModal, setShowDocModal] = React.useState(false);
+  const [downloading, setDownloading] = React.useState(false);
 
   // The QR encodes only the player id: a short payload scans reliably at small
   // sizes. The referee's scanner matches this id to the player.
   const qrPayload = player.id;
 
-  const handlePrint = () => {
-    window.print();
+  // Descarga el carnet como imagen PNG (más confiable que imprimir a PDF).
+  const handleDownloadImage = async () => {
+    const node = document.getElementById('carnet-digital-printable');
+    if (!node) return;
+    setDownloading(true);
+    try {
+      const dataUrl = await toPng(node, { pixelRatio: 2, cacheBust: true, backgroundColor: '#ffffff' });
+      const link = document.createElement('a');
+      link.download = `carnet-${player.name.replace(/\s+/g, '-')}.png`;
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch {
+      alert('No se pudo generar la imagen del carnet. Intenta de nuevo.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -214,11 +232,12 @@ export const CarnetDigital: React.FC<CarnetDigitalProps> = ({ player, team, onCl
       {/* Buttons Action Bar */}
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3 no-print">
         <button
-          onClick={handlePrint}
-          className="flex items-center space-x-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+          onClick={handleDownloadImage}
+          disabled={downloading}
+          className="flex items-center space-x-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
         >
-          <Printer className="w-4 h-4 text-[#00A859]" />
-          <span>Imprimir / PDF</span>
+          <Download className="w-4 h-4 text-[#00A859]" />
+          <span>{downloading ? 'Generando…' : 'Descargar Carnet (imagen)'}</span>
         </button>
 
         {onClose && (

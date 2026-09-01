@@ -17,28 +17,16 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
   onSelectTeam,
 }) => {
   const teamMap = new Map(teams.map((t) => [t.id, t]));
-  const currentCat = teams.find((t) => t.id === standings[0]?.teamId)?.category || '';
-  const playoffCutoff = currentCat === 'Damas' ? 2 : 8;
 
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 rounded-3xl text-white shadow-xl relative overflow-hidden">
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 rounded-3xl text-white shadow-xl relative overflow-hidden">
         <div className="space-y-1 relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#00A859]/20 text-[#00A859] border border-[#00A859]/30 text-xs font-bold uppercase tracking-wider">
             <span>Campeonato Oficial</span> • <span>Tungurahua</span>
           </div>
           <h2 className="text-2xl font-black tracking-tight">Tabla General de Posiciones</h2>
-          <p className="text-slate-300 text-sm">
-            Los primeros <span className="text-[#00A859] font-bold">{playoffCutoff} equipos</span> clasifican a la Fase de Eliminación Directa.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 relative z-10">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-3.5 py-2 rounded-2xl backdrop-blur-sm shadow-sm">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#00A859] animate-pulse"></span>
-            <span>Clasifican Puestos 1 al {playoffCutoff}</span>
-          </div>
         </div>
       </div>
 
@@ -62,27 +50,22 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {standings.map((st, index) => {
-                const isPlayoffZone = index < playoffCutoff;
                 const pos = index + 1;
                 const team = teamMap.get(st.teamId);
 
                 return (
                   <React.Fragment key={st.teamId}>
-                    <tr 
+                    <tr
                       onClick={() => team && onSelectTeam(team)}
-                      className={`hover:bg-slate-100/70 transition-colors cursor-pointer group ${
-                        isPlayoffZone ? 'bg-emerald-500/5 font-semibold' : ''
-                      }`}
+                      className="hover:bg-slate-100/70 transition-colors cursor-pointer group"
                     >
                       {/* Position */}
                       <td className="py-4 px-4 text-center font-bold">
                         <div className="flex items-center justify-center">
-                          <span 
+                          <span
                             className={`w-7 h-7 rounded-xl flex items-center justify-center font-extrabold text-xs shadow-sm ${
                               pos === 1
                                 ? 'bg-[#00A859] text-white ring-2 ring-[#00A859]/30'
-                                : isPlayoffZone
-                                ? 'bg-emerald-100 text-[#00A859] border border-emerald-300'
                                 : 'bg-slate-100 text-slate-600'
                             }`}
                           >
@@ -140,15 +123,6 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                         {st.pts}
                       </td>
                     </tr>
-
-                    {/* Qualification Cutoff Border Row */}
-                    {index === playoffCutoff - 1 && index < standings.length - 1 && (
-                      <tr className="bg-emerald-500/10 border-y-2 border-emerald-500/50 text-xs font-black text-[#00A859]">
-                        <td colSpan={10} className="py-2.5 px-4 text-center tracking-wider uppercase bg-emerald-50/80">
-                          🟢 Límite de Clasificación a Playoffs (Puestos 1 al {playoffCutoff})
-                        </td>
-                      </tr>
-                    )}
                   </React.Fragment>
                 );
               })}
@@ -157,11 +131,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
         </div>
 
         {/* Footnote Criteria */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#00A859]"></span>
-            <span className="font-bold text-slate-700">Puestos 1 al {playoffCutoff}: Clasifican a Eliminación Directa</span>
-          </div>
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-center gap-2 text-xs text-slate-500">
           <div className="flex items-center gap-2">
             <HelpCircle className="w-4 h-4 text-slate-400" />
             <span>Criterios: Puntos → Enfrentamiento Directo → Diferencia Goles → Goles Favor</span>
