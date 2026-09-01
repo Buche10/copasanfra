@@ -438,11 +438,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   <tr className="bg-slate-100 text-slate-600 uppercase font-extrabold border-b">
                     <th className="p-3">#</th>
                     <th className="p-3">Nombre</th>
-                    <th className="p-3">Equipo</th>
-                    <th className="p-3">Posición</th>
-                    <th className="p-3">Afiliación</th>
+                    <th className="p-3 hidden sm:table-cell">Equipo</th>
+                    <th className="p-3 hidden md:table-cell">Posición</th>
+                    <th className="p-3 hidden md:table-cell">Afiliación</th>
                     <th className="p-3">Estado</th>
-                    <th className="p-3">Respaldo / Acciones</th>
+                    <th className="p-3">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -453,9 +453,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       <tr key={p.id} className="hover:bg-slate-50">
                         <td className="p-3 font-black text-slate-900">#{p.dorsal}</td>
                         <td className="p-3 font-bold text-slate-800">{p.name}</td>
-                        <td className="p-3 text-slate-600">{team?.name || p.teamId}</td>
-                        <td className="p-3 font-bold text-emerald-700">{p.position}</td>
-                        <td className="p-3 text-slate-700 font-semibold">
+                        <td className="p-3 text-slate-600 hidden sm:table-cell">{team?.name || p.teamId}</td>
+                        <td className="p-3 font-bold text-emerald-700 hidden md:table-cell">{p.position}</td>
+                        <td className="p-3 text-slate-700 font-semibold hidden md:table-cell">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             p.affiliation === 'Colegio de Abogados'
                               ? 'bg-emerald-100 text-[#00A859]'
@@ -476,7 +476,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           </span>
                         </td>
                         <td className="p-3">
-                          <div className="flex items-center space-x-1.5">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             {p.verificationDoc && (
                               <button
                                 onClick={() => setSelectedDocPlayer(p)}
