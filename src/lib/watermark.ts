@@ -1,120 +1,87 @@
 /**
- * Utility to apply an anti-forgery watermark to uploaded player photos using HTML5 Canvas.
+ * Aplica una marca de agua anti-falsificación a la foto del jugador.
+ * Usa createImageBitmap (decodificación fiable y con orientación EXIF), evitando
+ * el "cuadro negro" que a veces produce <img>+canvas en móviles (fotos HEIC/HDR).
  */
-export function applyWatermarkToPhoto(
+export async function applyWatermarkToPhoto(
   fileOrBase64: File | string,
   watermarkText: string = 'COPA ABOGADOS 2026 • REGISTRO OFICIAL'
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
+  // 1) Obtener un Blob de la foto (desde File o desde data URL/URL).
+  let blob: Blob;
+  try {
+    blob = typeof fileOrBase64 === 'string' ? await (await fetch(fileOrBase64)).blob() : fileOrBase64;
+  } catch {
+    throw new Error('No se pudo leer la imagen.');
+  }
 
-    const processImage = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(typeof fileOrBase64 === 'string' ? fileOrBase64 : '');
-          return;
-        }
+  // 2) Decodificar a bitmap (respeta la orientación de la cámara).
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+  } catch {
+    throw new Error(
+      'No se pudo procesar la foto. Usa una imagen JPG o PNG (evita el formato HEIC del iPhone: en Ajustes → Cámara → Formatos, elige "Más compatible").'
+    );
+  }
 
-        // Standard high-res target dimensions
-        const width = 600;
-        const height = 600;
-        canvas.width = width;
-        canvas.height = height;
+  const W = 600;
+  const H = 600;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    bitmap.close?.();
+    throw new Error('El navegador no permite procesar imágenes.');
+  }
 
-        // MANDATORY: Fill canvas background with white FIRST so canvas conversion to JPEG never produces black transparent pixels
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, width, height);
+  // Fondo blanco (evita píxeles negros/transparentes al exportar a JPEG).
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
 
-        const naturalW = img.naturalWidth || img.width;
-        const naturalH = img.naturalHeight || img.height;
+  // Dibujar la foto centrada tipo "cover".
+  const scale = Math.max(W / bitmap.width, H / bitmap.height);
+  const dw = bitmap.width * scale;
+  const dh = bitmap.height * scale;
+  ctx.drawImage(bitmap, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  bitmap.close?.();
 
-        if (!naturalW || !naturalH) {
-          throw new Error('No se pudieron obtener las dimensiones de la imagen.');
-        }
+  // --- Marca de agua ---
+  // 1. Texto diagonal repetido
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.rotate((-35 * Math.PI) / 180);
+  ctx.font = '900 20px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+  ctx.shadowBlur = 4;
+  ctx.textAlign = 'center';
+  [-180, -100, -20, 60, 140, 220].forEach((lineY) => ctx.fillText(watermarkText, 0, lineY));
+  ctx.restore();
 
-        // Draw image scaled & centered (cover object-fit)
-        const scale = Math.max(width / naturalW, height / naturalH);
-        const x = (width - naturalW * scale) / 2;
-        const y = (height - naturalH * scale) / 2;
-        ctx.drawImage(img, x, y, naturalW * scale, naturalH * scale);
+  // 2. Sello oficial en la esquina
+  ctx.save();
+  const bx = W - 110;
+  const by = H - 110;
+  ctx.beginPath();
+  ctx.arc(bx, by, 45, 0, 2 * Math.PI);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#00A859';
+  ctx.stroke();
+  ctx.font = 'bold 10px system-ui, sans-serif';
+  ctx.fillStyle = '#00A859';
+  ctx.textAlign = 'center';
+  ctx.fillText('OFICIAL', bx, by - 12);
+  ctx.font = '900 12px system-ui, sans-serif';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText('VALIDADO', bx, by + 4);
+  ctx.font = 'bold 9px system-ui, sans-serif';
+  ctx.fillStyle = '#DC2626';
+  ctx.fillText('2026', bx, by + 18);
+  ctx.restore();
 
-        // --- WATERMARK OVERLAY ---
-
-        // 1. Semi-transparent diagonal repeated text watermark
-        ctx.save();
-        ctx.translate(width / 2, height / 2);
-        ctx.rotate((-35 * Math.PI) / 180);
-
-        ctx.font = '900 20px Inter, system-ui, -apple-system, sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-        ctx.shadowBlur = 4;
-        ctx.textAlign = 'center';
-
-        const lines = [-180, -100, -20, 60, 140, 220];
-        lines.forEach((lineY) => {
-          ctx.fillText(watermarkText, 0, lineY);
-        });
-        ctx.restore();
-
-        // 2. Official Badge Stamp in bottom corner
-        ctx.save();
-        const badgeX = width - 110;
-        const badgeY = height - 110;
-
-        // Circular background
-        ctx.beginPath();
-        ctx.arc(badgeX, badgeY, 45, 0, 2 * Math.PI);
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
-        ctx.fill();
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = '#00A859';
-        ctx.stroke();
-
-        // Stamp Text
-        ctx.font = 'bold 10px Inter, system-ui, sans-serif';
-        ctx.fillStyle = '#00A859';
-        ctx.textAlign = 'center';
-        ctx.fillText('OFICIAL', badgeX, badgeY - 12);
-
-        ctx.font = '900 12px Inter, system-ui, sans-serif';
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillText('VALIDADO', badgeX, badgeY + 4);
-
-        ctx.font = 'bold 9px Inter, system-ui, sans-serif';
-        ctx.fillStyle = '#DC2626';
-        ctx.fillText('2026', badgeX, badgeY + 18);
-
-        ctx.restore();
-
-        // Return Data URL (JPEG with 92% quality)
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-        resolve(dataUrl);
-      } catch (err) {
-        reject(err);
-      }
-    };
-
-    img.onerror = () => {
-      reject(new Error('Formato de imagen no soportado o archivo dañado. Intenta con una foto JPG o PNG.'));
-    };
-
-    if (typeof fileOrBase64 === 'string') {
-      img.crossOrigin = 'anonymous';
-      img.onload = processImage;
-      img.src = fileOrBase64;
-      if (img.complete && (img.naturalWidth > 0 || img.width > 0)) {
-        processImage();
-      }
-    } else {
-      const objectUrl = URL.createObjectURL(fileOrBase64);
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        processImage();
-      };
-      img.src = objectUrl;
-    }
-  });
+  return canvas.toDataURL('image/jpeg', 0.9);
 }

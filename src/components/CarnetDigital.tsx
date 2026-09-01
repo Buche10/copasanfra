@@ -55,26 +55,26 @@ export const CarnetDigital: React.FC<CarnetDigitalProps> = ({ player, team, onCl
         </div>
 
         {/* Institution Header */}
-        <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+        <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center space-x-3 min-w-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img 
-              src="/colegio-abogados-tungurahua.jpg" 
-              alt="Colegio Abogados" 
-              className="w-10 h-10 rounded-full border-2 border-[#00A859] object-cover"
+            <img
+              src="/colegio-abogados-tungurahua.jpg"
+              alt="Colegio Abogados"
+              className="w-10 h-10 rounded-full border-2 border-[#00A859] object-cover shrink-0"
             />
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+            <div className="min-w-0">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block leading-tight">
                 Colegio de Abogados de Tungurahua
               </span>
-              <h2 className="text-sm font-extrabold tracking-tight text-white flex items-center gap-1.5">
+              <h2 className="text-sm font-extrabold tracking-tight text-white leading-tight">
                 Carnet Oficial <span className="text-[#00A859]">Copa 2026</span>
               </h2>
             </div>
           </div>
 
-          <div className="bg-[#00A859]/20 border border-[#00A859] text-[#00A859] text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#00A859]" />
+          <div className="bg-[#00A859]/20 border border-[#00A859] text-[#00A859] text-[9px] font-black px-2 py-1 rounded-full flex items-center gap-1 shrink-0">
+            <ShieldCheck className="w-3 h-3 text-[#00A859]" />
             <span>VERIFICADO</span>
           </div>
         </div>
