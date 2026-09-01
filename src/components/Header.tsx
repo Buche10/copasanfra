@@ -151,7 +151,8 @@ export const Header: React.FC<HeaderProps> = ({
                 className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors shadow-xs"
               >
                 <LogIn className="w-4 h-4 text-[#00A859]" />
-                <span className="whitespace-nowrap">Acceso Árbitros / Admin</span>
+                <span className="whitespace-nowrap sm:hidden">Acceso</span>
+                <span className="whitespace-nowrap hidden sm:inline">Acceso Árbitros / Admin</span>
               </button>
             )}
           </div>

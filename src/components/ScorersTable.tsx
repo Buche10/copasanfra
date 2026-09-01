@@ -121,17 +121,17 @@ export const ScorersTable: React.FC<ScorersTableProps> = ({
       {/* Scorers Table */}
       <div className="glass-card rounded-3xl overflow-hidden shadow-lg border border-slate-200">
         <div className="overflow-x-auto scrollbar-thin">
-          <table className="w-full text-left border-collapse min-w-[650px]">
+          <table className="w-full text-left border-collapse sm:min-w-[650px]">
             <thead>
               <tr className="bg-slate-100/80 border-b border-slate-200 text-xs font-extrabold text-slate-600 uppercase tracking-wider">
-                <th className="py-4 px-4 text-center w-12">Pos</th>
-                <th className="py-4 px-4">Jugador</th>
-                <th className="py-4 px-4">Equipo</th>
-                <th className="py-4 px-3 text-center" title="Posición">Pos.</th>
-                <th className="py-4 px-3 text-center" title="Partidos Jugados">PJ</th>
-                <th className="py-4 px-3 text-center" title="Goles de Penalti">Penales</th>
-                <th className="py-4 px-3 text-center" title="Promedio de Goles por Partido">Promedio</th>
-                <th className="py-4 px-4 text-center font-black text-slate-900 bg-slate-200/50">Goles</th>
+                <th className="py-4 px-2 sm:px-4 text-center w-12">Pos</th>
+                <th className="py-4 px-2 sm:px-4">Jugador</th>
+                <th className="py-4 px-4 hidden sm:table-cell">Equipo</th>
+                <th className="py-4 px-3 text-center hidden sm:table-cell" title="Posición">Pos.</th>
+                <th className="py-4 px-3 text-center hidden sm:table-cell" title="Partidos Jugados">PJ</th>
+                <th className="py-4 px-3 text-center hidden sm:table-cell" title="Goles de Penalti">Penales</th>
+                <th className="py-4 px-3 text-center hidden sm:table-cell" title="Promedio de Goles por Partido">Promedio</th>
+                <th className="py-4 px-2 sm:px-4 text-center font-black text-slate-900 bg-slate-200/50">Goles</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
@@ -165,24 +165,24 @@ export const ScorersTable: React.FC<ScorersTableProps> = ({
                         </div>
                       </div>
                     </td>
-                    <td 
+                    <td
                       onClick={() => teamObj && onSelectTeam(teamObj)}
-                      className="py-4 px-4 text-slate-700 cursor-pointer hover:text-[#00A859] transition-colors"
+                      className="py-4 px-4 text-slate-700 cursor-pointer hover:text-[#00A859] transition-colors hidden sm:table-cell"
                     >
                       <div className="flex items-center space-x-2">
                         <TeamShield logoKey={sc.teamLogo} name={sc.teamName} size="sm" />
                         <span className="font-semibold text-xs text-slate-700">{sc.teamName}</span>
                       </div>
                     </td>
-                    <td className="py-4 px-3 text-center">
+                    <td className="py-4 px-3 text-center hidden sm:table-cell">
                       <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-600">
                         {sc.position}
                       </span>
                     </td>
-                    <td className="py-4 px-3 text-center font-semibold text-slate-600">{sc.matchesPlayed}</td>
-                    <td className="py-4 px-3 text-center font-semibold text-amber-700">{sc.penalties}</td>
-                    <td className="py-4 px-3 text-center font-semibold text-slate-500">{avg} / pj</td>
-                    <td className="py-4 px-4 text-center font-black text-lg text-[#00A859] bg-slate-100/50">
+                    <td className="py-4 px-3 text-center font-semibold text-slate-600 hidden sm:table-cell">{sc.matchesPlayed}</td>
+                    <td className="py-4 px-3 text-center font-semibold text-amber-700 hidden sm:table-cell">{sc.penalties}</td>
+                    <td className="py-4 px-3 text-center font-semibold text-slate-500 hidden sm:table-cell">{avg} / pj</td>
+                    <td className="py-4 px-2 sm:px-4 text-center font-black text-lg text-[#00A859] bg-slate-100/50">
                       {sc.goals}
                     </td>
                   </tr>

@@ -45,19 +45,19 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
       {/* Standings Table Card */}
       <div className="glass-card rounded-3xl overflow-hidden shadow-lg border border-slate-200">
         <div className="overflow-x-auto scrollbar-thin">
-          <table className="w-full text-left border-collapse min-w-[700px]">
+          <table className="w-full text-left border-collapse sm:min-w-[640px]">
             <thead>
               <tr className="bg-slate-100/80 border-b border-slate-200 text-xs font-extrabold text-slate-600 uppercase tracking-wider">
-                <th className="py-4 px-4 text-center w-14">Pos</th>
-                <th className="py-4 px-4">Equipo</th>
-                <th className="py-4 px-3 text-center" title="Partidos Jugados">PJ</th>
-                <th className="py-4 px-3 text-center" title="Partidos Ganados">PG</th>
-                <th className="py-4 px-3 text-center" title="Partidos Empatados">PE</th>
-                <th className="py-4 px-3 text-center" title="Partidos Perdidos">PP</th>
-                <th className="py-4 px-3 text-center" title="Goles a Favor">GF</th>
-                <th className="py-4 px-3 text-center" title="Goles en Contra">GC</th>
-                <th className="py-4 px-3 text-center font-bold" title="Diferencia de Goles">DG</th>
-                <th className="py-4 px-4 text-center font-black text-slate-900 bg-slate-200/50">PTS</th>
+                <th className="py-4 px-2 sm:px-4 text-center w-12 sm:w-14">Pos</th>
+                <th className="py-4 px-2 sm:px-4">Equipo</th>
+                <th className="py-4 px-2 sm:px-3 text-center" title="Partidos Jugados">PJ</th>
+                <th className="py-4 px-3 text-center hidden sm:table-cell" title="Partidos Ganados">PG</th>
+                <th className="py-4 px-3 text-center hidden sm:table-cell" title="Partidos Empatados">PE</th>
+                <th className="py-4 px-3 text-center hidden sm:table-cell" title="Partidos Perdidos">PP</th>
+                <th className="py-4 px-3 text-center hidden sm:table-cell" title="Goles a Favor">GF</th>
+                <th className="py-4 px-3 text-center hidden sm:table-cell" title="Goles en Contra">GC</th>
+                <th className="py-4 px-2 sm:px-3 text-center font-bold" title="Diferencia de Goles">DG</th>
+                <th className="py-4 px-2 sm:px-4 text-center font-black text-slate-900 bg-slate-200/50">PTS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
@@ -115,15 +115,15 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                       </td>
 
                       {/* Stats */}
-                      <td className="py-4 px-3 text-center font-semibold text-slate-700">{st.pj}</td>
-                      <td className="py-4 px-3 text-center font-semibold text-emerald-700">{st.pg}</td>
-                      <td className="py-4 px-3 text-center font-semibold text-amber-700">{st.pe}</td>
-                      <td className="py-4 px-3 text-center font-semibold text-rose-700">{st.pp}</td>
-                      <td className="py-4 px-3 text-center text-slate-600">{st.gf}</td>
-                      <td className="py-4 px-3 text-center text-slate-600">{st.gc}</td>
-                      
+                      <td className="py-4 px-2 sm:px-3 text-center font-semibold text-slate-700">{st.pj}</td>
+                      <td className="py-4 px-3 text-center font-semibold text-emerald-700 hidden sm:table-cell">{st.pg}</td>
+                      <td className="py-4 px-3 text-center font-semibold text-amber-700 hidden sm:table-cell">{st.pe}</td>
+                      <td className="py-4 px-3 text-center font-semibold text-rose-700 hidden sm:table-cell">{st.pp}</td>
+                      <td className="py-4 px-3 text-center text-slate-600 hidden sm:table-cell">{st.gf}</td>
+                      <td className="py-4 px-3 text-center text-slate-600 hidden sm:table-cell">{st.gc}</td>
+
                       {/* Goal Diff */}
-                      <td className="py-4 px-3 text-center font-bold">
+                      <td className="py-4 px-2 sm:px-3 text-center font-bold">
                         <span className={`px-2 py-0.5 rounded-lg text-xs font-extrabold ${
                           st.dg > 0 
                             ? 'bg-emerald-100 text-[#00A859]' 

@@ -101,14 +101,14 @@ export const SanctionsTable: React.FC<SanctionsTableProps> = ({
         </div>
 
         <div className="overflow-x-auto scrollbar-thin">
-          <table className="w-full text-left border-collapse min-w-[600px]">
+          <table className="w-full text-left border-collapse sm:min-w-[600px]">
             <thead>
               <tr className="bg-slate-100/80 border-b border-slate-200 text-xs font-extrabold text-slate-600 uppercase tracking-wider">
-                <th className="py-4 px-4">Jugador</th>
-                <th className="py-4 px-4">Equipo</th>
-                <th className="py-4 px-3 text-center">Amarillas</th>
-                <th className="py-4 px-3 text-center">Rojas Directas</th>
-                <th className="py-4 px-4 text-center">Estado de Habilitación</th>
+                <th className="py-4 px-2 sm:px-4">Jugador</th>
+                <th className="py-4 px-4 hidden sm:table-cell">Equipo</th>
+                <th className="py-4 px-2 sm:px-3 text-center">Amar.</th>
+                <th className="py-4 px-2 sm:px-3 text-center">Rojas</th>
+                <th className="py-4 px-2 sm:px-4 text-center">Estado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
@@ -129,28 +129,28 @@ export const SanctionsTable: React.FC<SanctionsTableProps> = ({
                         </span>
                       </div>
                     </td>
-                    <td 
+                    <td
                       onClick={() => teamObj && onSelectTeam(teamObj)}
-                      className="py-4 px-4 text-slate-700 cursor-pointer hover:text-[#00A859] transition-colors"
+                      className="py-4 px-4 text-slate-700 cursor-pointer hover:text-[#00A859] transition-colors hidden sm:table-cell"
                     >
                       <div className="flex items-center space-x-2">
                         <TeamShield logoKey={sc.teamLogo} name={sc.teamName} size="sm" />
                         <span className="font-semibold text-xs text-slate-700">{sc.teamName}</span>
                       </div>
                     </td>
-                    <td className="py-4 px-3 text-center font-bold text-amber-700">
+                    <td className="py-4 px-2 sm:px-3 text-center font-bold text-amber-700">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-lg border border-amber-200">
                         <span className="w-2.5 h-3.5 bg-amber-400 rounded-sm inline-block shadow-sm"></span>
                         {sc.yellowCards}
                       </span>
                     </td>
-                    <td className="py-4 px-3 text-center font-bold text-rose-700">
+                    <td className="py-4 px-2 sm:px-3 text-center font-bold text-rose-700">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 rounded-lg border border-rose-200">
                         <span className="w-2.5 h-3.5 bg-rose-600 rounded-sm inline-block shadow-sm"></span>
                         {sc.redCards}
                       </span>
                     </td>
-                    <td className="py-4 px-4 text-center">
+                    <td className="py-4 px-2 sm:px-4 text-center">
                       {sc.isSuspended ? (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-100 text-rose-700 font-extrabold text-xs rounded-full border border-rose-200">
                           <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
