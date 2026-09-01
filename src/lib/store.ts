@@ -52,6 +52,17 @@ async function upsertRows<T extends { id: string }>(table: string, items: T[]): 
   if (error) throw new Error(`Error al guardar en "${table}": ${error.message}`);
 }
 
+// Plain INSERT (no ON CONFLICT). Needed for the public registration: under RLS
+// an anon upsert would also require an UPDATE policy, which anon must not have.
+// For brand-new rows (unique id) a plain insert is the correct operation.
+async function insertRows<T extends { id: string }>(table: string, items: T[]): Promise<void> {
+  assertConfigured();
+  if (items.length === 0) return;
+  const rows = items.map((item) => ({ id: item.id, data: item, updated_at: new Date().toISOString() }));
+  const { error } = await supabase.from(table).insert(rows);
+  if (error) throw new Error(`Error al guardar en "${table}": ${error.message}`);
+}
+
 async function deleteAllRows(table: string): Promise<void> {
   assertConfigured();
   const { error } = await supabase.from(table).delete().neq('id', '');
@@ -89,6 +100,12 @@ export async function upsertTeam(team: Team): Promise<void> {
 
 export async function upsertPlayer(player: Player): Promise<void> {
   return upsertRows(TABLES.PLAYERS, [player]);
+}
+
+// Crear un jugador NUEVO (inscripción pública o alta desde Admin). Usa insert
+// (no upsert) para que la inscripción anónima funcione bajo RLS.
+export async function insertPlayer(player: Player): Promise<void> {
+  return insertRows(TABLES.PLAYERS, [player]);
 }
 
 export async function upsertMatch(match: Match): Promise<void> {

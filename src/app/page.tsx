@@ -21,6 +21,7 @@ import {
   getUsers,
   upsertTeam,
   upsertPlayer,
+  insertPlayer,
   upsertMatch,
   replaceMatches,
   calculateStandings,
@@ -133,7 +134,7 @@ export default function Home() {
       return false;
     }
     try {
-      await upsertPlayer(newPlayer);
+      await insertPlayer(newPlayer);
     } catch (err) {
       alert(`No se pudo guardar el jugador: ${errMsg(err)}`);
       return false;
