@@ -22,6 +22,7 @@ import {
   upsertTeam,
   upsertPlayer,
   insertPlayer,
+  deletePlayer,
   upsertMatch,
   replaceMatches,
   calculateStandings,
@@ -210,6 +211,16 @@ export default function Home() {
     }
   };
 
+  // Delete Player (al rechazar una inscripción se elimina del torneo)
+  const handleDeletePlayer = async (player: Player) => {
+    setPlayers((prev) => prev.filter((p) => p.id !== player.id));
+    try {
+      await deletePlayer(player.id);
+    } catch (err) {
+      alert(`No se pudo eliminar el jugador: ${errMsg(err)}`);
+    }
+  };
+
   // Reset Data
   const handleResetData = async () => {
     try {
@@ -394,6 +405,7 @@ export default function Home() {
             onAddTeam={handleAddTeam}
             onAddPlayer={handleAddPlayer}
             onUpdatePlayer={handleUpdatePlayer}
+            onDeletePlayer={handleDeletePlayer}
             onResetData={handleResetData}
             onGenerateFixture={handleGenerateFixture}
           />

@@ -12,6 +12,7 @@ interface AdminModalProps {
   onAddTeam: (team: Team) => void;
   onAddPlayer: (player: Player) => void;
   onUpdatePlayer?: (player: Player) => void;
+  onDeletePlayer?: (player: Player) => void;
   onResetData: () => void;
   onGenerateFixture?: () => void;
 }
@@ -22,6 +23,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onAddTeam,
   onAddPlayer,
   onUpdatePlayer,
+  onDeletePlayer,
   onResetData,
   onGenerateFixture,
 }) => {
@@ -73,16 +75,18 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     reader.readAsText(file);
   };
 
-  const handleSetApproval = (player: Player, newStatus: 'APPROVED' | 'REJECTED') => {
-    if (onUpdatePlayer) {
-      // Al aprobar/rechazar se elimina el documento de respaldo para no
-      // acumular archivos pesados en la base de datos: ya cumplió su función.
-      onUpdatePlayer({
-        ...player,
-        approvalStatus: newStatus,
-        verificationDoc: undefined,
-      });
-      // Cerrar la vista del respaldo (el documento ya se eliminó)
+  const handleApprove = (player: Player) => {
+    if (!onUpdatePlayer) return;
+    // Al aprobar se elimina el documento de respaldo (ya cumplió su función),
+    // para no acumular archivos pesados en la base de datos.
+    onUpdatePlayer({ ...player, approvalStatus: 'APPROVED', verificationDoc: undefined });
+    setSelectedDocPlayer(null);
+  };
+
+  const handleReject = (player: Player) => {
+    if (!onDeletePlayer) return;
+    if (window.confirm(`¿Rechazar y ELIMINAR la inscripción de "${player.name}"? El jugador se quitará del equipo y no se podrá recuperar.`)) {
+      onDeletePlayer(player);
       setSelectedDocPlayer(null);
     }
   };
@@ -492,13 +496,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             {status === 'PENDING' && (
                               <>
                                 <button
-                                  onClick={() => handleSetApproval(p, 'APPROVED')}
+                                  onClick={() => handleApprove(p)}
                                   className="px-2.5 py-1 bg-[#00A859] hover:bg-emerald-700 text-white rounded-lg text-[10px] font-extrabold shadow-xs transition-colors"
                                 >
                                   Aprobar
                                 </button>
                                 <button
-                                  onClick={() => handleSetApproval(p, 'REJECTED')}
+                                  onClick={() => handleReject(p)}
                                   className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-extrabold shadow-xs transition-colors"
                                 >
                                   Rechazar
@@ -563,13 +567,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             <div className="flex items-center justify-between pt-2 border-t border-slate-100">
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => handleSetApproval(selectedDocPlayer, 'APPROVED')}
+                  onClick={() => handleApprove(selectedDocPlayer)}
                   className="px-4 py-2 bg-[#00A859] hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-colors"
                 >
                   ✓ Aprobar Jugador
                 </button>
                 <button
-                  onClick={() => handleSetApproval(selectedDocPlayer, 'REJECTED')}
+                  onClick={() => handleReject(selectedDocPlayer)}
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl transition-colors"
                 >
                   ✕ Rechazar

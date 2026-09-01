@@ -108,6 +108,13 @@ export async function insertPlayer(player: Player): Promise<void> {
   return insertRows(TABLES.PLAYERS, [player]);
 }
 
+// Eliminar un jugador de la base (p. ej. al rechazar una inscripción).
+export async function deletePlayer(id: string): Promise<void> {
+  assertConfigured();
+  const { error } = await supabase.from(TABLES.PLAYERS).delete().eq('id', id);
+  if (error) throw new Error(`Error al eliminar el jugador: ${error.message}`);
+}
+
 export async function upsertMatch(match: Match): Promise<void> {
   return upsertRows(TABLES.MATCHES, [match]);
 }
