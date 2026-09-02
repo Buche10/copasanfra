@@ -126,12 +126,13 @@ values ('respaldos', 'respaldos', true)
 on conflict (id) do update set public = true;
 
 -- Políticas sobre storage.objects para ESTE bucket:
---   * SELECT público (cualquiera ve el comprobante por su URL).
 --   * INSERT anónimo (el delegado sube el respaldo desde la web pública).
 --   * UPDATE/DELETE solo autenticados (limpieza por el Admin).
+-- NO se crea una política SELECT pública: al ser un bucket público, los enlaces
+-- (URL pública) ya funcionan sin RLS. Una SELECT amplia solo permitiría LISTAR
+-- todos los comprobantes, lo que preferimos evitar.
 drop policy if exists "respaldos_read"        on storage.objects;
 drop policy if exists "respaldos_anon_insert" on storage.objects;
 drop policy if exists "respaldos_auth_write"  on storage.objects;
-create policy "respaldos_read"        on storage.objects for select using (bucket_id = 'respaldos');
 create policy "respaldos_anon_insert" on storage.objects for insert to anon          with check (bucket_id = 'respaldos');
 create policy "respaldos_auth_write"  on storage.objects for all    to authenticated using (bucket_id = 'respaldos') with check (bucket_id = 'respaldos');

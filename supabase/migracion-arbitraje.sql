@@ -32,10 +32,12 @@ insert into storage.buckets (id, name, public)
 values ('respaldos', 'respaldos', true)
 on conflict (id) do update set public = true;
 
+-- Bucket público: los enlaces ya funcionan sin política SELECT. Solo permitimos
+-- que el delegado SUBA (anon insert) y que el Admin gestione (authenticated).
+-- No se crea SELECT pública para que nadie pueda LISTAR todos los comprobantes.
 drop policy if exists "respaldos_read"        on storage.objects;
 drop policy if exists "respaldos_anon_insert" on storage.objects;
 drop policy if exists "respaldos_auth_write"  on storage.objects;
-create policy "respaldos_read"        on storage.objects for select using (bucket_id = 'respaldos');
 create policy "respaldos_anon_insert" on storage.objects for insert to anon          with check (bucket_id = 'respaldos');
 create policy "respaldos_auth_write"  on storage.objects for all    to authenticated using (bucket_id = 'respaldos') with check (bucket_id = 'respaldos');
 
