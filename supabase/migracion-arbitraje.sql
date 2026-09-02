@@ -47,11 +47,8 @@ create policy "respaldos_auth_write"  on storage.objects for all    to authentic
 update public.teams set data = jsonb_set(data, '{delegate}', '""'::jsonb);
 
 -- ---------------------------------------------------------------------
--- 4) Eliminar el equipo "Sporting Legal" (antes "Sport Legal") y sus datos
---    OJO: si el equipo a borrar es otro, cambia el id o hazlo desde el
---    panel Admin con el botón "Eliminar" (borra equipo + jugadores + partidos).
+-- 4) (Eliminación de equipo)
+--    Nota: el equipo "Sporting Legal" SÍ participa, así que NO se borra aquí.
+--    Si en algún momento necesitas eliminar un equipo, usa el botón
+--    "Eliminar" del panel Admin (borra equipo + jugadores + partidos).
 -- ---------------------------------------------------------------------
-delete from public.players where data->>'teamId'     = 'team-ab-6';
-delete from public.matches where data->>'homeTeamId' = 'team-ab-6'
-                              or data->>'awayTeamId'  = 'team-ab-6';
-delete from public.teams   where id = 'team-ab-6';

@@ -2,7 +2,7 @@ import { Team, Player, Match, User } from '@/types';
 
 const RAW_TEAMS: Team[] = [
   // ==========================================
-  // CATEGORÍA: ABIERTA VARONES (12 Equipos)
+  // CATEGORÍA: ABIERTA VARONES (13 Equipos)
   // ==========================================
   {
     id: 'team-ab-1',
@@ -58,6 +58,17 @@ const RAW_TEAMS: Team[] = [
     secondaryColor: '#FFFFFF',
     delegate: '',
     phone: '0995556677',
+  },
+  {
+    id: 'team-ab-6',
+    name: 'Sporting Legal',
+    shortName: 'Sporting Legal',
+    category: 'Abierta Varones',
+    logo: 'trophy',
+    primaryColor: '#D97706',
+    secondaryColor: '#FFFFFF',
+    delegate: '',
+    phone: '0996667788',
   },
   {
     id: 'team-ab-7',

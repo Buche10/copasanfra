@@ -6,7 +6,7 @@
 --
 -- Qué hace:
 --   1. Borra TODOS los jugadores y TODO el calendario (partidos).
---   2. Deja los 27 equipos (se insertan/actualizan).
+--   2. Deja los 28 equipos (se insertan/actualizan).
 --   3. Reemplaza los usuarios por las 4 cuentas oficiales (2 admin, 2 árbitros).
 --
 -- IMPORTANTE — CONTRASEÑAS: estas filas NO guardan contraseñas. Debes crear las
@@ -22,13 +22,14 @@
 delete from public.players;
 delete from public.matches;
 
--- 2) Equipos (27) — se mantienen
+-- 2) Equipos (28) — se mantienen
 insert into public.teams (id, data) values
   ('team-ab-1', '{"id":"team-ab-1","name":"Leones Q","shortName":"Leones Q","category":"Abierta Varones","logo":"shield","primaryColor":"#EA580C","secondaryColor":"#FFFFFF","delegate":"","phone":"0991112233","clubId":"club-leonesq"}'::jsonb),
   ('team-ab-2', '{"id":"team-ab-2","name":"Futleg","shortName":"Futleg","category":"Abierta Varones","logo":"gavel","primaryColor":"#0284C7","secondaryColor":"#FFFFFF","delegate":"","phone":"0992223344","clubId":"club-futleg"}'::jsonb),
   ('team-ab-3', '{"id":"team-ab-3","name":"Abogadasos","shortName":"Abogadasos","category":"Abierta Varones","logo":"scale","primaryColor":"#00A859","secondaryColor":"#FFFFFF","delegate":"","phone":"0993334455"}'::jsonb),
   ('team-ab-4', '{"id":"team-ab-4","name":"AKD","shortName":"AKD Abierta","category":"Abierta Varones","logo":"crown","primaryColor":"#DC2626","secondaryColor":"#FBBF24","delegate":"","phone":"0994445566","clubId":"club-akd"}'::jsonb),
   ('team-ab-5', '{"id":"team-ab-5","name":"Camaradas","shortName":"Camaradas","category":"Abierta Varones","logo":"landmark","primaryColor":"#4F46E5","secondaryColor":"#FFFFFF","delegate":"","phone":"0995556677"}'::jsonb),
+  ('team-ab-6', '{"id":"team-ab-6","name":"Sporting Legal","shortName":"Sporting Legal","category":"Abierta Varones","logo":"trophy","primaryColor":"#D97706","secondaryColor":"#FFFFFF","delegate":"","phone":"0996667788"}'::jsonb),
   ('team-ab-7', '{"id":"team-ab-7","name":"Alianza Legal","shortName":"Alianza Legal","category":"Abierta Varones","logo":"book","primaryColor":"#1E3A8A","secondaryColor":"#93C5FD","delegate":"","phone":"0997778899","clubId":"club-alianza"}'::jsonb),
   ('team-ab-8', '{"id":"team-ab-8","name":"Boman Legal","shortName":"Boman Legal","category":"Abierta Varones","logo":"file-text","primaryColor":"#047857","secondaryColor":"#FFFFFF","delegate":"","phone":"0998889900","clubId":"club-boman"}'::jsonb),
   ('team-ab-9', '{"id":"team-ab-9","name":"Club IDUS","shortName":"IDUS Abierta","category":"Abierta Varones","logo":"graduation","primaryColor":"#7C3AED","secondaryColor":"#FFFFFF","delegate":"","phone":"0999990011","clubId":"club-idus"}'::jsonb),

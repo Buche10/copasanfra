@@ -5,7 +5,7 @@ import { Match, Team, Player } from '@/types';
 import { TeamShield } from './TeamShield';
 import { MatchDetailModal } from './MatchDetailModal';
 import { MatchEditModal } from './MatchEditModal';
-import { Calendar, MapPin, ChevronRight, ChevronLeft, Edit3, Trophy, ListOrdered } from 'lucide-react';
+import { Calendar, MapPin, ChevronRight, ChevronLeft, Edit3, Trophy, ListOrdered, Clock, Coffee } from 'lucide-react';
 
 interface FixtureViewProps {
   matches: Match[];
@@ -47,105 +47,143 @@ export const FixtureView: React.FC<FixtureViewProps> = ({
   if (rounds.length === 0) rounds.push(1);
   const effectiveRound = rounds.includes(selectedRound) ? selectedRound : rounds[0];
 
-  const regularForRound = regularMatches.filter((m) => {
-    if (m.round !== effectiveRound) return false;
+  // Todos los partidos de la jornada (sin filtro de estado) — para fecha,
+  // conteo y cálculo de quién descansa.
+  const roundMatchesAll = regularMatches.filter((m) => m.round === effectiveRound);
+  const roundDate = roundMatchesAll[0]?.date;
+  const viewCategory = regularMatches[0]?.category;
+
+  const regularForRound = roundMatchesAll.filter((m) => {
     if (statusFilter === 'ALL') return true;
     return m.status === statusFilter;
   });
 
-  // Match card (reused in both phases). Handles "Por definir" (empty team).
-  const renderMatch = (m: Match) => {
+  // Equipos de la categoría que NO juegan esta jornada (descansan). Ocurre en
+  // categorías con número impar de equipos.
+  const categoryTeamIds = new Set<string>();
+  regularMatches.forEach((m) => {
+    if (m.homeTeamId) categoryTeamIds.add(m.homeTeamId);
+    if (m.awayTeamId) categoryTeamIds.add(m.awayTeamId);
+  });
+  const playingIds = new Set<string>();
+  roundMatchesAll.forEach((m) => {
+    if (m.homeTeamId) playingIds.add(m.homeTeamId);
+    if (m.awayTeamId) playingIds.add(m.awayTeamId);
+  });
+  const restingTeams = [...categoryTeamIds]
+    .filter((id) => !playingIds.has(id))
+    .map((id) => teamMap.get(id))
+    .filter(Boolean) as Team[];
+
+  const emptySlot = (
+    <div className="w-14 h-14 rounded-2xl bg-slate-100 border border-dashed border-slate-300 shrink-0" />
+  );
+
+  // Match card (reused in both phases). `compact` esconde fecha/categoría
+  // (se muestran en el encabezado de la jornada en la fase regular).
+  const renderMatch = (m: Match, compact = false) => {
     const home = m.homeTeamId ? teamMap.get(m.homeTeamId) : undefined;
     const away = m.awayTeamId ? teamMap.get(m.awayTeamId) : undefined;
+    const accent = `linear-gradient(90deg, ${home?.primaryColor || '#00A859'}, ${away?.primaryColor || '#0f172a'})`;
+
     return (
       <div
         key={m.id}
-        className="glass-card rounded-3xl p-5 border border-slate-200 shadow-md hover:shadow-xl transition-all group relative overflow-hidden"
+        className="group relative bg-white rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all overflow-hidden"
       >
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 text-xs">
-          <div className="flex items-center space-x-2 text-slate-700 font-bold">
-            <span className="flex items-center gap-1 text-slate-900 bg-slate-100 px-2.5 py-1 rounded-xl">
-              <Calendar className="w-3.5 h-3.5 text-[#00A859]" /> {m.date} - {m.time}
-            </span>
-            {m.category && (
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
-                {m.category}
+        {/* Accent bar con los colores de ambos equipos */}
+        <div className="h-1.5 w-full" style={{ background: accent }} />
+
+        <div className="p-4 sm:p-5">
+          {/* Meta row: horario, cancha (+fecha/categoría si no es compacto) + estado */}
+          <div className="flex items-start justify-between gap-2 mb-4">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 text-[11px] font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg">
+                <Clock className="w-3.5 h-3.5 text-[#00A859]" /> {m.time || '--:--'}
               </span>
-            )}
-          </div>
-          <div className="flex items-center space-x-2">
-            {m.status === 'FINISHED' && (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-[#00A859]">Finalizado</span>
-            )}
-            {m.status === 'IN_PROGRESS' && (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-600 text-white animate-pulse">EN VIVO</span>
-            )}
-            {m.status === 'SCHEDULED' && (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600">Por Jugar</span>
-            )}
-            {onUpdateMatch && (
-              <button
-                onClick={(e) => { e.stopPropagation(); setEditingMatch(m); }}
-                className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-                title="Editar Horario y Cancha"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
+                <MapPin className="w-3.5 h-3.5 text-rose-600" /> {m.stadium || 'Cancha 1'}
+              </span>
+              {!compact && m.date && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
+                  <Calendar className="w-3.5 h-3.5 text-[#00A859]" /> {m.date}
+                </span>
+              )}
+              {!compact && m.category && (
+                <span className="text-[10px] font-extrabold bg-slate-900 text-white px-2 py-1 rounded-lg">{m.category}</span>
+              )}
+            </div>
 
-        <div onClick={() => setSelectedMatch(m)} className="flex items-center justify-between py-2 cursor-pointer">
-          {/* Home */}
-          <div className="flex-1 flex items-center space-x-3 min-w-0">
-            {home ? (
-              <TeamShield logoKey={home.logo} name={home.name} shortName={home.shortName} size="md" />
-            ) : (
-              <div className="w-10 h-10 rounded-xl bg-slate-100 border border-dashed border-slate-300 shrink-0" />
-            )}
-            <div className="min-w-0">
-              <h4 className="font-extrabold text-slate-900 text-sm truncate">{home?.name || 'Por definir'}</h4>
-              <span className="text-[11px] text-slate-400 font-semibold">Local</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {m.status === 'FINISHED' && (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-[#00A859]">Final</span>
+              )}
+              {m.status === 'IN_PROGRESS' && (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-600 text-white animate-pulse">EN VIVO</span>
+              )}
+              {m.status === 'SCHEDULED' && (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600">Por Jugar</span>
+              )}
+              {onUpdateMatch && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setEditingMatch(m); }}
+                  className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                  title="Editar Horario y Cancha"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Score */}
-          <div className="px-3 text-center shrink-0">
-            {m.status === 'SCHEDULED' ? (
-              <span className="text-xs font-black text-slate-400 bg-slate-100 px-3 py-1.5 rounded-xl">VS</span>
-            ) : (
-              <div className="flex items-center gap-2 text-2xl font-black text-slate-900 bg-slate-100 px-4 py-1.5 rounded-2xl">
-                <span>{m.homeScore}</span>
-                <span className="text-slate-400 text-base font-normal">-</span>
-                <span>{m.awayScore}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Away */}
-          <div className="flex-1 flex items-center justify-end space-x-3 text-right min-w-0">
-            <div className="min-w-0">
-              <h4 className="font-extrabold text-slate-900 text-sm truncate">{away?.name || 'Por definir'}</h4>
-              <span className="text-[11px] text-slate-400 font-semibold">Visitante</span>
-            </div>
-            {away ? (
-              <TeamShield logoKey={away.logo} name={away.name} shortName={away.shortName} size="md" />
-            ) : (
-              <div className="w-10 h-10 rounded-xl bg-slate-100 border border-dashed border-slate-300 shrink-0" />
-            )}
-          </div>
-        </div>
-
-        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-          <span className="flex items-center gap-1 font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-xl truncate max-w-[240px]">
-            <MapPin className="w-3.5 h-3.5 text-rose-600 shrink-0" /> {m.stadium || 'Cancha 1'}
-          </span>
-          <span
+          {/* Teams row (disposición vertical y centrada) */}
+          <div
             onClick={() => setSelectedMatch(m)}
-            className="font-bold text-[#00A859] group-hover:translate-x-1 transition-transform flex items-center gap-0.5 cursor-pointer"
+            className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 sm:gap-3 cursor-pointer"
           >
-            Ver Planilla <ChevronRight className="w-4 h-4" />
-          </span>
+            {/* Home */}
+            <div className="flex flex-col items-center text-center gap-2 min-w-0">
+              {home ? (
+                <TeamShield logoKey={home.logo} name={home.name} shortName={home.shortName} size="lg" />
+              ) : emptySlot}
+              <span className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight line-clamp-2">
+                {home?.name || 'Por definir'}
+              </span>
+            </div>
+
+            {/* Center: score o VS */}
+            <div className="flex flex-col items-center justify-center pt-2 px-1">
+              {m.status === 'SCHEDULED' ? (
+                <span className="text-sm font-black text-slate-400 bg-slate-100 px-3.5 py-2 rounded-2xl">VS</span>
+              ) : (
+                <div className="flex items-center gap-1.5 text-2xl sm:text-3xl font-black text-slate-900">
+                  <span className="bg-slate-100 rounded-xl px-2.5 py-1 min-w-[2.25rem] text-center">{m.homeScore}</span>
+                  <span className="text-slate-300 text-lg">-</span>
+                  <span className="bg-slate-100 rounded-xl px-2.5 py-1 min-w-[2.25rem] text-center">{m.awayScore}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Away */}
+            <div className="flex flex-col items-center text-center gap-2 min-w-0">
+              {away ? (
+                <TeamShield logoKey={away.logo} name={away.name} shortName={away.shortName} size="lg" />
+              ) : emptySlot}
+              <span className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight line-clamp-2">
+                {away?.name || 'Por definir'}
+              </span>
+            </div>
+          </div>
+
+          {/* Footer CTA */}
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-center">
+            <button
+              onClick={() => setSelectedMatch(m)}
+              className="text-xs font-bold text-[#00A859] hover:text-emerald-700 flex items-center gap-1 group-hover:gap-1.5 transition-all"
+            >
+              Ver Planilla <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -249,9 +287,42 @@ export const FixtureView: React.FC<FixtureViewProps> = ({
             </div>
           </div>
 
+          {/* Round summary: fecha, conteo y quién descansa */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-5">
+            <div className="min-w-0">
+              {viewCategory && (
+                <div className="text-[11px] font-black text-[#00A859] uppercase tracking-wide">{viewCategory}</div>
+              )}
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <h3 className="text-xl font-black text-slate-900">Jornada {effectiveRound}</h3>
+                {roundDate && <span className="text-xs font-bold text-slate-500">{roundDate}</span>}
+              </div>
+              <div className="text-xs text-slate-500 font-semibold">
+                {roundMatchesAll.length} {roundMatchesAll.length === 1 ? 'partido' : 'partidos'}
+              </div>
+            </div>
+
+            {restingTeams.length > 0 && (
+              <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-3.5 py-2 shrink-0">
+                <Coffee className="w-5 h-5 text-amber-600 shrink-0" />
+                <div className="text-xs">
+                  <span className="font-black text-amber-800 uppercase text-[10px] block leading-tight">Descansa esta fecha</span>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                    {restingTeams.map((t) => (
+                      <span key={t.id} className="inline-flex items-center gap-1 font-black text-slate-800">
+                        <TeamShield logoKey={t.logo} name={t.name} shortName={t.shortName} size="sm" />
+                        {t.shortName}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {regularForRound.length > 0 ? (
-              regularForRound.map(renderMatch)
+              regularForRound.map((m) => renderMatch(m, true))
             ) : (
               <div className="col-span-full text-center py-10 text-slate-400 text-sm bg-white rounded-2xl border border-slate-200">
                 No hay partidos en esta jornada.
@@ -267,7 +338,7 @@ export const FixtureView: React.FC<FixtureViewProps> = ({
                 <span>{STAGE_LABEL[stage]}</span>
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {playoffMatches.filter((m) => m.playoffStage === stage).map(renderMatch)}
+                {playoffMatches.filter((m) => m.playoffStage === stage).map((m) => renderMatch(m, false))}
               </div>
             </div>
           ))}
