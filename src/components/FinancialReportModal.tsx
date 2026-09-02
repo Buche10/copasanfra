@@ -1,26 +1,40 @@
 'use client';
 
 import React from 'react';
-import { Match, Team, Player, PaymentMethod } from '@/types';
+import { Match, Team, Player, PaymentMethod, ArbitrajePayment } from '@/types';
 import { TeamShield } from './TeamShield';
 import { asset } from '@/lib/basePath';
-import { DollarSign, Printer, X, FileSpreadsheet } from 'lucide-react';
+import { DollarSign, Printer, X, FileSpreadsheet, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface FinancialReportModalProps {
   match: Match;
   teams: Team[];
   players: Player[];
+  payments?: ArbitrajePayment[];
   onClose: () => void;
 }
 
 export const FinancialReportModal: React.FC<FinancialReportModalProps> = ({
   match,
   teams,
+  payments = [],
   onClose,
 }) => {
   const teamMap = new Map(teams.map((t) => [t.id, t]));
   const homeTeam = teamMap.get(match.homeTeamId);
   const awayTeam = teamMap.get(match.awayTeamId);
+
+  // Estado del arbitraje ($15 por fecha) de cada equipo en esta jornada.
+  const arbFor = (teamId: string): ArbitrajePayment | undefined =>
+    payments
+      .filter((p) => p.teamId === teamId && p.round === match.round)
+      .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''))[0];
+  const homeArbPaid = arbFor(match.homeTeamId)?.status === 'APPROVED';
+  const awayArbPaid = arbFor(match.awayTeamId)?.status === 'APPROVED';
+  const unpaidTeams = [
+    !homeArbPaid ? homeTeam?.name : null,
+    !awayArbPaid ? awayTeam?.name : null,
+  ].filter(Boolean) as string[];
 
   // Financial rates
   const FEE_PER_TEAM = match.financials?.feePerTeam ?? 15;
@@ -278,6 +292,50 @@ export const FinancialReportModal: React.FC<FinancialReportModalProps> = ({
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Arbitraje semanal ($15 por fecha) — estado por equipo */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <DollarSign className="w-4 h-4 text-[#00A859]" />
+              <span>Arbitraje de la Fecha ($15 por equipo)</span>
+            </h4>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              {[
+                { team: homeTeam, paid: homeArbPaid, label: 'Local' },
+                { team: awayTeam, paid: awayArbPaid, label: 'Visitante' },
+              ].map(({ team, paid, label }) => (
+                <div
+                  key={label}
+                  className={`flex items-center justify-between gap-2 p-3 rounded-2xl border ${
+                    paid ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-300'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">{label}</span>
+                    <span className="font-extrabold text-slate-900 truncate block">{team?.name}</span>
+                  </div>
+                  {paid ? (
+                    <span className="flex items-center gap-1 font-black text-emerald-700 shrink-0">
+                      <CheckCircle2 className="w-4 h-4" /> Pagado
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 font-black text-amber-700 shrink-0">
+                      <AlertTriangle className="w-4 h-4" /> Pendiente
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {unpaidTeams.length > 0 && (
+              <div className="p-3 bg-amber-100 border border-amber-300 rounded-2xl text-[11px] font-bold text-amber-900">
+                CONSTANCIA: a la fecha de este partido, {unpaidTeams.join(' y ')}{' '}
+                {unpaidTeams.length > 1 ? 'no presentaron' : 'no presentó'} el respaldo del arbitraje
+                ($15) de esta jornada.
+              </div>
+            )}
           </div>
 
           {/* Signatures Section for PDF/Print */}

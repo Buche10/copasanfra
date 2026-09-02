@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Match, Team, Player, EventType, GoalType, CardReason, MatchEvent, LineupPlayer, MatchFinancials } from '@/types';
+import { Match, Team, Player, EventType, GoalType, CardReason, MatchEvent, LineupPlayer, MatchFinancials, ArbitrajePayment } from '@/types';
 import { calculateSanctions } from '@/lib/store';
 import { TeamShield } from './TeamShield';
 import { FinancialReportModal } from './FinancialReportModal';
@@ -33,6 +33,7 @@ interface MatchSheetModalProps {
   matches: Match[];
   teams: Team[];
   players: Player[];
+  payments: ArbitrajePayment[];
   onUpdateMatch: (updatedMatch: Match) => void;
 }
 
@@ -40,8 +41,10 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
   matches,
   teams,
   players,
+  payments,
   onUpdateMatch,
 }) => {
+  const [selectedRound, setSelectedRound] = useState<number | null>(matches[0]?.round ?? null);
   const [selectedMatchId, setSelectedMatchId] = useState<string>(matches[0]?.id || '');
   
   // Event Form State
@@ -61,9 +64,22 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
   // Financial Report Modal State
   const [showFinancialReportModal, setShowFinancialReportModal] = useState(false);
 
-  const currentMatch = matches.find((m) => m.id === selectedMatchId);
   const teamMap = new Map(teams.map((t) => [t.id, t]));
   const playerMap = new Map(players.map((p) => [p.id, p]));
+
+  // Fechas (jornadas) disponibles, para que el árbitro filtre y no vea toda la
+  // lista de partidos del campeonato. La fecha efectiva es robusta ante cambios
+  // de categoría (si la guardada ya no aplica, cae a la primera disponible).
+  const roundList = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
+  const roundDate = (r: number) => matches.find((m) => m.round === r)?.date;
+  const effectiveRound =
+    selectedRound != null && roundList.includes(selectedRound) ? selectedRound : roundList[0] ?? null;
+  const matchesInRound = matches.filter((m) => effectiveRound == null || m.round === effectiveRound);
+
+  // Partido actual: si el id guardado ya no aplica (cambio de categoría/fecha),
+  // cae al primer partido de la fecha.
+  const currentMatch =
+    matches.find((m) => m.id === selectedMatchId) || matchesInRound[0] || matches[0];
 
   // Calculate sanctions
   const sanctions = calculateSanctions(players, teams, matches);
@@ -79,6 +95,17 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
 
   const homeTeam = teamMap.get(currentMatch.homeTeamId);
   const awayTeam = teamMap.get(currentMatch.awayTeamId);
+
+  // Estado del arbitraje ($15 por fecha) de cada equipo en ESTA fecha. Se toma
+  // el último respaldo enviado; "pagado" = respaldo APROBADO por el Admin.
+  const arbFor = (teamId: string): ArbitrajePayment | undefined =>
+    payments
+      .filter((p) => p.teamId === teamId && p.round === currentMatch.round)
+      .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''))[0];
+  const homeArb = arbFor(currentMatch.homeTeamId);
+  const awayArb = arbFor(currentMatch.awayTeamId);
+  const homeArbPaid = homeArb?.status === 'APPROVED';
+  const awayArbPaid = awayArb?.status === 'APPROVED';
 
   const homePlayers = players.filter((p) => p.teamId === currentMatch.homeTeamId);
   const awayPlayers = players.filter((p) => p.teamId === currentMatch.awayTeamId);
@@ -377,29 +404,56 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
           </p>
         </div>
 
-        {/* Match Selector Dropdown */}
-        <div className="w-full md:w-auto">
-          <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
-            Seleccionar Partido Asignado:
-          </label>
-          <select
-            value={selectedMatchId}
-            onChange={(e) => {
-              setSelectedMatchId(e.target.value);
-              setEventTeamId('');
-            }}
-            className="w-full bg-slate-800 text-white font-bold text-sm px-4 py-3 rounded-2xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#00A859]"
-          >
-            {matches.map((m) => {
-              const h = teamMap.get(m.homeTeamId);
-              const a = teamMap.get(m.awayTeamId);
-              return (
-                <option key={m.id} value={m.id}>
-                  [{m.category}] J{m.round}: {h?.shortName} vs {a?.shortName} ({m.stadium || 'Cancha 1'} - {m.time})
+        {/* Fecha + Match Selector Dropdowns */}
+        <div className="w-full md:w-auto grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-3 md:min-w-[520px]">
+          {/* Round (Fecha) filter */}
+          <div>
+            <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Fecha:</label>
+            <select
+              value={effectiveRound ?? ''}
+              onChange={(e) => {
+                const r = Number(e.target.value);
+                setSelectedRound(r);
+                const first = matches.find((m) => m.round === r);
+                if (first) {
+                  setSelectedMatchId(first.id);
+                  setEventTeamId('');
+                }
+              }}
+              className="w-full bg-slate-800 text-white font-bold text-sm px-4 py-3 rounded-2xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#00A859]"
+            >
+              {roundList.map((r) => (
+                <option key={r} value={r}>
+                  Fecha {r}{roundDate(r) ? ` — ${roundDate(r)}` : ''}
                 </option>
-              );
-            })}
-          </select>
+              ))}
+            </select>
+          </div>
+
+          {/* Match selector (solo los de la fecha elegida) */}
+          <div>
+            <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
+              Seleccionar Partido Asignado:
+            </label>
+            <select
+              value={selectedMatchId}
+              onChange={(e) => {
+                setSelectedMatchId(e.target.value);
+                setEventTeamId('');
+              }}
+              className="w-full bg-slate-800 text-white font-bold text-sm px-4 py-3 rounded-2xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#00A859]"
+            >
+              {matchesInRound.map((m) => {
+                const h = teamMap.get(m.homeTeamId);
+                const a = teamMap.get(m.awayTeamId);
+                return (
+                  <option key={m.id} value={m.id}>
+                    [{m.category}] {h?.shortName} vs {a?.shortName} ({m.stadium || 'Cancha 1'} - {m.time})
+                  </option>
+                );
+              })}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -976,6 +1030,60 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
             </button>
           </div>
 
+          {/* Estado del arbitraje ($15/fecha) por equipo */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              { team: homeTeam, paid: homeArbPaid, arb: homeArb, label: 'Local' },
+              { team: awayTeam, paid: awayArbPaid, arb: awayArb, label: 'Visitante' },
+            ].map(({ team, paid, arb, label }) => (
+              <div
+                key={label}
+                className={`flex items-center justify-between gap-2 p-3 rounded-xl border ${
+                  paid ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-300'
+                }`}
+              >
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Arbitraje {label} ($15)</span>
+                  <span className="text-xs font-black text-slate-800 truncate block">{team?.shortName}</span>
+                </div>
+                <div className="text-right shrink-0">
+                  {paid ? (
+                    <span className="text-xs font-black text-emerald-700 flex items-center gap-1">
+                      <CheckCheck className="w-4 h-4" /> Pagado
+                    </span>
+                  ) : (
+                    <span className="text-xs font-black text-amber-700 flex items-center gap-1">
+                      <AlertTriangle className="w-4 h-4" /> {arb?.status === 'PENDING' ? 'En revisión' : 'No pagado'}
+                    </span>
+                  )}
+                  {paid && arb?.receiptUrl && (
+                    <a
+                      href={arb.receiptUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-bold text-emerald-700 underline"
+                    >
+                      ver respaldo
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {(!homeArbPaid || !awayArbPaid) && (
+            <div className="p-3 bg-amber-100 border border-amber-300 rounded-xl text-[11px] font-bold text-amber-900 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                Cobrar el arbitraje en efectivo a:{' '}
+                {[!homeArbPaid ? homeTeam?.shortName : null, !awayArbPaid ? awayTeam?.shortName : null]
+                  .filter(Boolean)
+                  .join(' y ')}
+                . Esta novedad constará en el reporte final.
+              </span>
+            </div>
+          )}
+
           {/* Methods Selection Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             {/* Home Financials */}
@@ -1096,6 +1204,7 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
           match={currentMatch}
           teams={teams}
           players={players}
+          payments={payments}
           onClose={() => setShowFinancialReportModal(false)}
         />
       )}

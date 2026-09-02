@@ -527,6 +527,7 @@ export default function Home() {
             matches={filteredMatches}
             teams={teams}
             players={players}
+            payments={payments}
             onUpdateMatch={handleUpdateMatch}
           />
         )}
