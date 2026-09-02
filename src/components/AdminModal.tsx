@@ -3,13 +3,16 @@
 import React, { useState, useRef } from 'react';
 import { Team, Player, Category, CATEGORIES, MAX_PLAYERS_PER_TEAM } from '@/types';
 import { TeamShield } from './TeamShield';
-import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Download, Upload } from 'lucide-react';
+import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Download, Upload, Pencil, Trash2 } from 'lucide-react';
+import { TeamEditModal } from './TeamEditModal';
 import { exportAllData, importAllData } from '@/lib/store';
 
 interface AdminModalProps {
   teams: Team[];
   players: Player[];
   onAddTeam: (team: Team) => void;
+  onUpdateTeam?: (team: Team) => void;
+  onDeleteTeam?: (team: Team) => void;
   onAddPlayer: (player: Player) => void;
   onUpdatePlayer?: (player: Player) => void;
   onDeletePlayer?: (player: Player) => void;
@@ -21,12 +24,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   teams,
   players,
   onAddTeam,
+  onUpdateTeam,
+  onDeleteTeam,
   onAddPlayer,
   onUpdatePlayer,
   onDeletePlayer,
   onResetData,
   onGenerateFixture,
 }) => {
+  const [editTeam, setEditTeam] = useState<Team | null>(null);
   const [activeTab, setActiveTab] = useState<'teams' | 'players' | 'settings'>('teams');
   const [selectedDocPlayer, setSelectedDocPlayer] = useState<Player | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -96,7 +102,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [teamShortName, setTeamShortName] = useState('');
   const [teamCategory, setTeamCategory] = useState<Category>('Abierta Varones');
   const [teamLogo, setTeamLogo] = useState('scale');
-  const [teamDelegate, setTeamDelegate] = useState('');
   const [teamPhone, setTeamPhone] = useState('');
   const [teamClubId, setTeamClubId] = useState('');
 
@@ -124,7 +129,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       logo: teamLogo,
       primaryColor: '#00A859',
       secondaryColor: '#FFFFFF',
-      delegate: teamDelegate || 'Abogado Representante',
+      delegate: '',
       phone: teamPhone || '0990000000',
       clubId: teamClubId.trim() || undefined,
     };
@@ -132,7 +137,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     onAddTeam(newTeam);
     setTeamName('');
     setTeamShortName('');
-    setTeamDelegate('');
     setTeamPhone('');
     setTeamClubId('');
   };
@@ -270,17 +274,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Delegado Representante</label>
-                <input
-                  type="text"
-                  value={teamDelegate}
-                  onChange={(e) => setTeamDelegate(e.target.value)}
-                  placeholder="Dr. Fernando Salazar"
-                  className="w-full bg-slate-50 text-slate-900 font-semibold text-xs p-3 rounded-xl border border-slate-200"
-                />
-              </div>
-
-              <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">Teléfono de Contacto</label>
                 <input
                   type="tel"
@@ -330,22 +323,50 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {teams.map((t) => (
-                <div key={t.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center space-x-3">
+                <div key={t.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center gap-3">
                   <TeamShield logoKey={t.logo} name={t.name} shortName={t.shortName} primaryColor={t.primaryColor} size="md" />
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <h4 className="font-black text-slate-900 text-sm">{t.name}</h4>
-                    </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-black text-slate-900 text-sm truncate">{t.name}</h4>
                     <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-slate-200 text-slate-700">
                       {t.category}
                     </span>
-                    <p className="text-xs text-slate-500 font-medium mt-1">Delegado: {t.delegate}</p>
+                  </div>
+                  <div className="flex flex-col gap-1.5 shrink-0">
+                    {onUpdateTeam && (
+                      <button
+                        onClick={() => setEditTeam(t)}
+                        className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold inline-flex items-center gap-1 transition-colors"
+                      >
+                        <Pencil className="w-3 h-3 text-[#00A859]" /> Editar
+                      </button>
+                    )}
+                    {onDeleteTeam && (
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`¿Eliminar el equipo "${t.name}"? Se borrarán también sus jugadores y sus partidos. No se puede deshacer.`)) {
+                            onDeleteTeam(t);
+                          }
+                        }}
+                        className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold inline-flex items-center gap-1 transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3" /> Eliminar
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de edición de equipo */}
+      {editTeam && onUpdateTeam && (
+        <TeamEditModal
+          team={editTeam}
+          onSave={onUpdateTeam}
+          onClose={() => setEditTeam(null)}
+        />
       )}
 
       {/* Tab 2: Players Management */}

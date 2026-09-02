@@ -36,15 +36,24 @@ create table if not exists public.users (
   updated_at timestamptz not null default now()
 );
 
+-- Pagos de arbitraje por equipo/fecha. El respaldo (comprobante) se guarda en
+-- Storage (bucket "respaldos"); aquí solo va la URL pública dentro de `data`.
+create table if not exists public.payments (
+  id   text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
 -- ---------- Row Level Security (Fase 2: seguridad) ----------
 -- Lectura PÚBLICA (cualquiera ve la tabla de posiciones, goleadores, etc.)
 -- Escritura solo para usuarios AUTENTICADOS vía Supabase Auth
 -- (administrador y árbitros que inician sesión con email + contraseña).
 
-alter table public.teams   enable row level security;
-alter table public.players enable row level security;
-alter table public.matches enable row level security;
-alter table public.users   enable row level security;
+alter table public.teams    enable row level security;
+alter table public.players  enable row level security;
+alter table public.matches  enable row level security;
+alter table public.users    enable row level security;
+alter table public.payments enable row level security;
 
 -- Elimina políticas previas (incluida la versión abierta de la fase 1)
 drop policy if exists "teams_public_rw"   on public.teams;
@@ -96,3 +105,33 @@ drop policy if exists "users_read"  on public.users;
 drop policy if exists "users_write" on public.users;
 create policy "users_read"  on public.users for select to authenticated using (true);
 create policy "users_write" on public.users for all    to authenticated using (true) with check (true);
+
+-- payments (arbitraje)
+-- Lectura pública: todos ven qué equipos ya cancelaron cada fecha.
+-- INSERT anónimo: el delegado sube su respaldo (queda en estado PENDING).
+-- UPDATE/DELETE solo autenticados: el Admin aprueba/rechaza/elimina.
+drop policy if exists "payments_read"          on public.payments;
+drop policy if exists "payments_public_insert" on public.payments;
+drop policy if exists "payments_write"         on public.payments;
+create policy "payments_read"  on public.payments for select using (true);
+create policy "payments_public_insert" on public.payments
+  for insert to anon
+  with check (coalesce(data->>'status', 'PENDING') = 'PENDING');
+create policy "payments_write" on public.payments for all to authenticated using (true) with check (true);
+
+-- ---------- Storage: bucket público de respaldos ----------
+-- Crea el bucket "respaldos" (público para lectura). Si ya existe, no hace nada.
+insert into storage.buckets (id, name, public)
+values ('respaldos', 'respaldos', true)
+on conflict (id) do update set public = true;
+
+-- Políticas sobre storage.objects para ESTE bucket:
+--   * SELECT público (cualquiera ve el comprobante por su URL).
+--   * INSERT anónimo (el delegado sube el respaldo desde la web pública).
+--   * UPDATE/DELETE solo autenticados (limpieza por el Admin).
+drop policy if exists "respaldos_read"        on storage.objects;
+drop policy if exists "respaldos_anon_insert" on storage.objects;
+drop policy if exists "respaldos_auth_write"  on storage.objects;
+create policy "respaldos_read"        on storage.objects for select using (bucket_id = 'respaldos');
+create policy "respaldos_anon_insert" on storage.objects for insert to anon          with check (bucket_id = 'respaldos');
+create policy "respaldos_auth_write"  on storage.objects for all    to authenticated using (bucket_id = 'respaldos') with check (bucket_id = 'respaldos');

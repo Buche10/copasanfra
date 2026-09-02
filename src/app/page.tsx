@@ -11,6 +11,8 @@ import {
   PlayerSanction,
   GoalkeeperStat,
   Category,
+  ArbitrajePayment,
+  ARBITRAJE_FEE,
   MAX_PLAYERS_PER_TEAM
 } from '@/types';
 import {
@@ -20,11 +22,17 @@ import {
   getMatches,
   getUsers,
   upsertTeam,
+  deleteTeam,
   upsertPlayer,
   insertPlayer,
   deletePlayer,
   upsertMatch,
   replaceMatches,
+  getPayments,
+  insertPayment,
+  upsertPayment,
+  deletePayment,
+  uploadReceipt,
   calculateStandings,
   calculateScorers,
   calculateSanctions,
@@ -49,9 +57,12 @@ import { TeamProfileModal } from '@/components/TeamProfileModal';
 import { PlayerProfileModal } from '@/components/PlayerProfileModal';
 import { RegistrationView } from '@/components/RegistrationView';
 import { QRScannerModal } from '@/components/QRScannerModal';
+import { ArbitrajeView } from '@/components/ArbitrajeView';
+import { Award, Shield, ShieldAlert } from 'lucide-react';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabType>('standings');
+  const [statsTab, setStatsTab] = useState<'scorers' | 'goalkeepers' | 'sanctions'>('scorers');
   const [selectedCategory, setSelectedCategory] = useState<Category>('Abierta Varones');
   const [currentUser, setUser] = useState<User | null>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -64,6 +75,7 @@ export default function Home() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [payments, setPayments] = useState<ArbitrajePayment[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -89,10 +101,11 @@ export default function Home() {
     let cancelled = false;
     (async () => {
       try {
-        const [t, p, m] = await Promise.all([getTeams(), getPlayers(), getMatches()]);
+        const [t, p, m, pay] = await Promise.all([getTeams(), getPlayers(), getMatches(), getPayments()]);
         if (cancelled) return;
         setTeams(t);
         setPlayers(p);
+        setPayments(pay);
         // Sembrar el cuadro de play offs según la tabla / ganadores.
         const reconciled = recomputePlayoffs(m, t);
         setMatches(reconciled);
@@ -173,6 +186,59 @@ export default function Home() {
     persistPlayoffs(nextRaw, reconciled);
   };
 
+  // ---- Arbitraje: subir respaldo (público), revisar (admin), eliminar ----
+  const handleSubmitPayment = async (
+    team: Team,
+    round: number,
+    matchDate: string | undefined,
+    file: File
+  ) => {
+    try {
+      const receiptUrl = await uploadReceipt(file, team.id, round);
+      const payment: ArbitrajePayment = {
+        id: `pay-${team.id}-r${round}-${Date.now()}`,
+        teamId: team.id,
+        category: team.category,
+        round,
+        matchDate,
+        amount: ARBITRAJE_FEE,
+        receiptUrl,
+        status: 'PENDING',
+        submittedAt: new Date().toISOString(),
+      };
+      await insertPayment(payment);
+      setPayments((prev) => [...prev, payment]);
+    } catch (err) {
+      alert(`No se pudo subir el respaldo: ${errMsg(err)}`);
+    }
+  };
+
+  const handleReviewPayment = async (payment: ArbitrajePayment, status: 'APPROVED' | 'REJECTED') => {
+    const updated: ArbitrajePayment = {
+      ...payment,
+      status,
+      reviewedAt: new Date().toISOString(),
+      reviewedBy: currentUser?.name,
+    };
+    setPayments((prev) => prev.map((p) => (p.id === payment.id ? updated : p)));
+    try {
+      await upsertPayment(updated);
+    } catch (err) {
+      setPayments((prev) => prev.map((p) => (p.id === payment.id ? payment : p)));
+      alert(`No se pudo actualizar el pago: ${errMsg(err)}`);
+    }
+  };
+
+  const handleDeletePayment = async (payment: ArbitrajePayment) => {
+    setPayments((prev) => prev.filter((p) => p.id !== payment.id));
+    try {
+      await deletePayment(payment.id);
+    } catch (err) {
+      setPayments((prev) => [...prev, payment]);
+      alert(`No se pudo eliminar el pago: ${errMsg(err)}`);
+    }
+  };
+
   // Add Team
   const handleAddTeam = async (newTeam: Team) => {
     setTeams((prev) => [...prev, newTeam]);
@@ -180,6 +246,34 @@ export default function Home() {
       await upsertTeam(newTeam);
     } catch (err) {
       alert(`No se pudo guardar el equipo: ${errMsg(err)}`);
+    }
+  };
+
+  // Update Team
+  const handleUpdateTeam = async (updatedTeam: Team) => {
+    setTeams((prev) => prev.map((t) => (t.id === updatedTeam.id ? updatedTeam : t)));
+    try {
+      await upsertTeam(updatedTeam);
+    } catch (err) {
+      alert(`No se pudo actualizar el equipo: ${errMsg(err)}`);
+    }
+  };
+
+  // Delete Team (también elimina sus jugadores y partidos, para no dejar datos huérfanos)
+  const handleDeleteTeam = async (team: Team) => {
+    const teamPlayers = players.filter((p) => p.teamId === team.id);
+    const remainingMatches = matches.filter((m) => m.homeTeamId !== team.id && m.awayTeamId !== team.id);
+    const hadMatches = remainingMatches.length !== matches.length;
+
+    setTeams((prev) => prev.filter((t) => t.id !== team.id));
+    setPlayers((prev) => prev.filter((p) => p.teamId !== team.id));
+    setMatches(remainingMatches);
+    try {
+      await deleteTeam(team.id);
+      await Promise.all(teamPlayers.map((p) => deletePlayer(p.id).catch(() => {})));
+      if (hadMatches) await replaceMatches(remainingMatches);
+    } catch (err) {
+      alert(`No se pudo eliminar el equipo: ${errMsg(err)}`);
     }
   };
 
@@ -356,30 +450,55 @@ export default function Home() {
             onSelectTeam={(t) => setSelectedTeam(t)}
           />
         )}
-        {activeTab === 'scorers' && (
-          <ScorersTable
-            scorers={scorers}
-            players={players}
-            teams={teams}
-            onSelectPlayer={(p) => setSelectedPlayer(p)}
-            onSelectTeam={(t) => setSelectedTeam(t)}
-          />
-        )}
-        {activeTab === 'goalkeepers' && (
-          <BestGoalkeeperTable
-            goalkeepers={goalkeepers}
-            teams={teams}
-            onSelectTeam={(t) => setSelectedTeam(t)}
-          />
-        )}
-        {activeTab === 'sanctions' && (
-          <SanctionsTable
-            sanctions={sanctions}
-            players={players}
-            teams={teams}
-            onSelectPlayer={(p) => setSelectedPlayer(p)}
-            onSelectTeam={(t) => setSelectedTeam(t)}
-          />
+        {activeTab === 'stats' && (
+          <div className="space-y-5">
+            <div className="flex items-center gap-2 p-1.5 bg-white rounded-2xl border border-slate-200 shadow-xs w-full sm:w-fit overflow-x-auto scrollbar-none">
+              {([
+                ['scorers', 'Goleadores', Award],
+                ['goalkeepers', 'Mejor Arquero', Shield],
+                ['sanctions', 'Sanciones', ShieldAlert],
+              ] as const).map(([key, label, Icon]) => (
+                <button
+                  key={key}
+                  onClick={() => setStatsTab(key)}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-xs font-extrabold rounded-xl transition-all whitespace-nowrap ${
+                    statsTab === key
+                      ? 'bg-[#00A859] text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+
+            {statsTab === 'scorers' && (
+              <ScorersTable
+                scorers={scorers}
+                players={players}
+                teams={teams}
+                onSelectPlayer={(p) => setSelectedPlayer(p)}
+                onSelectTeam={(t) => setSelectedTeam(t)}
+              />
+            )}
+            {statsTab === 'goalkeepers' && (
+              <BestGoalkeeperTable
+                goalkeepers={goalkeepers}
+                teams={teams}
+                onSelectTeam={(t) => setSelectedTeam(t)}
+              />
+            )}
+            {statsTab === 'sanctions' && (
+              <SanctionsTable
+                sanctions={sanctions}
+                players={players}
+                teams={teams}
+                onSelectPlayer={(p) => setSelectedPlayer(p)}
+                onSelectTeam={(t) => setSelectedTeam(t)}
+              />
+            )}
+          </div>
         )}
         {activeTab === 'fixture' && (
           <FixtureView
@@ -389,6 +508,18 @@ export default function Home() {
             onSelectTeam={(t) => setSelectedTeam(t)}
             onGenerateFixture={currentUser?.role === 'ADMIN' ? handleGenerateFixture : undefined}
             onUpdateMatch={canManageMatches ? handleUpdateMatch : undefined}
+          />
+        )}
+        {activeTab === 'arbitraje' && (
+          <ArbitrajeView
+            teams={teams}
+            matches={matches}
+            payments={payments}
+            category={selectedCategory}
+            isAdmin={currentUser?.role === 'ADMIN'}
+            onSubmit={handleSubmitPayment}
+            onReview={handleReviewPayment}
+            onDelete={handleDeletePayment}
           />
         )}
         {activeTab === 'sheet' && (
@@ -404,6 +535,8 @@ export default function Home() {
             teams={teams}
             players={players}
             onAddTeam={handleAddTeam}
+            onUpdateTeam={handleUpdateTeam}
+            onDeleteTeam={handleDeleteTeam}
             onAddPlayer={handleAddPlayer}
             onUpdatePlayer={handleUpdatePlayer}
             onDeletePlayer={handleDeletePlayer}

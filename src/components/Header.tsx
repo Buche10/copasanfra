@@ -4,19 +4,18 @@ import { asset } from '@/lib/basePath';
 import { 
   Trophy, 
   Calendar, 
-  Award, 
-  ShieldAlert, 
-  ClipboardList, 
-  Settings, 
-  LogIn, 
-  LogOut, 
+  Award,
+  DollarSign,
+  ClipboardList,
+  Settings,
+  LogIn,
+  LogOut,
   UserCheck,
-  Shield,
   UserPlus,
   QrCode
 } from 'lucide-react';
 
-export type TabType = 'standings' | 'scorers' | 'goalkeepers' | 'sanctions' | 'fixture' | 'sheet' | 'admin' | 'registration';
+export type TabType = 'standings' | 'stats' | 'fixture' | 'arbitraje' | 'sheet' | 'admin' | 'registration';
 
 interface HeaderProps {
   activeTab: TabType;
@@ -74,24 +73,19 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Posiciones</span>
             </button>
 
-            <button onClick={() => setActiveTab('scorers')} className={getTabClass('scorers')}>
+            <button onClick={() => setActiveTab('stats')} className={getTabClass('stats')}>
               <Award className="w-4 h-4 shrink-0" />
-              <span>Goleadores</span>
-            </button>
-
-            <button onClick={() => setActiveTab('goalkeepers')} className={getTabClass('goalkeepers')}>
-              <Shield className="w-4 h-4 shrink-0" />
-              <span>Mejor Arquero</span>
-            </button>
-
-            <button onClick={() => setActiveTab('sanctions')} className={getTabClass('sanctions')}>
-              <ShieldAlert className="w-4 h-4 shrink-0" />
-              <span>Sanciones</span>
+              <span>Estadísticas</span>
             </button>
 
             <button onClick={() => setActiveTab('fixture')} className={getTabClass('fixture')}>
               <Calendar className="w-4 h-4 shrink-0" />
               <span>Calendario</span>
+            </button>
+
+            <button onClick={() => setActiveTab('arbitraje')} className={getTabClass('arbitraje')}>
+              <DollarSign className="w-4 h-4 shrink-0" />
+              <span>Arbitraje</span>
             </button>
 
             <button onClick={() => setActiveTab('registration')} className={getTabClass('registration')}>
@@ -170,28 +164,12 @@ export const Header: React.FC<HeaderProps> = ({
             Posiciones
           </button>
           <button
-            onClick={() => setActiveTab('scorers')}
+            onClick={() => setActiveTab('stats')}
             className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
-              activeTab === 'scorers' ? 'bg-[#00A859] text-white shadow-sm' : 'bg-slate-100 text-slate-700'
+              activeTab === 'stats' ? 'bg-[#00A859] text-white shadow-sm' : 'bg-slate-100 text-slate-700'
             }`}
           >
-            Goleadores
-          </button>
-          <button
-            onClick={() => setActiveTab('goalkeepers')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
-              activeTab === 'goalkeepers' ? 'bg-[#00A859] text-white shadow-sm' : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            Mejor Arquero
-          </button>
-          <button
-            onClick={() => setActiveTab('sanctions')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
-              activeTab === 'sanctions' ? 'bg-[#00A859] text-white shadow-sm' : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            Sanciones
+            Estadísticas
           </button>
           <button
             onClick={() => setActiveTab('fixture')}
@@ -200,6 +178,14 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             Calendario
+          </button>
+          <button
+            onClick={() => setActiveTab('arbitraje')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
+              activeTab === 'arbitraje' ? 'bg-[#00A859] text-white shadow-sm' : 'bg-slate-100 text-slate-700'
+            }`}
+          >
+            Arbitraje
           </button>
           <button
             onClick={() => setActiveTab('registration')}

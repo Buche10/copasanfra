@@ -73,10 +73,14 @@ export const TeamProfileModal: React.FC<TeamProfileModalProps> = ({
               </span>
               <h2 className="text-2xl font-black text-white mt-1 leading-tight">{team.name}</h2>
               <div className="text-xs text-slate-300 mt-1 flex items-center gap-3">
-                <span className="flex items-center gap-1 font-semibold">
-                  <UserCheck className="w-3.5 h-3.5 text-[#00A859]" /> Delegado: {team.delegate}
-                </span>
-                <span>•</span>
+                {team.delegate && (
+                  <>
+                    <span className="flex items-center gap-1 font-semibold">
+                      <UserCheck className="w-3.5 h-3.5 text-[#00A859]" /> Delegado: {team.delegate}
+                    </span>
+                    <span>•</span>
+                  </>
+                )}
                 <span className="flex items-center gap-1 font-medium">
                   <Phone className="w-3.5 h-3.5 text-slate-400" /> {team.phone}
                 </span>

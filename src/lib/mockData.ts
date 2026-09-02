@@ -2,7 +2,7 @@ import { Team, Player, Match, User } from '@/types';
 
 const RAW_TEAMS: Team[] = [
   // ==========================================
-  // CATEGORÍA: ABIERTA VARONES (13 Equipos)
+  // CATEGORÍA: ABIERTA VARONES (12 Equipos)
   // ==========================================
   {
     id: 'team-ab-1',
@@ -12,7 +12,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'shield',
     primaryColor: '#EA580C',
     secondaryColor: '#FFFFFF',
-    delegate: 'Dr. Santiago Morales',
+    delegate: '',
     phone: '0991112233',
   },
   {
@@ -23,7 +23,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'gavel',
     primaryColor: '#0284C7',
     secondaryColor: '#FFFFFF',
-    delegate: 'Ab. Mateo Benítez',
+    delegate: '',
     phone: '0992223344',
   },
   {
@@ -34,7 +34,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'scale',
     primaryColor: '#00A859',
     secondaryColor: '#FFFFFF',
-    delegate: 'Dr. Fernando Salazar',
+    delegate: '',
     phone: '0993334455',
   },
   {
@@ -45,7 +45,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'crown',
     primaryColor: '#DC2626',
     secondaryColor: '#FBBF24',
-    delegate: 'Ab. Christian Medina',
+    delegate: '',
     phone: '0994445566',
   },
   {
@@ -56,19 +56,8 @@ const RAW_TEAMS: Team[] = [
     logo: 'landmark',
     primaryColor: '#4F46E5',
     secondaryColor: '#FFFFFF',
-    delegate: 'Dr. Hugo Ramos',
+    delegate: '',
     phone: '0995556677',
-  },
-  {
-    id: 'team-ab-6',
-    name: 'Sporting Legal',
-    shortName: 'Sporting Legal',
-    category: 'Abierta Varones',
-    logo: 'trophy',
-    primaryColor: '#D97706',
-    secondaryColor: '#FFFFFF',
-    delegate: 'Ab. Esteban Naranjo',
-    phone: '0996667788',
   },
   {
     id: 'team-ab-7',
@@ -78,7 +67,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'book',
     primaryColor: '#1E3A8A',
     secondaryColor: '#93C5FD',
-    delegate: 'Dr. Byron López',
+    delegate: '',
     phone: '0997778899',
   },
   {
@@ -89,7 +78,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'file-text',
     primaryColor: '#047857',
     secondaryColor: '#FFFFFF',
-    delegate: 'Ab. Andrés Sevilla',
+    delegate: '',
     phone: '0998889900',
   },
   {
@@ -100,7 +89,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'graduation',
     primaryColor: '#7C3AED',
     secondaryColor: '#FFFFFF',
-    delegate: 'Dr. Javier Villacís',
+    delegate: '',
     phone: '0999990011',
   },
   {
@@ -111,7 +100,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'award',
     primaryColor: '#059669',
     secondaryColor: '#FDE047',
-    delegate: 'Ab. Gabriel Soria',
+    delegate: '',
     phone: '0990001122',
   },
   {
@@ -122,7 +111,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'scale',
     primaryColor: '#2563EB',
     secondaryColor: '#FFFFFF',
-    delegate: 'Dr. Patricio Torres',
+    delegate: '',
     phone: '0991113355',
   },
   {
@@ -133,7 +122,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'shield',
     primaryColor: '#15803D',
     secondaryColor: '#FFFFFF',
-    delegate: 'Ab. Carlos Benítez',
+    delegate: '',
     phone: '0992224466',
   },
   {
@@ -144,7 +133,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'trophy',
     primaryColor: '#0284C7',
     secondaryColor: '#FFFFFF',
-    delegate: 'Ab. Mateo Villacís',
+    delegate: '',
     phone: '0993332211',
   },
 
@@ -159,7 +148,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'shield',
     primaryColor: '#C2410C',
     secondaryColor: '#FFFFFF',
-    delegate: 'Dr. Santiago Morales',
+    delegate: '',
     phone: '0991112233',
   },
   {
@@ -170,7 +159,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'gavel',
     primaryColor: '#0369A1',
     secondaryColor: '#FFFFFF',
-    delegate: 'Ab. Mateo Benítez',
+    delegate: '',
     phone: '0992223344',
   },
   {
@@ -181,7 +170,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'crown',
     primaryColor: '#B91C1C',
     secondaryColor: '#FDE047',
-    delegate: 'Dr. Leonardo Morales',
+    delegate: '',
     phone: '0994445577',
   },
   {
@@ -192,7 +181,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'book',
     primaryColor: '#1E40AF',
     secondaryColor: '#FFFFFF',
-    delegate: 'Dr. Byron López',
+    delegate: '',
     phone: '0997778899',
   },
   {
@@ -203,7 +192,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'file-text',
     primaryColor: '#065F46',
     secondaryColor: '#FFFFFF',
-    delegate: 'Ab. Andrés Sevilla',
+    delegate: '',
     phone: '0998889900',
   },
   {
@@ -214,7 +203,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'graduation',
     primaryColor: '#6D28D9',
     secondaryColor: '#FFFFFF',
-    delegate: 'Dr. Javier Villacís',
+    delegate: '',
     phone: '0999990011',
   },
   {
@@ -225,7 +214,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'scale',
     primaryColor: '#1D4ED8',
     secondaryColor: '#FFFFFF',
-    delegate: 'Dr. Patricio Torres',
+    delegate: '',
     phone: '0991113355',
   },
   {
@@ -236,7 +225,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'trophy',
     primaryColor: '#0369A1',
     secondaryColor: '#E0F2FE',
-    delegate: 'Ab. Rodrigo Cárdenas',
+    delegate: '',
     phone: '0993335577',
   },
   {
@@ -247,7 +236,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'landmark',
     primaryColor: '#991B1B',
     secondaryColor: '#FEF2F2',
-    delegate: 'Dr. Gonzalo Holguín',
+    delegate: '',
     phone: '0994446688',
   },
 
@@ -262,7 +251,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'crown',
     primaryColor: '#991B1B',
     secondaryColor: '#FDE047',
-    delegate: 'Dr. Roberto Freire',
+    delegate: '',
     phone: '0995557799',
   },
   {
@@ -273,7 +262,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'landmark',
     primaryColor: '#00A859',
     secondaryColor: '#DC2626',
-    delegate: 'Dr. Luis Proaño',
+    delegate: '',
     phone: '0996668800',
   },
 
@@ -288,7 +277,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'crown',
     primaryColor: '#DB2777',
     secondaryColor: '#FCE7F3',
-    delegate: 'Dra. María José Paredes',
+    delegate: '',
     phone: '0997779911',
   },
   {
@@ -299,7 +288,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'shield',
     primaryColor: '#9333EA',
     secondaryColor: '#F3E8FF',
-    delegate: 'Dra. Andrea Carrillo',
+    delegate: '',
     phone: '0998880022',
   },
   {
@@ -310,7 +299,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'scale',
     primaryColor: '#059669',
     secondaryColor: '#ECFDF5',
-    delegate: 'Dra. Carla Espín',
+    delegate: '',
     phone: '0999991133',
   },
   {
@@ -321,7 +310,7 @@ const RAW_TEAMS: Team[] = [
     logo: 'gavel',
     primaryColor: '#2563EB',
     secondaryColor: '#EFF6FF',
-    delegate: 'Dra. Sofia Holguín',
+    delegate: '',
     phone: '0990002244',
   },
 ];

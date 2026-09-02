@@ -144,6 +144,27 @@ export interface Match {
   winnerTeamId?: string;
 }
 
+// ---- Arbitraje (pago semanal por fecha) ----
+// Cada equipo cancela un valor fijo de arbitraje por cada fecha (sábado) que
+// juega. El delegado sube un respaldo (comprobante) que el Admin aprueba.
+export const ARBITRAJE_FEE = 15;
+
+export type ArbitrajeStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface ArbitrajePayment {
+  id: string;
+  teamId: string;
+  category: Category;
+  round: number; // Fecha / jornada
+  matchDate?: string; // YYYY-MM-DD del sábado de esa fecha
+  amount: number; // Valor cancelado (ARBITRAJE_FEE)
+  receiptUrl?: string; // Enlace público del respaldo en Supabase Storage
+  status: ArbitrajeStatus;
+  submittedAt: string; // ISO — cuándo se subió el respaldo
+  reviewedAt?: string; // ISO — cuándo el Admin aprobó/rechazó
+  reviewedBy?: string; // Nombre del Admin que revisó
+}
+
 export interface TeamStanding {
   teamId: string;
   teamName: string;

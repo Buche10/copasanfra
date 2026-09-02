@@ -7,7 +7,8 @@ import {
   PlayerScorer,
   PlayerSanction,
   Category,
-  GoalkeeperStat
+  GoalkeeperStat,
+  ArbitrajePayment
 } from '@/types';
 import {
   INITIAL_TEAMS,
@@ -15,7 +16,7 @@ import {
   INITIAL_MATCHES,
   INITIAL_USERS
 } from './mockData';
-import { supabase, TABLES, isSupabaseConfigured } from './supabase';
+import { supabase, TABLES, RECEIPTS_BUCKET, isSupabaseConfigured } from './supabase';
 
 // ----------------------------------------------------
 // DATA ACCESS (Supabase)
@@ -98,6 +99,13 @@ export async function upsertTeam(team: Team): Promise<void> {
   return upsertRows(TABLES.TEAMS, [team]);
 }
 
+// Eliminar un equipo de la base.
+export async function deleteTeam(id: string): Promise<void> {
+  assertConfigured();
+  const { error } = await supabase.from(TABLES.TEAMS).delete().eq('id', id);
+  if (error) throw new Error(`Error al eliminar el equipo: ${error.message}`);
+}
+
 export async function upsertPlayer(player: Player): Promise<void> {
   return upsertRows(TABLES.PLAYERS, [player]);
 }
@@ -119,6 +127,43 @@ export async function upsertMatch(match: Match): Promise<void> {
   return upsertRows(TABLES.MATCHES, [match]);
 }
 
+// ---- Arbitraje (pagos por equipo/fecha) ----
+export async function getPayments(): Promise<ArbitrajePayment[]> {
+  return selectAll<ArbitrajePayment>(TABLES.PAYMENTS);
+}
+
+// Registro público: el delegado sube el respaldo, se crea el pago en PENDING.
+// Usa insert (no upsert) para funcionar bajo RLS anónimo, igual que la
+// inscripción de jugadores. Cada envío es una fila nueva (id único).
+export async function insertPayment(payment: ArbitrajePayment): Promise<void> {
+  return insertRows(TABLES.PAYMENTS, [payment]);
+}
+
+// Revisión del Admin (aprobar/rechazar). Requiere sesión autenticada.
+export async function upsertPayment(payment: ArbitrajePayment): Promise<void> {
+  return upsertRows(TABLES.PAYMENTS, [payment]);
+}
+
+export async function deletePayment(id: string): Promise<void> {
+  assertConfigured();
+  const { error } = await supabase.from(TABLES.PAYMENTS).delete().eq('id', id);
+  if (error) throw new Error(`Error al eliminar el pago: ${error.message}`);
+}
+
+// Sube el respaldo (imagen/PDF) al bucket público y devuelve su URL pública.
+// El archivo NO se guarda en la base: en la fila `payments` solo va la URL.
+export async function uploadReceipt(file: File, teamId: string, round: number): Promise<string> {
+  assertConfigured();
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+  const path = `${teamId}/r${round}-${Date.now()}.${ext}`;
+  const { error } = await supabase.storage
+    .from(RECEIPTS_BUCKET)
+    .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || undefined });
+  if (error) throw new Error(`Error al subir el respaldo: ${error.message}`);
+  const { data } = supabase.storage.from(RECEIPTS_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
 // Replaces the entire fixture (used when regenerating the schedule).
 export async function replaceMatches(matches: Match[]): Promise<void> {
   await deleteAllRows(TABLES.MATCHES);
@@ -132,6 +177,7 @@ export async function resetAllDataToDefault(): Promise<void> {
   await deleteAllRows(TABLES.PLAYERS);
   await deleteAllRows(TABLES.MATCHES);
   await deleteAllRows(TABLES.USERS);
+  await deleteAllRows(TABLES.PAYMENTS);
 
   await upsertRows(TABLES.TEAMS, INITIAL_TEAMS);
   await upsertRows(TABLES.PLAYERS, INITIAL_PLAYERS);

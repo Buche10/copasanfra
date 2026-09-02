@@ -25,4 +25,10 @@ export const TABLES = {
   PLAYERS_PUBLIC: 'players_public',
   MATCHES: 'matches',
   USERS: 'users',
+  // Pagos de arbitraje por equipo/fecha (respaldo en Storage, no en el JSONB).
+  PAYMENTS: 'payments',
 } as const;
+
+// Bucket público de Storage donde se guardan los respaldos (comprobantes) de
+// arbitraje. La fila en `payments` solo almacena la URL pública del archivo.
+export const RECEIPTS_BUCKET = 'respaldos';
