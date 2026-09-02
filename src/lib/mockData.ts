@@ -61,8 +61,8 @@ const RAW_TEAMS: Team[] = [
   },
   {
     id: 'team-ab-6',
-    name: 'Sport Legal',
-    shortName: 'Sport Legal',
+    name: 'Sporting Legal',
+    shortName: 'Sporting Legal',
     category: 'Abierta Varones',
     logo: 'trophy',
     primaryColor: '#D97706',
