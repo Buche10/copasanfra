@@ -36,6 +36,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [editTeam, setEditTeam] = useState<Team | null>(null);
   const [editPlayer, setEditPlayer] = useState<Player | null>(null);
   const [activeTab, setActiveTab] = useState<'teams' | 'players' | 'settings'>('teams');
+  const [filterCategory, setFilterCategory] = useState<Category | 'ALL'>('ALL');
+  const [filterTeamId, setFilterTeamId] = useState<string>('ALL');
   const [selectedDocPlayer, setSelectedDocPlayer] = useState<Player | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -165,6 +167,34 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     setPlayerName('');
     setPlayerCedula('');
   };
+
+  // ---- Filtros de la lista de jugadores (categoría -> equipo) ----
+  const teamById = new Map(teams.map((t) => [t.id, t]));
+  const teamsForFilter = teams
+    .filter((t) => filterCategory === 'ALL' || t.category === filterCategory)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const catIndex = (c?: string) => {
+    const i = CATEGORIES.indexOf(c as Category);
+    return i === -1 ? 99 : i;
+  };
+
+  const visiblePlayers = players
+    .filter((p) => {
+      const team = teamById.get(p.teamId);
+      if (filterCategory !== 'ALL' && team?.category !== filterCategory) return false;
+      if (filterTeamId !== 'ALL' && p.teamId !== filterTeamId) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const ta = teamById.get(a.teamId);
+      const tb = teamById.get(b.teamId);
+      const ci = catIndex(ta?.category) - catIndex(tb?.category);
+      if (ci !== 0) return ci;
+      const nameCmp = (ta?.name || '').localeCompare(tb?.name || '');
+      if (nameCmp !== 0) return nameCmp;
+      return a.dorsal - b.dorsal;
+    });
 
   return (
     <div className="space-y-6">
@@ -467,9 +497,37 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
           {/* Players List */}
           <div className="lg:col-span-2 glass-card rounded-3xl p-6 border border-slate-200 shadow-md space-y-4">
-            <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-              <Users className="w-5 h-5 text-[#00A859]" /> Jugadores Enrolados ({players.length})
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#00A859]" /> Jugadores ({visiblePlayers.length})
+              </h3>
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={filterCategory}
+                  onChange={(e) => {
+                    setFilterCategory(e.target.value as Category | 'ALL');
+                    setFilterTeamId('ALL');
+                  }}
+                  className="bg-slate-50 text-slate-900 font-bold text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#00A859]"
+                >
+                  <option value="ALL">Todas las categorías</option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <select
+                  value={filterTeamId}
+                  onChange={(e) => setFilterTeamId(e.target.value)}
+                  className="bg-slate-50 text-slate-900 font-bold text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#00A859]"
+                >
+                  <option value="ALL">Todos los equipos</option>
+                  {teamsForFilter.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
@@ -485,7 +543,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {players.map((p) => {
+                  {visiblePlayers.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="p-6 text-center text-slate-400 font-semibold">
+                        No hay jugadores para este filtro.
+                      </td>
+                    </tr>
+                  )}
+                  {visiblePlayers.map((p) => {
                     const team = teams.find((t) => t.id === p.teamId);
                     const status = p.approvalStatus || 'APPROVED';
                     return (
