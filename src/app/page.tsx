@@ -19,6 +19,7 @@ import {
   getTeams,
   getPlayers,
   getPlayersFull,
+  getPlayerVerificationDoc,
   getMatches,
   getUsers,
   upsertTeam,
@@ -119,9 +120,15 @@ export default function Home() {
         const sessionUser = list.find((x) => x.email?.toLowerCase() === email.toLowerCase()) ?? null;
         setUser(sessionUser);
         // Authenticated staff see full player records (cedula, documents).
+        // Si esta lectura completa falla o tarda demasiado (timeout), se
+        // conserva la lista pública y la app NO queda en blanco.
         if (sessionUser) {
-          const full = await getPlayersFull();
-          if (!cancelled) setPlayers(full);
+          try {
+            const full = await getPlayersFull();
+            if (!cancelled) setPlayers(full);
+          } catch (e) {
+            console.error('No se pudo cargar la nómina completa (se mantiene la pública):', e);
+          }
         }
       } catch (err) {
         if (!cancelled) setLoadError(errMsg(err));
@@ -296,13 +303,45 @@ export default function Home() {
     return true;
   };
 
-  // Update Player
+  // Update Player (edición). El objeto viene de la vista liviana (sin
+  // verificationDoc). Como al guardar se reemplaza la fila completa, si el
+  // jugador TIENE respaldo lo recuperamos antes para no borrarlo. La marca
+  // transitoria `hasDoc` no se persiste.
   const handleUpdatePlayer = async (updatedPlayer: Player) => {
-    setPlayers((prev) => prev.map((p) => (p.id === updatedPlayer.id ? updatedPlayer : p)));
+    const { hasDoc, ...clean } = updatedPlayer;
+    let toSave: Player = clean;
+    if (hasDoc && !clean.verificationDoc) {
+      try {
+        const doc = await getPlayerVerificationDoc(clean.id);
+        if (doc) toSave = { ...clean, verificationDoc: doc };
+      } catch {
+        /* si no se pudo recuperar, se guarda igual (raro) */
+      }
+    }
+    setPlayers((prev) => prev.map((p) => (p.id === toSave.id ? { ...toSave, hasDoc } : p)));
     try {
-      await upsertPlayer(updatedPlayer);
+      await upsertPlayer(toSave);
     } catch (err) {
       alert(`No se pudo actualizar el jugador: ${errMsg(err)}`);
+    }
+  };
+
+  // Aprobar jugador: marca APPROVED y ELIMINA el documento de respaldo (ya
+  // cumplió su función; no acumular imágenes pesadas en la base).
+  const handleApprovePlayer = async (player: Player) => {
+    // undefined => JSON.stringify lo omite, así se elimina el respaldo y la
+    // marca transitoria al persistir.
+    const approved: Player = {
+      ...player,
+      approvalStatus: 'APPROVED',
+      verificationDoc: undefined,
+      hasDoc: undefined,
+    };
+    setPlayers((prev) => prev.map((p) => (p.id === approved.id ? approved : p)));
+    try {
+      await upsertPlayer(approved);
+    } catch (err) {
+      alert(`No se pudo aprobar el jugador: ${errMsg(err)}`);
     }
   };
 
@@ -540,6 +579,7 @@ export default function Home() {
             onDeleteTeam={handleDeleteTeam}
             onAddPlayer={handleAddPlayer}
             onUpdatePlayer={handleUpdatePlayer}
+            onApprovePlayer={handleApprovePlayer}
             onDeletePlayer={handleDeletePlayer}
             onResetData={handleResetData}
             onGenerateFixture={handleGenerateFixture}

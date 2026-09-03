@@ -94,6 +94,22 @@ create view public.players_public as
   from public.players;
 grant select on public.players_public to anon, authenticated;
 
+-- Vista para el STAFF autenticado (admin/árbitros): incluye la cédula pero NO
+-- el documento de respaldo (verificationDoc), que puede ser una imagen pesada
+-- en base64 y hace lenta la lectura de toda la nómina (timeouts en móviles).
+-- En su lugar expone `hasDoc` (si existe respaldo); el documento se lee aparte,
+-- solo cuando se necesita verlo.
+drop view if exists public.players_admin;
+create view public.players_admin as
+  select id,
+    (data - 'verificationDoc') || jsonb_build_object('hasDoc', (data ? 'verificationDoc')) as data
+  from public.players;
+grant select on public.players_admin to authenticated;
+
+-- Margen de tiempo de consulta más alto para el staff (evita el timeout al leer
+-- la nómina si algún respaldo pendiente aún es grande).
+alter role authenticated set statement_timeout = '20s';
+
 -- matches
 drop policy if exists "matches_read"  on public.matches;
 drop policy if exists "matches_write" on public.matches;

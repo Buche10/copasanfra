@@ -51,6 +51,9 @@ export interface Player {
   verificationDoc?: string;
   registeredAt?: string;
   approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  // Campo transitorio (solo lectura vista players_admin): indica si el jugador
+  // tiene documento de respaldo, sin traer la imagen pesada. No se persiste.
+  hasDoc?: boolean;
 }
 
 export type MatchStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'FINISHED' | 'SUSPENDED';

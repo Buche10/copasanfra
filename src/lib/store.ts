@@ -80,10 +80,20 @@ export async function getPlayers(): Promise<Player[]> {
   return selectAll<Player>(TABLES.PLAYERS_PUBLIC);
 }
 
-// Authenticated read: full player records including sensitive fields. Used by
-// admins/referees (e.g. to review documents during approval, QR check-in).
+// Authenticated read: player records WITH cédula but WITHOUT the (heavy)
+// verificationDoc image — that would make reading the whole roster slow and
+// cause statement timeouts on mobile. The doc is fetched on demand.
 export async function getPlayersFull(): Promise<Player[]> {
-  return selectAll<Player>(TABLES.PLAYERS);
+  return selectAll<Player>(TABLES.PLAYERS_ADMIN);
+}
+
+// Lee el documento de respaldo de UN jugador (bajo demanda, al pulsar "Ver
+// Respaldo"). Requiere sesión autenticada.
+export async function getPlayerVerificationDoc(id: string): Promise<string | undefined> {
+  assertConfigured();
+  const { data, error } = await supabase.from(TABLES.PLAYERS).select('data').eq('id', id).single();
+  if (error) throw new Error(`Error al leer el respaldo: ${error.message}`);
+  return (data as { data: Player } | null)?.data?.verificationDoc;
 }
 
 export async function getMatches(): Promise<Match[]> {

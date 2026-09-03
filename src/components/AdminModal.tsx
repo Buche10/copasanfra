@@ -6,7 +6,7 @@ import { TeamShield } from './TeamShield';
 import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Download, Upload, Pencil, Trash2 } from 'lucide-react';
 import { TeamEditModal } from './TeamEditModal';
 import { PlayerEditModal } from './PlayerEditModal';
-import { exportAllData, importAllData } from '@/lib/store';
+import { exportAllData, importAllData, getPlayerVerificationDoc } from '@/lib/store';
 
 interface AdminModalProps {
   teams: Team[];
@@ -16,6 +16,7 @@ interface AdminModalProps {
   onDeleteTeam?: (team: Team) => void;
   onAddPlayer: (player: Player) => void;
   onUpdatePlayer?: (player: Player) => void;
+  onApprovePlayer?: (player: Player) => void;
   onDeletePlayer?: (player: Player) => void;
   onResetData: () => void;
   onGenerateFixture?: () => void;
@@ -29,6 +30,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onDeleteTeam,
   onAddPlayer,
   onUpdatePlayer,
+  onApprovePlayer,
   onDeletePlayer,
   onResetData,
   onGenerateFixture,
@@ -38,6 +40,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [activeTab, setActiveTab] = useState<'teams' | 'players' | 'settings'>('teams');
   const [filterCategory, setFilterCategory] = useState<Category | 'ALL'>('ALL');
   const [filterTeamId, setFilterTeamId] = useState<string>('ALL');
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'APPROVED' | 'PENDING'>('ALL');
+  const [docLoading, setDocLoading] = useState(false);
   const [selectedDocPlayer, setSelectedDocPlayer] = useState<Player | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -86,11 +90,28 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   };
 
   const handleApprove = (player: Player) => {
-    if (!onUpdatePlayer) return;
-    // Al aprobar se elimina el documento de respaldo (ya cumplió su función),
-    // para no acumular archivos pesados en la base de datos.
-    onUpdatePlayer({ ...player, approvalStatus: 'APPROVED', verificationDoc: undefined });
+    // Aprobar elimina el documento de respaldo (ya cumplió su función).
+    if (onApprovePlayer) onApprovePlayer(player);
+    else if (onUpdatePlayer) onUpdatePlayer({ ...player, approvalStatus: 'APPROVED', verificationDoc: undefined });
     setSelectedDocPlayer(null);
+  };
+
+  // Abre el respaldo: la lista no trae la imagen (por rendimiento), así que se
+  // carga bajo demanda solo cuando se necesita verla.
+  const openDoc = async (player: Player) => {
+    if (player.verificationDoc) {
+      setSelectedDocPlayer(player);
+      return;
+    }
+    setDocLoading(true);
+    try {
+      const doc = await getPlayerVerificationDoc(player.id);
+      setSelectedDocPlayer({ ...player, verificationDoc: doc });
+    } catch {
+      alert('No se pudo cargar el respaldo. Intenta de nuevo.');
+    } finally {
+      setDocLoading(false);
+    }
   };
 
   const handleReject = (player: Player) => {
@@ -191,6 +212,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       const team = teamById.get(p.teamId);
       if (filterCategory !== 'ALL' && team?.category !== filterCategory) return false;
       if (filterTeamId !== 'ALL' && p.teamId !== filterTeamId) return false;
+      if (filterStatus !== 'ALL' && (p.approvalStatus || 'APPROVED') !== filterStatus) return false;
       return true;
     })
     .sort((a, b) => {
@@ -533,6 +555,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value as 'ALL' | 'APPROVED' | 'PENDING')}
+                  className="bg-slate-50 text-slate-900 font-bold text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#00A859]"
+                >
+                  <option value="ALL">Todos los estados</option>
+                  <option value="APPROVED">Aprobados</option>
+                  <option value="PENDING">Pendientes</option>
+                </select>
               </div>
             </div>
 
@@ -596,10 +627,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                 <Pencil className="w-3 h-3 text-[#00A859]" /> Editar
                               </button>
                             )}
-                            {p.verificationDoc && (
+                            {(p.hasDoc || p.verificationDoc) && (
                               <button
-                                onClick={() => setSelectedDocPlayer(p)}
-                                className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold inline-flex items-center gap-1 transition-colors"
+                                onClick={() => openDoc(p)}
+                                disabled={docLoading}
+                                className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg text-[10px] font-bold inline-flex items-center gap-1 transition-colors"
                               >
                                 <Eye className="w-3 h-3 text-[#00A859]" />
                                 <span>Ver Respaldo</span>

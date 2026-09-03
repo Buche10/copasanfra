@@ -23,6 +23,9 @@ export const TABLES = {
   // Public, read-only view of players with sensitive fields (cedula,
   // verificationDoc) stripped out. Used for all non-authenticated reads.
   PLAYERS_PUBLIC: 'players_public',
+  // Vista para staff autenticado: incluye cédula, SIN el documento de respaldo
+  // (se carga aparte). Mantiene liviana y rápida la lectura de la nómina.
+  PLAYERS_ADMIN: 'players_admin',
   MATCHES: 'matches',
   USERS: 'users',
   // Pagos de arbitraje por equipo/fecha (respaldo en Storage, no en el JSONB).
