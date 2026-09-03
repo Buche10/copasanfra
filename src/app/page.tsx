@@ -371,8 +371,10 @@ export default function Home() {
   };
 
   // Generate Random Fixture
-  const handleGenerateFixture = async () => {
-    const newMatches = recomputePlayoffs(generateRandomFixture(teams), teams);
+  const handleGenerateFixture = async (
+    blockedByCategory?: Partial<Record<Category, string[]>>
+  ) => {
+    const newMatches = recomputePlayoffs(generateRandomFixture(teams, blockedByCategory), teams);
     setMatches(newMatches);
     try {
       await replaceMatches(newMatches);

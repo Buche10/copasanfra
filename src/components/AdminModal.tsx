@@ -7,6 +7,7 @@ import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Dow
 import { TeamEditModal } from './TeamEditModal';
 import { PlayerEditModal } from './PlayerEditModal';
 import { exportAllData, importAllData, getPlayerVerificationDoc } from '@/lib/store';
+import { seasonSaturdays } from '@/lib/fixtureGenerator';
 
 interface AdminModalProps {
   teams: Team[];
@@ -19,7 +20,7 @@ interface AdminModalProps {
   onApprovePlayer?: (player: Player) => void;
   onDeletePlayer?: (player: Player) => void;
   onResetData: () => void;
-  onGenerateFixture?: () => void;
+  onGenerateFixture?: (blockedByCategory?: Partial<Record<Category, string[]>>) => void;
 }
 
 export const AdminModal: React.FC<AdminModalProps> = ({
@@ -42,6 +43,22 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [filterTeamId, setFilterTeamId] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'APPROVED' | 'PENDING'>('ALL');
   const [docLoading, setDocLoading] = useState(false);
+  // Descansos por categoría: sábados ('YYYY-MM-DD') en que esa categoría NO juega.
+  const [blockedByCategory, setBlockedByCategory] = useState<Record<string, string[]>>({});
+
+  const NUM_WEEKENDS = 18;
+  const weekends = seasonSaturdays(NUM_WEEKENDS);
+  const isBlocked = (cat: Category, date: string) => (blockedByCategory[cat] ?? []).includes(date);
+  const toggleBlock = (cat: Category, date: string) => {
+    setBlockedByCategory((prev) => {
+      const cur = prev[cat] ?? [];
+      const next = cur.includes(date) ? cur.filter((d) => d !== date) : [...cur, date];
+      return { ...prev, [cat]: next };
+    });
+  };
+  const fmtSat = (d: string) =>
+    new Date(d + 'T00:00:00').toLocaleDateString('es-EC', { day: '2-digit', month: 'short' });
+  const totalBlocked = Object.values(blockedByCategory).reduce((n, arr) => n + arr.length, 0);
   const [selectedDocPlayer, setSelectedDocPlayer] = useState<Player | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -760,17 +777,70 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 </p>
               </div>
 
+              {/* Descansos por categoría: marca los sábados en que cada categoría NO juega */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                    Descansos por categoría
+                  </span>
+                  {totalBlocked > 0 && (
+                    <button
+                      onClick={() => setBlockedByCategory({})}
+                      className="text-[11px] font-bold text-rose-600 hover:underline"
+                    >
+                      Limpiar ({totalBlocked})
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Marca ✔ el sábado en que una categoría <strong>descansa</strong>. Al generar, esa
+                  categoría salta esa fecha y corre sus partidos al siguiente sábado. Las demás siguen igual.
+                </p>
+                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-600 uppercase font-extrabold">
+                        <th className="p-2 text-left sticky left-0 bg-slate-100">Sábado</th>
+                        {CATEGORIES.map((c) => (
+                          <th key={c} className="p-2 text-center whitespace-nowrap">{c}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {weekends.map((d, i) => (
+                        <tr key={d} className="hover:bg-slate-50">
+                          <td className="p-2 font-bold text-slate-800 whitespace-nowrap sticky left-0 bg-white">
+                            <span className="text-slate-400 mr-1">F{i + 1}</span> {fmtSat(d)}
+                          </td>
+                          {CATEGORIES.map((c) => (
+                            <td key={c} className="p-2 text-center">
+                              <input
+                                type="checkbox"
+                                checked={isBlocked(c, d)}
+                                onChange={() => toggleBlock(c, d)}
+                                className="w-4 h-4 accent-[#DC2626] cursor-pointer"
+                                title={`${c} descansa el ${fmtSat(d)}`}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
                 <div>
                   <span className="font-extrabold text-emerald-900 block">Sorteo Aleatorio Oficial</span>
                   <span className="text-emerald-700">
-                    Asigna automáticamente fechas por semanas, horarios y canchas a las 4 categorías.
+                    Asigna automáticamente fechas por semanas, horarios y canchas, respetando los descansos marcados.
                   </span>
                 </div>
                 <button
                   onClick={() => {
                     if (window.confirm('¿Estás seguro de generar un nuevo calendario aleatorio de partidos para todas las categorías?')) {
-                      onGenerateFixture();
+                      onGenerateFixture(blockedByCategory);
                     }
                   }}
                   className="px-5 py-3 bg-[#00A859] hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors shrink-0 flex items-center justify-center gap-2"

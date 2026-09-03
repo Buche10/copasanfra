@@ -226,15 +226,36 @@ function scheduleMatchday(
   return repair(best.placements);
 }
 
+// Primer sábado del campeonato. Todas las fechas se cuentan desde aquí.
+export const SEASON_START = '2026-09-05';
+
+// Devuelve las primeras `count` fechas (sábados) de la temporada como
+// 'YYYY-MM-DD'. Lo usa el panel para marcar en qué sábados descansa cada
+// categoría.
+export function seasonSaturdays(count: number): string[] {
+  const start = new Date(SEASON_START);
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i * 7);
+    return d.toISOString().split('T')[0];
+  });
+}
+
 /**
  * Generates a full fixture for all 4 categories.
  * Damas and +50 Varones: Double round-robin (Ida y Vuelta) + Gran Final.
  * Abierta Varones and +40 Varones: Single round-robin (Ida) + Eliminación directa (Cuartos 1°v8°, 2°v7°, 3°v6°, 4°v5° -> Semis -> Final).
+ *
+ * `blockedByCategory`: por categoría, sábados ('YYYY-MM-DD') en que NO juega;
+ * sus jornadas saltan esas fechas y corren al siguiente sábado disponible.
  */
-export function generateRandomFixture(teams: Team[]): Match[] {
+export function generateRandomFixture(
+  teams: Team[],
+  blockedByCategory?: Partial<Record<Category, string[]>>
+): Match[] {
   const generatedMatches: Match[] = [];
   let globalMatchCounter = 100;
-  const startDate = new Date('2026-09-05'); // First Saturday of Sept 2026
+  const startDate = new Date(SEASON_START); // First Saturday of Sept 2026
 
   // Store unscheduled matches grouped by round
   const roundMatchesMap: Record<number, UnscheduledMatch[]> = {};
@@ -419,56 +440,86 @@ export function generateRandomFixture(teams: Team[]): Match[] {
   const clubOf = new Map<string, string>();
   teams.forEach((t) => clubOf.set(t.id, t.clubId || t.id));
 
-  // Schedule all roundMatchesMap onto calendar dates (Saturdays), times, and fields
-  const allRoundNumbers = Object.keys(roundMatchesMap)
-    .map(Number)
-    .sort((a, b) => a - b);
+  // N-ésimo sábado (base 0) desde el inicio de temporada.
+  const saturdayOf = (index: number) => {
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate() + index * 7);
+    return d.toISOString().split('T')[0];
+  };
 
-  allRoundNumbers.forEach((roundNum) => {
-    // Calculate round date (each round incremented by 1 week)
-    const roundDateObj = new Date(startDate);
-    roundDateObj.setDate(startDate.getDate() + (roundNum - 1) * 7);
-    const dateString = roundDateObj.toISOString().split('T')[0];
-
-    // Assign slots/fields respecting owner constraints.
-    const placements = scheduleMatchday(
-      roundMatchesMap[roundNum],
-      clubOf,
-      MATCH_TIMES.length,
-      STADIUMS.length
-    );
-
-    // Order by slot then field so match ids are sequential across the day.
-    placements.sort((a, b) => a.slotIndex - b.slotIndex || a.canchaIndex - b.canchaIndex);
-
-    placements.forEach(({ match: m, slotIndex, canchaIndex }) => {
-      globalMatchCounter++;
-
-      const time = MATCH_TIMES[slotIndex];
-      const stadium = STADIUMS[canchaIndex];
-
-      generatedMatches.push({
-        id: `m-${m.category.toLowerCase().replace(/[^a-z0-9]/g, '')}-${globalMatchCounter}`,
-        category: m.category,
-        round: m.round,
-        date: dateString,
-        time: time,
-        stadium: stadium,
-        homeTeamId: m.homeTeamId,
-        awayTeamId: m.awayTeamId,
-        homeScore: 0,
-        awayScore: 0,
-        status: 'SCHEDULED',
-        homeLineup: [],
-        awayLineup: [],
-        events: [],
-        refereeSigned: false,
-        isPlayoff: m.isPlayoff,
-        playoffStage: m.playoffStage,
-        bracketSlot: m.bracketSlot,
-      });
+  // Para cada categoría, asigna sus jornadas a los sábados PERMITIDOS, saltando
+  // los que están bloqueados (descanso). Así una categoría puede descansar un
+  // fin de semana sin mover a las demás.
+  const catRoundDate: Record<string, Record<number, string>> = {};
+  CATEGORIES.forEach((cat) => {
+    const blocked = new Set(blockedByCategory?.[cat] ?? []);
+    const catRounds = Object.keys(roundMatchesMap)
+      .map(Number)
+      .filter((rn) => roundMatchesMap[rn].some((m) => m.category === cat))
+      .sort((a, b) => a - b);
+    catRoundDate[cat] = {};
+    let cursor = 0;
+    catRounds.forEach((rn) => {
+      while (blocked.has(saturdayOf(cursor))) cursor++;
+      catRoundDate[cat][rn] = saturdayOf(cursor);
+      cursor++;
     });
   });
+
+  // Agrupa todos los partidos por la fecha (sábado) que les tocó.
+  const byDate: Record<string, UnscheduledMatch[]> = {};
+  Object.keys(roundMatchesMap)
+    .map(Number)
+    .forEach((rn) => {
+      roundMatchesMap[rn].forEach((m) => {
+        const date = catRoundDate[m.category][m.round];
+        (byDate[date] ??= []).push(m);
+      });
+    });
+
+  // Programa cada sábado (todas las categorías de ese día) respetando las
+  // restricciones de dueño.
+  Object.keys(byDate)
+    .sort()
+    .forEach((dateString) => {
+      const placements = scheduleMatchday(
+        byDate[dateString],
+        clubOf,
+        MATCH_TIMES.length,
+        STADIUMS.length
+      );
+
+      // Order by slot then field so match ids are sequential across the day.
+      placements.sort((a, b) => a.slotIndex - b.slotIndex || a.canchaIndex - b.canchaIndex);
+
+      placements.forEach(({ match: m, slotIndex, canchaIndex }) => {
+        globalMatchCounter++;
+
+        const time = MATCH_TIMES[slotIndex];
+        const stadium = STADIUMS[canchaIndex];
+
+        generatedMatches.push({
+          id: `m-${m.category.toLowerCase().replace(/[^a-z0-9]/g, '')}-${globalMatchCounter}`,
+          category: m.category,
+          round: m.round,
+          date: dateString,
+          time: time,
+          stadium: stadium,
+          homeTeamId: m.homeTeamId,
+          awayTeamId: m.awayTeamId,
+          homeScore: 0,
+          awayScore: 0,
+          status: 'SCHEDULED',
+          homeLineup: [],
+          awayLineup: [],
+          events: [],
+          refereeSigned: false,
+          isPlayoff: m.isPlayoff,
+          playoffStage: m.playoffStage,
+          bracketSlot: m.bracketSlot,
+        });
+      });
+    });
 
   return generatedMatches;
 }
