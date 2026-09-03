@@ -101,6 +101,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     }
   };
 
+  const handleDelete = (player: Player) => {
+    if (!onDeletePlayer) return;
+    if (window.confirm(`¿ELIMINAR al jugador "${player.name}"? Se quitará del equipo y no se podrá recuperar.`)) {
+      onDeletePlayer(player);
+    }
+  };
+
   // New Team Form State
   const [teamName, setTeamName] = useState('');
   const [teamShortName, setTeamShortName] = useState('');
@@ -614,6 +621,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                   Rechazar
                                 </button>
                               </>
+                            )}
+
+                            {status !== 'PENDING' && onDeletePlayer && (
+                              <button
+                                onClick={() => handleDelete(p)}
+                                className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold inline-flex items-center gap-1 transition-colors"
+                              >
+                                <Trash2 className="w-3 h-3" /> Eliminar
+                              </button>
                             )}
                           </div>
                         </td>
