@@ -200,6 +200,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       return;
     }
 
+    if (players.some((p) => p.teamId === playerTeamId && p.dorsal === playerDorsal)) {
+      alert(`El dorsal ${playerDorsal} ya está en uso en este equipo. Elige otro número.`);
+      return;
+    }
+
     const newPlayer: Player = {
       id: `p-${crypto.randomUUID()}`,
       teamId: playerTeamId,
@@ -454,6 +459,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         <PlayerEditModal
           player={editPlayer}
           teams={teams}
+          players={players}
           onSave={onUpdatePlayer}
           onClose={() => setEditPlayer(null)}
         />

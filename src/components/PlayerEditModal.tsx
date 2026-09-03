@@ -7,6 +7,7 @@ import { X, Save, UserCog } from 'lucide-react';
 interface PlayerEditModalProps {
   player: Player;
   teams: Team[];
+  players: Player[];
   onSave: (player: Player) => void;
   onClose: () => void;
 }
@@ -20,7 +21,7 @@ const POSITIONS: [PlayerPosition, string][] = [
 
 const AFFILIATIONS: NonNullable<Player['affiliation']>[] = ['Colegio de Abogados', 'Foro de Abogados'];
 
-export const PlayerEditModal: React.FC<PlayerEditModalProps> = ({ player, teams, onSave, onClose }) => {
+export const PlayerEditModal: React.FC<PlayerEditModalProps> = ({ player, teams, players, onSave, onClose }) => {
   const [teamId, setTeamId] = useState(player.teamId);
   const [name, setName] = useState(player.name);
   const [cedula, setCedula] = useState(player.cedula || '');
@@ -28,10 +29,16 @@ export const PlayerEditModal: React.FC<PlayerEditModalProps> = ({ player, teams,
   const [position, setPosition] = useState<PlayerPosition>(player.position);
   const [affiliation, setAffiliation] = useState<Player['affiliation']>(player.affiliation);
   const [isCaptain, setIsCaptain] = useState(Boolean(player.isCaptain));
+  const [error, setError] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !teamId) return;
+    // Dorsal único por equipo (excluye al propio jugador que se edita).
+    if (players.some((p) => p.id !== player.id && p.teamId === teamId && p.dorsal === dorsal)) {
+      setError(`El dorsal ${dorsal} ya está en uso en ese equipo. Elige otro número.`);
+      return;
+    }
     onSave({
       ...player,
       teamId,
@@ -77,7 +84,7 @@ export const PlayerEditModal: React.FC<PlayerEditModalProps> = ({ player, teams,
 
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1">Equipo</label>
-            <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={field} required>
+            <select value={teamId} onChange={(e) => { setTeamId(e.target.value); setError(''); }} className={field} required>
               {teams.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name} — {t.category}
@@ -94,7 +101,7 @@ export const PlayerEditModal: React.FC<PlayerEditModalProps> = ({ player, teams,
                 min={1}
                 max={99}
                 value={dorsal}
-                onChange={(e) => setDorsal(Number(e.target.value))}
+                onChange={(e) => { setDorsal(Number(e.target.value)); setError(''); }}
                 className={field}
                 required
               />
@@ -137,6 +144,12 @@ export const PlayerEditModal: React.FC<PlayerEditModalProps> = ({ player, teams,
             />
             <span className="text-xs font-bold text-slate-700">Es capitán del equipo</span>
           </label>
+
+          {error && (
+            <p className="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">
+              {error}
+            </p>
+          )}
 
           <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
             <button

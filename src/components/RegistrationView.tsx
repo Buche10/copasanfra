@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Category, CATEGORIES, MAX_PLAYERS_PER_TEAM, Player, PlayerPosition, Team } from '@/types';
 import { applyWatermarkToPhoto } from '@/lib/watermark';
-import { isCedulaRegistered } from '@/lib/store';
+import { checkCedula } from '@/lib/store';
 import { CarnetDigital } from './CarnetDigital';
 import { TeamShield } from './TeamShield';
 import { 
@@ -67,12 +67,24 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
   const goFromStep2 = async () => {
     if (checkingCedula || !name.trim() || dorsal === '' || cedula.trim() === '') return;
     setCedulaError('');
+
+    // Dorsal único por equipo (chequeo local instantáneo).
+    const dorsalNum = parseInt(dorsal, 10);
+    if (selectedTeamId && players.some((p) => p.teamId === selectedTeamId && p.dorsal === dorsalNum)) {
+      setCedulaError(`El dorsal ${dorsalNum} ya está en uso en este equipo. Elige otro número.`);
+      return;
+    }
+
     setCheckingCedula(true);
     try {
-      const exists = await isCedulaRegistered(cedula);
-      if (exists) {
+      const res = await checkCedula(cedula, selectedTeamId);
+      if (res === 'SAME_TEAM') {
+        setCedulaError('Esta cédula ya está registrada en este mismo equipo.');
+        return;
+      }
+      if (res === 'OTHER_OWNER') {
         setCedulaError(
-          'Ya existe un jugador registrado con esta cédula. Si crees que es un error, contacta al administrador.'
+          'Esta cédula ya juega en un equipo de otro dueño. Un jugador solo puede repetir en categorías de equipos del mismo dueño.'
         );
         return;
       }

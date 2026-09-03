@@ -100,15 +100,18 @@ export async function getMatches(): Promise<Match[]> {
   return selectAll<Match>(TABLES.MATCHES);
 }
 
-// ¿La cédula ya está registrada? Devuelve solo un booleano (no expone datos).
-// Se usa en la inscripción pública para evitar registros duplicados.
-export async function isCedulaRegistered(cedula: string): Promise<boolean> {
+export type CedulaCheck = 'OK' | 'SAME_TEAM' | 'OTHER_OWNER';
+
+// Verifica si una cédula puede inscribirse en un equipo. Un jugador puede
+// repetir en otra categoría SOLO si el equipo es del mismo dueño. Devuelve solo
+// un código (no expone datos). Se usa en la inscripción pública.
+export async function checkCedula(cedula: string, teamId: string): Promise<CedulaCheck> {
   assertConfigured();
   const value = cedula.trim();
-  if (!value) return false;
-  const { data, error } = await supabase.rpc('cedula_exists', { p_cedula: value });
+  if (!value || !teamId) return 'OK';
+  const { data, error } = await supabase.rpc('cedula_check', { p_cedula: value, p_team_id: teamId });
   if (error) throw new Error(`No se pudo verificar la cédula: ${error.message}`);
-  return Boolean(data);
+  return (data as CedulaCheck) ?? 'OK';
 }
 
 export async function getUsers(): Promise<User[]> {
