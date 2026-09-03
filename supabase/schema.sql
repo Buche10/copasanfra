@@ -110,6 +110,24 @@ grant select on public.players_admin to authenticated;
 -- la nómina si algún respaldo pendiente aún es grande).
 alter role authenticated set statement_timeout = '20s';
 
+-- Verifica si una cédula YA está registrada, devolviendo solo verdadero/falso
+-- (no expone ningún dato). Se usa en la inscripción pública para evitar
+-- registros duplicados. Es security definer para poder consultar la tabla
+-- protegida sin dar acceso de lectura a los anónimos.
+create or replace function public.cedula_exists(p_cedula text)
+returns boolean
+language sql
+security definer
+stable
+as $$
+  select exists (
+    select 1 from public.players
+    where btrim(data->>'cedula') = btrim(p_cedula)
+  );
+$$;
+revoke all on function public.cedula_exists(text) from public;
+grant execute on function public.cedula_exists(text) to anon, authenticated;
+
 -- matches
 drop policy if exists "matches_read"  on public.matches;
 drop policy if exists "matches_write" on public.matches;

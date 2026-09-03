@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Category, CATEGORIES, MAX_PLAYERS_PER_TEAM, Player, PlayerPosition, Team } from '@/types';
 import { applyWatermarkToPhoto } from '@/lib/watermark';
+import { isCedulaRegistered } from '@/lib/store';
 import { CarnetDigital } from './CarnetDigital';
 import { TeamShield } from './TeamShield';
 import { 
@@ -55,6 +56,36 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
   const [photoUrl, setPhotoUrl] = useState<string>('');
   const [isWatermarking, setIsWatermarking] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Chequeo de cédula duplicada (paso 2) y confirmación final (paso 4).
+  const [checkingCedula, setCheckingCedula] = useState(false);
+  const [cedulaError, setCedulaError] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+
+  // Verifica en el servidor si la cédula ya existe antes de continuar. Evita
+  // que la persona llene todo el formulario y suba archivos para nada.
+  const goFromStep2 = async () => {
+    if (checkingCedula || !name.trim() || dorsal === '' || cedula.trim() === '') return;
+    setCedulaError('');
+    setCheckingCedula(true);
+    try {
+      const exists = await isCedulaRegistered(cedula);
+      if (exists) {
+        setCedulaError(
+          'Ya existe un jugador registrado con esta cédula. Si crees que es un error, contacta al administrador.'
+        );
+        return;
+      }
+      setStep(3);
+    } catch (err) {
+      // Fail-open: si el chequeo falla (SQL sin desplegar / red), NO bloquear la
+      // inscripción; el admin revisa los pendientes. Solo se registra el error.
+      console.error('No se pudo verificar la cédula (se continúa):', err);
+      setStep(3);
+    } finally {
+      setCheckingCedula(false);
+    }
+  };
 
   // Generated Registered Player state
   const [registeredPlayer, setRegisteredPlayer] = useState<Player | null>(null);
@@ -340,7 +371,7 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
                     <input
                       type="text"
                       value={cedula}
-                      onChange={(e) => setCedula(e.target.value)}
+                      onChange={(e) => { setCedula(e.target.value); setCedulaError(''); }}
                       placeholder="1804291823"
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono text-sm focus:bg-white focus:ring-2 focus:ring-[#00A859] outline-none transition-all"
                     />
@@ -366,6 +397,13 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
               </div>
             </div>
 
+            {cedulaError && (
+              <div className="p-4 bg-red-50 text-red-700 rounded-xl border border-red-200 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{cedulaError}</span>
+              </div>
+            )}
+
             <div className="pt-4 flex justify-between">
               <button
                 type="button"
@@ -378,11 +416,11 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
 
               <button
                 type="button"
-                disabled={!canProceedFromStep2}
-                onClick={() => setStep(3)}
+                disabled={!canProceedFromStep2 || checkingCedula}
+                onClick={goFromStep2}
                 className="flex items-center space-x-2 px-6 py-3 bg-[#00A859] hover:bg-[#008e4b] disabled:bg-slate-200 disabled:cursor-not-allowed text-white font-extrabold text-sm rounded-xl shadow-md transition-all"
               >
-                <span>Siguiente: Afiliación</span>
+                <span>{checkingCedula ? 'Verificando cédula…' : 'Siguiente: Afiliación'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -576,7 +614,23 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
               )}
             </div>
 
-            <div className="pt-4 flex justify-between">
+            {/* Confirmación final: datos correctos + carnet se genera una sola vez */}
+            <label className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-left cursor-pointer">
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(e) => setConfirmed(e.target.checked)}
+                className="w-5 h-5 accent-[#00A859] mt-0.5 shrink-0"
+              />
+              <span className="text-xs text-amber-900 font-semibold leading-relaxed">
+                Confirmo que revisé y <strong>todos los datos son correctos</strong> (nombre, cédula,
+                equipo, dorsal). Entiendo que, por seguridad, el <strong>carnet se genera una sola
+                vez</strong>: debo <strong>descargarlo o tomar una captura de pantalla</strong> apenas
+                aparezca.
+              </span>
+            </label>
+
+            <div className="pt-2 flex justify-between">
               <button
                 type="button"
                 onClick={() => setStep(3)}
@@ -588,11 +642,11 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
 
               <button
                 type="button"
-                disabled={!canProceedFromStep4 || isWatermarking || submitting}
+                disabled={!canProceedFromStep4 || isWatermarking || submitting || !confirmed}
                 onClick={handleSubmit}
                 className="flex items-center space-x-2 px-8 py-3.5 bg-[#00A859] hover:bg-[#008e4b] disabled:bg-slate-200 disabled:cursor-not-allowed text-white font-black text-sm rounded-xl shadow-lg transition-all"
               >
-                <span>{submitting ? 'Guardando…' : 'Finalizar e Inscribir'}</span>
+                <span>{submitting ? 'Guardando…' : 'Confirmar y Generar Carnet'}</span>
                 <CheckCircle2 className="w-5 h-5" />
               </button>
             </div>
@@ -623,7 +677,10 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
                   setCedula('');
                   setPhotoUrl('');
                   setVerificationDoc('');
+                  setVerificationFileName('');
                   setRegisteredPlayer(null);
+                  setConfirmed(false);
+                  setCedulaError('');
                 }}
                 className="px-6 py-3 bg-[#00A859] text-white font-extrabold text-sm rounded-xl shadow-md hover:bg-[#008e4b] transition-all"
               >

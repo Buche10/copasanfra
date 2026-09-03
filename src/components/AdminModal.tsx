@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { Team, Player, Category, CATEGORIES, MAX_PLAYERS_PER_TEAM } from '@/types';
 import { TeamShield } from './TeamShield';
-import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Download, Upload, Pencil, Trash2 } from 'lucide-react';
+import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Download, Upload, Pencil, Trash2, Search } from 'lucide-react';
 import { TeamEditModal } from './TeamEditModal';
 import { PlayerEditModal } from './PlayerEditModal';
 import { exportAllData, importAllData, getPlayerVerificationDoc } from '@/lib/store';
@@ -42,6 +42,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [filterCategory, setFilterCategory] = useState<Category | 'ALL'>('ALL');
   const [filterTeamId, setFilterTeamId] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'APPROVED' | 'PENDING'>('ALL');
+  const [searchName, setSearchName] = useState('');
   const [docLoading, setDocLoading] = useState(false);
   // Descansos por categoría: sábados ('YYYY-MM-DD') en que esa categoría NO juega.
   const [blockedByCategory, setBlockedByCategory] = useState<Record<string, string[]>>({});
@@ -230,6 +231,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       if (filterCategory !== 'ALL' && team?.category !== filterCategory) return false;
       if (filterTeamId !== 'ALL' && p.teamId !== filterTeamId) return false;
       if (filterStatus !== 'ALL' && (p.approvalStatus || 'APPROVED') !== filterStatus) return false;
+      if (searchName.trim() && !p.name.toLowerCase().includes(searchName.trim().toLowerCase())) return false;
       return true;
     })
     .sort((a, b) => {
@@ -543,12 +545,32 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
           {/* Players List */}
           <div className="lg:col-span-2 glass-card rounded-3xl p-6 border border-slate-200 shadow-md space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                <Users className="w-5 h-5 text-[#00A859]" /> Jugadores ({visiblePlayers.length})
-              </h3>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                  <Users className="w-5 h-5 text-[#00A859]" /> Jugadores ({visiblePlayers.length})
+                </h3>
+                <div className="relative sm:w-64">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchName}
+                    onChange={(e) => setSearchName(e.target.value)}
+                    placeholder="Buscar jugador por nombre…"
+                    className="w-full bg-slate-50 text-slate-900 font-semibold text-xs pl-9 pr-8 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#00A859]"
+                  />
+                  {searchName && (
+                    <button
+                      onClick={() => setSearchName('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-700 rounded"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <select
                   value={filterCategory}
                   onChange={(e) => {

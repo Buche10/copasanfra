@@ -100,6 +100,17 @@ export async function getMatches(): Promise<Match[]> {
   return selectAll<Match>(TABLES.MATCHES);
 }
 
+// ¿La cédula ya está registrada? Devuelve solo un booleano (no expone datos).
+// Se usa en la inscripción pública para evitar registros duplicados.
+export async function isCedulaRegistered(cedula: string): Promise<boolean> {
+  assertConfigured();
+  const value = cedula.trim();
+  if (!value) return false;
+  const { data, error } = await supabase.rpc('cedula_exists', { p_cedula: value });
+  if (error) throw new Error(`No se pudo verificar la cédula: ${error.message}`);
+  return Boolean(data);
+}
+
 export async function getUsers(): Promise<User[]> {
   return selectAll<User>(TABLES.USERS);
 }
