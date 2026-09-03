@@ -5,6 +5,7 @@ import { Team, Player, Category, CATEGORIES, MAX_PLAYERS_PER_TEAM } from '@/type
 import { TeamShield } from './TeamShield';
 import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Download, Upload, Pencil, Trash2 } from 'lucide-react';
 import { TeamEditModal } from './TeamEditModal';
+import { PlayerEditModal } from './PlayerEditModal';
 import { exportAllData, importAllData } from '@/lib/store';
 
 interface AdminModalProps {
@@ -33,6 +34,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onGenerateFixture,
 }) => {
   const [editTeam, setEditTeam] = useState<Team | null>(null);
+  const [editPlayer, setEditPlayer] = useState<Player | null>(null);
   const [activeTab, setActiveTab] = useState<'teams' | 'players' | 'settings'>('teams');
   const [selectedDocPlayer, setSelectedDocPlayer] = useState<Player | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -369,6 +371,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         />
       )}
 
+      {/* Modal de edición de jugador */}
+      {editPlayer && onUpdatePlayer && (
+        <PlayerEditModal
+          player={editPlayer}
+          teams={teams}
+          onSave={onUpdatePlayer}
+          onClose={() => setEditPlayer(null)}
+        />
+      )}
+
       {/* Tab 2: Players Management */}
       {activeTab === 'players' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -504,6 +516,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         </td>
                         <td className="p-3">
                           <div className="flex flex-wrap items-center gap-1.5">
+                            {onUpdatePlayer && (
+                              <button
+                                onClick={() => setEditPlayer(p)}
+                                className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold inline-flex items-center gap-1 transition-colors"
+                              >
+                                <Pencil className="w-3 h-3 text-[#00A859]" /> Editar
+                              </button>
+                            )}
                             {p.verificationDoc && (
                               <button
                                 onClick={() => setSelectedDocPlayer(p)}
