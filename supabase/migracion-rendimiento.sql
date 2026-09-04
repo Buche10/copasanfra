@@ -12,14 +12,41 @@
 -- margen de tiempo mayor. El respaldo se lee aparte, solo al pulsar "Ver".
 -- =====================================================================
 
+-- Documentos de respaldo EN TABLA APARTE (para que la nómina sea liviana).
+create table if not exists public.player_docs (
+  id   text primary key references public.players(id) on delete cascade,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.player_docs enable row level security;
+drop policy if exists "player_docs_read"          on public.player_docs;
+drop policy if exists "player_docs_public_insert"  on public.player_docs;
+drop policy if exists "player_docs_write"          on public.player_docs;
+create policy "player_docs_read"          on public.player_docs for select to authenticated using (true);
+create policy "player_docs_public_insert" on public.player_docs for insert to anon          with check (true);
+create policy "player_docs_write"         on public.player_docs for all    to authenticated using (true) with check (true);
+
+-- Mover los respaldos existentes de players.data -> player_docs, y quitarlos
+-- de la tabla de jugadores (aligera la nómina de golpe).
+insert into public.player_docs (id, data)
+  select id, jsonb_build_object('verificationDoc', data->'verificationDoc')
+  from public.players
+  where data ? 'verificationDoc'
+  on conflict (id) do update set data = excluded.data;
+update public.players set data = data - 'verificationDoc' where data ? 'verificationDoc';
+
+-- Vista del staff: cédula sí, respaldo no; hasDoc según player_docs.
 drop view if exists public.players_admin;
 create view public.players_admin as
-  select id,
-    (data - 'verificationDoc') || jsonb_build_object('hasDoc', (data ? 'verificationDoc')) as data
-  from public.players;
+  select p.id,
+    (p.data - 'verificationDoc')
+      || jsonb_build_object('hasDoc', exists (select 1 from public.player_docs d where d.id = p.id)) as data
+  from public.players p;
 grant select on public.players_admin to authenticated;
 
+-- Margen de tiempo mayor (evita timeouts) para staff Y público.
 alter role authenticated set statement_timeout = '20s';
+alter role anon          set statement_timeout = '30s';
 
 -- Verificación de cédula duplicada (solo devuelve verdadero/falso; no expone
 -- datos). Se usa en la inscripción pública para evitar registros repetidos.

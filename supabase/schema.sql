@@ -102,21 +102,37 @@ create view public.players_public as
   from public.players;
 grant select on public.players_public to anon, authenticated;
 
+-- Documentos de respaldo (imagen del carné/certificado) EN TABLA APARTE, para
+-- que la nómina (players) sea liviana y las lecturas públicas no hagan timeout.
+-- FK con ON DELETE CASCADE: al borrar el jugador se borra su respaldo.
+create table if not exists public.player_docs (
+  id   text primary key references public.players(id) on delete cascade,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.player_docs enable row level security;
+drop policy if exists "player_docs_read"          on public.player_docs;
+drop policy if exists "player_docs_public_insert"  on public.player_docs;
+drop policy if exists "player_docs_write"          on public.player_docs;
+-- Lectura SOLO staff (el respaldo es sensible). INSERT anónimo (inscripción).
+create policy "player_docs_read"          on public.player_docs for select to authenticated using (true);
+create policy "player_docs_public_insert" on public.player_docs for insert to anon          with check (true);
+create policy "player_docs_write"         on public.player_docs for all    to authenticated using (true) with check (true);
+
 -- Vista para el STAFF autenticado (admin/árbitros): incluye la cédula pero NO
--- el documento de respaldo (verificationDoc), que puede ser una imagen pesada
--- en base64 y hace lenta la lectura de toda la nómina (timeouts en móviles).
--- En su lugar expone `hasDoc` (si existe respaldo); el documento se lee aparte,
--- solo cuando se necesita verlo.
+-- el documento de respaldo (vive en player_docs). Expone `hasDoc` según exista
+-- un respaldo, para mostrar el botón "Ver Respaldo" (que lo carga aparte).
 drop view if exists public.players_admin;
 create view public.players_admin as
-  select id,
-    (data - 'verificationDoc') || jsonb_build_object('hasDoc', (data ? 'verificationDoc')) as data
-  from public.players;
+  select p.id,
+    (p.data - 'verificationDoc')
+      || jsonb_build_object('hasDoc', exists (select 1 from public.player_docs d where d.id = p.id)) as data
+  from public.players p;
 grant select on public.players_admin to authenticated;
 
--- Margen de tiempo de consulta más alto para el staff (evita el timeout al leer
--- la nómina si algún respaldo pendiente aún es grande).
+-- Margen de tiempo de consulta más alto (evita timeouts). Público y staff.
 alter role authenticated set statement_timeout = '20s';
+alter role anon          set statement_timeout = '30s';
 
 -- Verifica si una cédula YA está registrada, devolviendo solo verdadero/falso
 -- (no expone ningún dato). Se usa en la inscripción pública para evitar

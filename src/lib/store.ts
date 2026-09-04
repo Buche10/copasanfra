@@ -91,12 +91,12 @@ export async function getPlayersFull(): Promise<Player[]> {
 }
 
 // Lee el documento de respaldo de UN jugador (bajo demanda, al pulsar "Ver
-// Respaldo"). Requiere sesión autenticada.
+// Respaldo"), desde la tabla aparte. Requiere sesión autenticada.
 export async function getPlayerVerificationDoc(id: string): Promise<string | undefined> {
   assertConfigured();
-  const { data, error } = await supabase.from(TABLES.PLAYERS).select('data').eq('id', id).single();
+  const { data, error } = await supabase.from(TABLES.PLAYER_DOCS).select('data').eq('id', id).maybeSingle();
   if (error) throw new Error(`Error al leer el respaldo: ${error.message}`);
-  return (data as { data: Player } | null)?.data?.verificationDoc;
+  return (data as { data: { verificationDoc?: string } } | null)?.data?.verificationDoc;
 }
 
 export async function getMatches(): Promise<Match[]> {
@@ -164,17 +164,41 @@ export async function deleteTeam(id: string): Promise<void> {
   if (error) throw new Error(`Error al eliminar el equipo: ${error.message}`);
 }
 
+// El documento de respaldo NO se guarda en la fila del jugador (para no hacer
+// pesada la nómina). Se quita antes de escribir; vive en `player_docs`.
+function stripDocFields(player: Player): Player {
+  const clean = { ...player };
+  delete clean.verificationDoc;
+  delete clean.hasDoc;
+  return clean;
+}
+
 export async function upsertPlayer(player: Player): Promise<void> {
-  return upsertRows(TABLES.PLAYERS, [player]);
+  return upsertRows(TABLES.PLAYERS, [stripDocFields(player)]);
 }
 
 // Crear un jugador NUEVO (inscripción pública o alta desde Admin). Usa insert
-// (no upsert) para que la inscripción anónima funcione bajo RLS.
+// (no upsert) para que la inscripción anónima funcione bajo RLS. El respaldo,
+// si viene, se guarda aparte en `player_docs`.
 export async function insertPlayer(player: Player): Promise<void> {
-  return insertRows(TABLES.PLAYERS, [player]);
+  await insertRows(TABLES.PLAYERS, [stripDocFields(player)]);
+  if (player.verificationDoc) {
+    const { error } = await supabase
+      .from(TABLES.PLAYER_DOCS)
+      .insert({ id: player.id, data: { verificationDoc: player.verificationDoc }, updated_at: new Date().toISOString() });
+    if (error) throw new Error(`Error al guardar el respaldo: ${error.message}`);
+  }
 }
 
-// Eliminar un jugador de la base (p. ej. al rechazar una inscripción).
+// Eliminar el documento de respaldo de un jugador (p. ej. al aprobarlo).
+export async function deletePlayerDoc(id: string): Promise<void> {
+  assertConfigured();
+  const { error } = await supabase.from(TABLES.PLAYER_DOCS).delete().eq('id', id);
+  if (error) throw new Error(`Error al eliminar el respaldo: ${error.message}`);
+}
+
+// Eliminar un jugador de la base (p. ej. al rechazar una inscripción). Su
+// respaldo se elimina en cascada (FK) — igual lo intentamos por si acaso.
 export async function deletePlayer(id: string): Promise<void> {
   assertConfigured();
   const { error } = await supabase.from(TABLES.PLAYERS).delete().eq('id', id);

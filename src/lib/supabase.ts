@@ -26,6 +26,9 @@ export const TABLES = {
   // Vista para staff autenticado: incluye cédula, SIN el documento de respaldo
   // (se carga aparte). Mantiene liviana y rápida la lectura de la nómina.
   PLAYERS_ADMIN: 'players_admin',
+  // Documentos de respaldo (imagen del carné/certificado) separados de la tabla
+  // de jugadores, para que las lecturas de la nómina sean livianas y rápidas.
+  PLAYER_DOCS: 'player_docs',
   MATCHES: 'matches',
   USERS: 'users',
   // Pagos de arbitraje por equipo/fecha (respaldo en Storage, no en el JSONB).

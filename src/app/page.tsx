@@ -23,7 +23,7 @@ import {
   getTeams,
   getPlayers,
   getPlayersFull,
-  getPlayerVerificationDoc,
+  deletePlayerDoc,
   getMatches,
   getUsers,
   upsertTeam,
@@ -376,42 +376,23 @@ export default function Home() {
     return true;
   };
 
-  // Update Player (edición). El objeto viene de la vista liviana (sin
-  // verificationDoc). Como al guardar se reemplaza la fila completa, si el
-  // jugador TIENE respaldo lo recuperamos antes para no borrarlo. La marca
-  // transitoria `hasDoc` no se persiste.
+  // Update Player (edición). El respaldo vive en player_docs, así que editar el
+  // jugador NO lo toca. upsertPlayer ya descarta el respaldo/hasDoc al guardar.
   const handleUpdatePlayer = async (updatedPlayer: Player) => {
-    const { hasDoc, ...clean } = updatedPlayer;
-    let toSave: Player = clean;
-    if (hasDoc && !clean.verificationDoc) {
-      try {
-        const doc = await getPlayerVerificationDoc(clean.id);
-        if (doc) toSave = { ...clean, verificationDoc: doc };
-      } catch {
-        /* si no se pudo recuperar, se guarda igual (raro) */
-      }
-    }
-    setPlayers((prev) => prev.map((p) => (p.id === toSave.id ? { ...toSave, hasDoc } : p)));
+    setPlayers((prev) => prev.map((p) => (p.id === updatedPlayer.id ? updatedPlayer : p)));
     try {
-      await upsertPlayer(toSave);
+      await upsertPlayer(updatedPlayer);
     } catch (err) {
       alert(`No se pudo actualizar el jugador: ${errMsg(err)}`);
     }
   };
 
-  // Aprobar jugador: marca APPROVED y ELIMINA el documento de respaldo (ya
-  // cumplió su función; no acumular imágenes pesadas en la base).
+  // Aprobar jugador: marca APPROVED y ELIMINA el respaldo (ya cumplió su función).
   const handleApprovePlayer = async (player: Player) => {
-    // undefined => JSON.stringify lo omite, así se elimina el respaldo y la
-    // marca transitoria al persistir.
-    const approved: Player = {
-      ...player,
-      approvalStatus: 'APPROVED',
-      verificationDoc: undefined,
-      hasDoc: undefined,
-    };
+    const approved: Player = { ...player, approvalStatus: 'APPROVED', hasDoc: false, verificationDoc: undefined };
     setPlayers((prev) => prev.map((p) => (p.id === approved.id ? approved : p)));
     try {
+      await deletePlayerDoc(player.id).catch(() => {});
       await upsertPlayer(approved);
     } catch (err) {
       alert(`No se pudo aprobar el jugador: ${errMsg(err)}`);
