@@ -8,7 +8,9 @@ import {
   PlayerSanction,
   Category,
   GoalkeeperStat,
-  ArbitrajePayment
+  ArbitrajePayment,
+  AppSettings,
+  SUSPENDED_CATEGORIES
 } from '@/types';
 import {
   INITIAL_TEAMS,
@@ -116,6 +118,31 @@ export async function checkCedula(cedula: string, teamId: string): Promise<Cedul
 
 export async function getUsers(): Promise<User[]> {
   return selectAll<User>(TABLES.USERS);
+}
+
+// ---- Ajustes globales ----
+// Default: mientras no exista la fila (o falle la lectura), se usan las
+// categorías suspendidas definidas en el código, para no cambiar el comportamiento.
+const DEFAULT_SETTINGS: AppSettings = { suspendedCategories: [...SUSPENDED_CATEGORIES] };
+
+export async function getSettings(): Promise<AppSettings> {
+  assertConfigured();
+  const { data, error } = await supabase.from(TABLES.SETTINGS).select('data').eq('id', 'app').maybeSingle();
+  if (error) throw new Error(`Error al leer los ajustes: ${error.message}`);
+  const s = (data as { data: AppSettings } | null)?.data;
+  return {
+    suspendedCategories: Array.isArray(s?.suspendedCategories)
+      ? s!.suspendedCategories
+      : DEFAULT_SETTINGS.suspendedCategories,
+  };
+}
+
+export async function saveSettings(settings: AppSettings): Promise<void> {
+  assertConfigured();
+  const { error } = await supabase
+    .from(TABLES.SETTINGS)
+    .upsert({ id: 'app', data: settings, updated_at: new Date().toISOString() });
+  if (error) throw new Error(`Error al guardar los ajustes: ${error.message}`);
 }
 
 // ---- Writes ----

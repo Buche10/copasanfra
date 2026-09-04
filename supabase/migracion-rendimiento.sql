@@ -71,3 +71,16 @@ begin
 end $$;
 revoke all on function public.cedula_check(text, text) from public;
 grant execute on function public.cedula_check(text, text) to anon, authenticated;
+
+-- Ajustes globales del torneo (categorías suspendidas, etc.). Lectura pública,
+-- escritura autenticada. Una sola fila id='app'.
+create table if not exists public.settings (
+  id   text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.settings enable row level security;
+drop policy if exists "settings_read"  on public.settings;
+drop policy if exists "settings_write" on public.settings;
+create policy "settings_read"  on public.settings for select using (true);
+create policy "settings_write" on public.settings for all to authenticated using (true) with check (true);

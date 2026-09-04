@@ -1,18 +1,20 @@
 'use client';
 
 import React from 'react';
-import { Category, ACTIVE_CATEGORIES, Team } from '@/types';
+import { Category, Team } from '@/types';
 import { Trophy, Shield, Users, Sparkles, Layers } from 'lucide-react';
 
 interface CategorySelectorProps {
   selectedCategory: Category;
   onSelectCategory: (category: Category) => void;
+  categories: Category[];
   teams: Team[];
 }
 
 export const CategorySelector: React.FC<CategorySelectorProps> = ({
   selectedCategory,
   onSelectCategory,
+  categories,
   teams,
 }) => {
   const getTeamCount = (cat: Category) => {
@@ -34,7 +36,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
     }
   };
 
-  const options: Category[] = ACTIVE_CATEGORIES;
+  const options: Category[] = categories;
 
   return (
     <div className="bg-white p-2 rounded-3xl border border-slate-200 shadow-sm space-y-2">

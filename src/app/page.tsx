@@ -11,6 +11,8 @@ import {
   PlayerSanction,
   GoalkeeperStat,
   Category,
+  CATEGORIES,
+  SUSPENDED_CATEGORIES,
   ArbitrajePayment,
   ARBITRAJE_FEE,
   MAX_PLAYERS_PER_TEAM
@@ -29,6 +31,8 @@ import {
   deletePlayer,
   upsertMatch,
   replaceMatches,
+  getSettings,
+  saveSettings,
   getPayments,
   insertPayment,
   upsertPayment,
@@ -43,7 +47,6 @@ import {
 import { signIn, signOut, getCurrentSessionEmail } from '@/lib/auth';
 import { asset } from '@/lib/basePath';
 import { recomputePlayoffs, changedPlayoffMatches } from '@/lib/playoffs';
-import { generateRandomFixture } from '@/lib/fixtureGenerator';
 import { Header, TabType } from '@/components/Header';
 import { CategorySelector } from '@/components/CategorySelector';
 import { StandingsTable } from '@/components/StandingsTable';
@@ -78,6 +81,8 @@ export default function Home() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [payments, setPayments] = useState<ArbitrajePayment[]>([]);
+  const [suspendedCategories, setSuspendedCategories] = useState<Category[]>([...SUSPENDED_CATEGORIES]);
+  const activeCategories = CATEGORIES.filter((c) => !suspendedCategories.includes(c));
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -108,6 +113,20 @@ export default function Home() {
         setTeams(t);
         setPlayers(p);
         setPayments(pay);
+        // Ajustes (categorías suspendidas). Resiliente: si falla, se queda el default.
+        try {
+          const s = await getSettings();
+          if (!cancelled) {
+            setSuspendedCategories(s.suspendedCategories);
+            // Si la categoría por defecto quedó suspendida, mostrar una activa.
+            if (s.suspendedCategories.includes(selectedCategory)) {
+              const firstActive = CATEGORIES.find((c) => !s.suspendedCategories.includes(c));
+              if (firstActive) setSelectedCategory(firstActive);
+            }
+          }
+        } catch (e) {
+          console.error('No se pudieron cargar los ajustes (se usa el default):', e);
+        }
         // Sembrar el cuadro de play offs según la tabla / ganadores.
         const reconciled = recomputePlayoffs(m, t);
         setMatches(reconciled);
@@ -140,7 +159,10 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
+    // Solo al montar: lee el estado inicial de selectedCategory a propósito.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   // Update Match and persist. If the match's slot (fecha+hora+cancha) changed
   // and lands on a slot already used by another match, warn and SWAP: the other
@@ -371,16 +393,24 @@ export default function Home() {
     }
   };
 
-  // Generate Random Fixture
-  const handleGenerateFixture = async (
-    blockedByCategory?: Partial<Record<Category, string[]>>
-  ) => {
-    const newMatches = recomputePlayoffs(generateRandomFixture(teams, blockedByCategory), teams);
-    setMatches(newMatches);
+  // Suspender / reactivar una categoría (switch del panel Admin). Persiste en
+  // los ajustes globales y afecta a todos los dispositivos.
+  const handleToggleCategory = async (category: Category, suspended: boolean) => {
+    const next = suspended
+      ? Array.from(new Set([...suspendedCategories, category]))
+      : suspendedCategories.filter((c) => c !== category);
+    const prev = suspendedCategories;
+    setSuspendedCategories(next);
+    // Si se suspende la categoría que se está viendo, saltar a una activa.
+    if (suspended && selectedCategory === category) {
+      const firstActive = CATEGORIES.find((c) => !next.includes(c));
+      if (firstActive) setSelectedCategory(firstActive);
+    }
     try {
-      await replaceMatches(newMatches);
+      await saveSettings({ suspendedCategories: next });
     } catch (err) {
-      alert(`No se pudo generar el calendario: ${errMsg(err)}`);
+      setSuspendedCategories(prev);
+      alert(`No se pudo guardar el cambio de categoría: ${errMsg(err)}`);
     }
   };
 
@@ -481,6 +511,7 @@ export default function Home() {
         <CategorySelector
           selectedCategory={selectedCategory}
           onSelectCategory={(cat) => setSelectedCategory(cat)}
+          categories={activeCategories}
           teams={teams}
         />
 
@@ -544,13 +575,12 @@ export default function Home() {
         )}
         {activeTab === 'fixture' && (
           <div className="space-y-6">
-            <CalendarExport matches={matches} teams={teams} />
+            <CalendarExport matches={matches} teams={teams} suspendedCategories={suspendedCategories} />
             <FixtureView
               matches={filteredMatches}
             teams={teams}
             players={players}
               onSelectTeam={(t) => setSelectedTeam(t)}
-              onGenerateFixture={currentUser?.role === 'ADMIN' ? handleGenerateFixture : undefined}
               onUpdateMatch={canManageMatches ? handleUpdateMatch : undefined}
             />
           </div>
@@ -588,12 +618,14 @@ export default function Home() {
             onApprovePlayer={handleApprovePlayer}
             onDeletePlayer={handleDeletePlayer}
             onResetData={handleResetData}
-            onGenerateFixture={handleGenerateFixture}
+            suspendedCategories={suspendedCategories}
+            onToggleCategory={handleToggleCategory}
           />
         )}
         {activeTab === 'registration' && (
           <RegistrationView
             teams={teams}
+            categories={activeCategories}
             players={players}
             onAddPlayer={handleAddPlayer}
             onCancel={() => setActiveTab('standings')}

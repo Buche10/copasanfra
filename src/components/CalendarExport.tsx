@@ -2,13 +2,14 @@
 
 import React, { useMemo, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
-import { Match, Team, Category, SUSPENDED_CATEGORIES } from '@/types';
+import { Match, Team, Category } from '@/types';
 import { asset } from '@/lib/basePath';
 import { Download, FileImage, CalendarDays, ClipboardList, ChevronDown, Loader2 } from 'lucide-react';
 
 interface CalendarExportProps {
   matches: Match[];
   teams: Team[];
+  suspendedCategories: Category[];
 }
 
 const fmtLongDate = (iso?: string) => {
@@ -21,12 +22,12 @@ const fmtLongDate = (iso?: string) => {
   });
 };
 
-export const CalendarExport: React.FC<CalendarExportProps> = ({ matches: allMatches, teams }) => {
+export const CalendarExport: React.FC<CalendarExportProps> = ({ matches: allMatches, teams, suspendedCategories }) => {
   // No mostrar/exportar categorías suspendidas (p. ej. +50), sin tocar el
   // calendario guardado.
   const matches = useMemo(
-    () => allMatches.filter((m) => !SUSPENDED_CATEGORIES.includes(m.category)),
-    [allMatches]
+    () => allMatches.filter((m) => !suspendedCategories.includes(m.category)),
+    [allMatches, suspendedCategories]
   );
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'FECHA' | 'CATEGORIA'>('FECHA');

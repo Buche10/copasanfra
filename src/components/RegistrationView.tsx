@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Category, ACTIVE_CATEGORIES, MAX_PLAYERS_PER_TEAM, Player, PlayerPosition, Team } from '@/types';
+import { Category, MAX_PLAYERS_PER_TEAM, Player, PlayerPosition, Team } from '@/types';
 import { applyWatermarkToPhoto } from '@/lib/watermark';
 import { checkCedula } from '@/lib/store';
 import { CarnetDigital } from './CarnetDigital';
@@ -27,6 +27,7 @@ import {
 interface RegistrationViewProps {
   teams: Team[];
   players: Player[];
+  categories: Category[];
   // Devuelve true si el jugador se guardó correctamente (false si falló).
   onAddPlayer: (player: Player) => Promise<boolean> | void;
   onCancel?: () => void;
@@ -35,6 +36,7 @@ interface RegistrationViewProps {
 export const RegistrationView: React.FC<RegistrationViewProps> = ({
   teams,
   players,
+  categories,
   onAddPlayer,
   onCancel,
 }) => {
@@ -246,7 +248,7 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
                 1. Seleccione la Categoría
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {ACTIVE_CATEGORIES.map((cat) => (
+                {categories.map((cat) => (
                   <button
                     key={cat}
                     type="button"

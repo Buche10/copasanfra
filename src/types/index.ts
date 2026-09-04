@@ -18,6 +18,12 @@ export const ACTIVE_CATEGORIES: Category[] = CATEGORIES.filter(
   (c) => !SUSPENDED_CATEGORIES.includes(c)
 );
 
+// Ajustes globales del torneo (persistidos y compartidos). Por ahora, qué
+// categorías están suspendidas (configurable desde el panel Admin).
+export interface AppSettings {
+  suspendedCategories: Category[];
+}
+
 export type Role = 'PUBLIC' | 'REFEREE' | 'ADMIN';
 
 export interface User {

@@ -12,7 +12,6 @@ interface FixtureViewProps {
   teams: Team[];
   players: Player[];
   onSelectTeam?: (team: Team) => void;
-  onGenerateFixture?: () => void;
   onUpdateMatch?: (updatedMatch: Match) => void;
 }
 
@@ -27,7 +26,6 @@ export const FixtureView: React.FC<FixtureViewProps> = ({
   matches,
   teams,
   players,
-  onGenerateFixture,
   onUpdateMatch,
 }) => {
   const [phase, setPhase] = useState<'REGULAR' | 'PLAYOFFS'>('REGULAR');
@@ -272,18 +270,6 @@ export const FixtureView: React.FC<FixtureViewProps> = ({
                   {s === 'ALL' ? 'Todos' : s === 'FINISHED' ? 'Finalizados' : s === 'IN_PROGRESS' ? 'En Vivo' : 'Programados'}
                 </button>
               ))}
-              {onGenerateFixture && (
-                <button
-                  onClick={() => {
-                    if (window.confirm('¿Generar un nuevo calendario aleatorio (Round-Robin) para todas las categorías? Reemplaza el calendario actual.')) {
-                      onGenerateFixture();
-                    }
-                  }}
-                  className="ml-1 px-3 py-1.5 bg-[#00A859] hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all whitespace-nowrap"
-                >
-                  🎲 Generar
-                </button>
-              )}
             </div>
           </div>
 

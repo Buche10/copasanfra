@@ -30,6 +30,8 @@ export const TABLES = {
   USERS: 'users',
   // Pagos de arbitraje por equipo/fecha (respaldo en Storage, no en el JSONB).
   PAYMENTS: 'payments',
+  // Ajustes globales del torneo (una sola fila id='app').
+  SETTINGS: 'settings',
 } as const;
 
 // Bucket público de Storage donde se guardan los respaldos (comprobantes) de

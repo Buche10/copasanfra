@@ -44,6 +44,13 @@ create table if not exists public.payments (
   updated_at timestamptz not null default now()
 );
 
+-- Ajustes globales del torneo (una sola fila id='app'): categorías suspendidas, etc.
+create table if not exists public.settings (
+  id   text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
 -- ---------- Row Level Security (Fase 2: seguridad) ----------
 -- Lectura PÚBLICA (cualquiera ve la tabla de posiciones, goleadores, etc.)
 -- Escritura solo para usuarios AUTENTICADOS vía Supabase Auth
@@ -54,6 +61,7 @@ alter table public.players  enable row level security;
 alter table public.matches  enable row level security;
 alter table public.users    enable row level security;
 alter table public.payments enable row level security;
+alter table public.settings enable row level security;
 
 -- Elimina políticas previas (incluida la versión abierta de la fase 1)
 drop policy if exists "teams_public_rw"   on public.teams;
@@ -189,6 +197,13 @@ create policy "payments_public_insert" on public.payments
   for insert to anon
   with check (coalesce(data->>'status', 'PENDING') = 'PENDING');
 create policy "payments_write" on public.payments for all to authenticated using (true) with check (true);
+
+-- settings: lectura pública (el público necesita saber qué categorías están
+-- suspendidas), escritura solo autenticados (Admin).
+drop policy if exists "settings_read"  on public.settings;
+drop policy if exists "settings_write" on public.settings;
+create policy "settings_read"  on public.settings for select using (true);
+create policy "settings_write" on public.settings for all to authenticated using (true) with check (true);
 
 -- ---------- Storage: bucket público de respaldos ----------
 -- Crea el bucket "respaldos" (público para lectura). Si ya existe, no hace nada.
