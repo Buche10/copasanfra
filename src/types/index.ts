@@ -7,6 +7,17 @@ export const CATEGORIES: Category[] = [
   'Damas',
 ];
 
+// Categorías SUSPENDIDAS (hasta nuevo aviso): no se muestran al público, no se
+// pueden inscribir ni se programan. Los datos se conservan. Para reactivar una,
+// quítala de esta lista.
+export const SUSPENDED_CATEGORIES: Category[] = ['+50 Varones'];
+
+// Categorías activas = todas menos las suspendidas. Úsala en los selectores
+// públicos, la inscripción y el generador de calendario.
+export const ACTIVE_CATEGORIES: Category[] = CATEGORIES.filter(
+  (c) => !SUSPENDED_CATEGORIES.includes(c)
+);
+
 export type Role = 'PUBLIC' | 'REFEREE' | 'ADMIN';
 
 export interface User {

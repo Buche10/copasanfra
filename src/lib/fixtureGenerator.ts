@@ -1,4 +1,4 @@
-import { Team, Match, CATEGORIES, Category, CANCHAS, MATCH_TIME_SLOTS } from '@/types';
+import { Team, Match, ACTIVE_CATEGORIES, Category, CANCHAS, MATCH_TIME_SLOTS } from '@/types';
 
 /**
  * Fisher-Yates array shuffle helper
@@ -260,7 +260,7 @@ export function generateRandomFixture(
   // Store unscheduled matches grouped by round
   const roundMatchesMap: Record<number, UnscheduledMatch[]> = {};
 
-  CATEGORIES.forEach((cat) => {
+  ACTIVE_CATEGORIES.forEach((cat) => {
     const categoryTeams = shuffleArray(teams.filter((t) => t.category === cat));
     
     // Skip if less than 2 teams in category
@@ -451,7 +451,7 @@ export function generateRandomFixture(
   // los que están bloqueados (descanso). Así una categoría puede descansar un
   // fin de semana sin mover a las demás.
   const catRoundDate: Record<string, Record<number, string>> = {};
-  CATEGORIES.forEach((cat) => {
+  ACTIVE_CATEGORIES.forEach((cat) => {
     const blocked = new Set(blockedByCategory?.[cat] ?? []);
     const catRounds = Object.keys(roundMatchesMap)
       .map(Number)

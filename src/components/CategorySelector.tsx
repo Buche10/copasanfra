@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Category, CATEGORIES, Team } from '@/types';
+import { Category, ACTIVE_CATEGORIES, Team } from '@/types';
 import { Trophy, Shield, Users, Sparkles, Layers } from 'lucide-react';
 
 interface CategorySelectorProps {
@@ -34,7 +34,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
     }
   };
 
-  const options: Category[] = CATEGORIES;
+  const options: Category[] = ACTIVE_CATEGORIES;
 
   return (
     <div className="bg-white p-2 rounded-3xl border border-slate-200 shadow-sm space-y-2">

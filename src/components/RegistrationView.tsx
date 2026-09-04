@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Category, CATEGORIES, MAX_PLAYERS_PER_TEAM, Player, PlayerPosition, Team } from '@/types';
+import { Category, ACTIVE_CATEGORIES, MAX_PLAYERS_PER_TEAM, Player, PlayerPosition, Team } from '@/types';
 import { applyWatermarkToPhoto } from '@/lib/watermark';
 import { checkCedula } from '@/lib/store';
 import { CarnetDigital } from './CarnetDigital';
@@ -246,7 +246,7 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
                 1. Seleccione la Categoría
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {CATEGORIES.map((cat) => (
+                {ACTIVE_CATEGORIES.map((cat) => (
                   <button
                     key={cat}
                     type="button"

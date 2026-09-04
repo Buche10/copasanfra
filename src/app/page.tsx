@@ -59,6 +59,7 @@ import { PlayerProfileModal } from '@/components/PlayerProfileModal';
 import { RegistrationView } from '@/components/RegistrationView';
 import { QRScannerModal } from '@/components/QRScannerModal';
 import { ArbitrajeView } from '@/components/ArbitrajeView';
+import { CalendarExport } from '@/components/CalendarExport';
 import { Award, Shield, ShieldAlert } from 'lucide-react';
 
 export default function Home() {
@@ -542,14 +543,17 @@ export default function Home() {
           </div>
         )}
         {activeTab === 'fixture' && (
-          <FixtureView
-            matches={filteredMatches}
+          <div className="space-y-6">
+            <CalendarExport matches={matches} teams={teams} />
+            <FixtureView
+              matches={filteredMatches}
             teams={teams}
             players={players}
-            onSelectTeam={(t) => setSelectedTeam(t)}
-            onGenerateFixture={currentUser?.role === 'ADMIN' ? handleGenerateFixture : undefined}
-            onUpdateMatch={canManageMatches ? handleUpdateMatch : undefined}
-          />
+              onSelectTeam={(t) => setSelectedTeam(t)}
+              onGenerateFixture={currentUser?.role === 'ADMIN' ? handleGenerateFixture : undefined}
+              onUpdateMatch={canManageMatches ? handleUpdateMatch : undefined}
+            />
+          </div>
         )}
         {activeTab === 'arbitraje' && (
           <ArbitrajeView
