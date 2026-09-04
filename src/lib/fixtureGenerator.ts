@@ -624,6 +624,93 @@ export function regenerateCategories(
 }
 
 /**
+ * Mueve un equipo de una categoría a otra SIN mover los partidos ya programados:
+ *  - Quita los partidos del equipo en la categoría de ORIGEN (su ex-rival de esa
+ *    fecha simplemente descansa).
+ *  - En la categoría DESTINO, hace que el equipo juegue, en cada jornada, contra
+ *    el equipo que DESCANSABA esa fecha (llena el bye). El partido nuevo se
+ *    coloca en un turno libre de ese día, sin tocar los demás.
+ * Sirve para categorías destino con nº impar (que tenían un descanso por fecha).
+ */
+export function moveTeamCategory(
+  allMatches: Match[],
+  teams: Team[],
+  teamId: string,
+  oldCat: Category,
+  newCat: Category
+): Match[] {
+  const clubOf = new Map<string, string>();
+  teams.forEach((t) => clubOf.set(t.id, t.clubId || t.id));
+
+  // 1) Quitar los partidos del equipo en ambas categorías (origen y cualquier
+  //    residual en destino), para partir de un estado limpio para ese equipo.
+  const base = allMatches.filter(
+    (m) =>
+      !(
+        (m.category === oldCat || m.category === newCat) &&
+        (m.homeTeamId === teamId || m.awayTeamId === teamId)
+      )
+  );
+
+  // 2) Construir, por jornada de la categoría destino, un partido del equipo
+  //    contra el que descansaba esa fecha.
+  const newCatRegular = base.filter((m) => m.category === newCat && !m.isPlayoff);
+  const teamIdsNewCat = new Set(teams.filter((t) => t.category === newCat).map((t) => t.id));
+  const rounds = [...new Set(newCatRegular.map((m) => m.round))].sort((a, b) => a - b);
+
+  const additions: Match[] = [];
+  let counter = 900;
+  rounds.forEach((round) => {
+    const roundMatches = newCatRegular.filter((m) => m.round === round);
+    const date = roundMatches[0]?.date;
+    if (!date) return;
+    const playing = new Set<string>();
+    roundMatches.forEach((m) => {
+      playing.add(m.homeTeamId);
+      playing.add(m.awayTeamId);
+    });
+    if (playing.has(teamId)) return; // ya juega esa jornada
+    const resting = [...teamIdsNewCat].filter((id) => id !== teamId && !playing.has(id));
+    if (resting.length === 0) return; // sin descanso que llenar (categoría par)
+    additions.push({
+      id: `m-move-${counter++}`,
+      category: newCat,
+      round,
+      date,
+      time: '',
+      stadium: '',
+      homeTeamId: teamId,
+      awayTeamId: resting[0],
+      homeScore: 0,
+      awayScore: 0,
+      status: 'SCHEDULED',
+      homeLineup: [],
+      awayLineup: [],
+      events: [],
+      refereeSigned: false,
+    });
+  });
+
+  // 3) Colocar cada partido nuevo en un turno LIBRE de su día (sin mover el resto).
+  const result: Match[] = [...base];
+  const byDate = new Map<string, Match[]>();
+  additions.forEach((m) => {
+    const a = byDate.get(m.date) ?? [];
+    a.push(m);
+    byDate.set(m.date, a);
+  });
+  byDate.forEach((dayNew, date) => {
+    const fixed = base.filter((m) => m.date === date);
+    const placements = scheduleAround(dayNew, fixed, clubOf, MATCH_TIMES.length, STADIUMS.length);
+    placements.forEach(({ match, slotIndex, canchaIndex }) =>
+      result.push({ ...match, time: MATCH_TIMES[slotIndex], stadium: STADIUMS[canchaIndex] })
+    );
+  });
+
+  return result;
+}
+
+/**
  * Reacomoda SOLO los horarios y canchas del calendario existente para quitar
  * huecos (turnos vacíos), SIN cambiar los enfrentamientos. Agrupa por fecha y
  * vuelve a colocar los partidos VISIBLES de cada día llenando desde el primer

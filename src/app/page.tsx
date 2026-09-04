@@ -49,7 +49,7 @@ import {
 import { signIn, signOut, getCurrentSessionEmail } from '@/lib/auth';
 import { asset } from '@/lib/basePath';
 import { recomputePlayoffs, changedPlayoffMatches } from '@/lib/playoffs';
-import { repackSchedule, regenerateCategories } from '@/lib/fixtureGenerator';
+import { repackSchedule, moveTeamCategory } from '@/lib/fixtureGenerator';
 import { Header, TabType } from '@/components/Header';
 import { CategorySelector } from '@/components/CategorySelector';
 import { StandingsTable } from '@/components/StandingsTable';
@@ -313,24 +313,27 @@ export default function Home() {
       return;
     }
 
-    // Si cambió de categoría, ofrecer rehacer el calendario de las categorías
-    // afectadas (origen y destino), sin tocar las demás.
+    // Si cambió de categoría, ofrecer acomodar el calendario SIN mover partidos:
+    // el equipo sale de su categoría anterior (su ex-rival descansa) y entra a la
+    // nueva jugando, cada fecha, contra el equipo que descansaba (llena el bye).
     if (old && old.category !== updatedTeam.category) {
-      const cats: Category[] = [old.category, updatedTeam.category];
-      const affected = matches.some((m) => cats.includes(m.category));
       const ok = window.confirm(
         `Cambiaste "${updatedTeam.name}" de ${old.category} a ${updatedTeam.category}.\n\n` +
-          `¿Rehacer el calendario de esas categorías (${old.category} y ${updatedTeam.category})? ` +
-          `Se reemplazan sus partidos por unos nuevos. Las demás categorías NO se tocan.\n\n` +
-          `Úsalo solo si esas categorías aún no tienen resultados que quieras conservar.`
+          `¿Acomodar el calendario SIN mover los partidos ya programados?\n` +
+          `• En ${updatedTeam.category}: jugará cada fecha contra el equipo que descansaba (se llena el hueco).\n` +
+          `• En ${old.category}: se quitan solo los partidos de "${updatedTeam.name}".\n\n` +
+          `Ningún otro partido ni horario se mueve.`
       );
-      if (affected && ok) {
-        const regen = recomputePlayoffs(regenerateCategories(matches, nextTeams, cats), nextTeams);
-        setMatches(regen);
+      if (ok) {
+        const moved = recomputePlayoffs(
+          moveTeamCategory(matches, nextTeams, updatedTeam.id, old.category, updatedTeam.category),
+          nextTeams
+        );
+        setMatches(moved);
         try {
-          await replaceMatches(regen);
+          await replaceMatches(moved);
         } catch (err) {
-          alert(`No se pudo rehacer el calendario: ${errMsg(err)}`);
+          alert(`No se pudo acomodar el calendario: ${errMsg(err)}`);
         }
       }
     }
