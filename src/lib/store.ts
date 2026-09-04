@@ -183,10 +183,12 @@ export async function upsertPlayer(player: Player): Promise<void> {
 export async function insertPlayer(player: Player): Promise<void> {
   await insertRows(TABLES.PLAYERS, [stripDocFields(player)]);
   if (player.verificationDoc) {
+    // Best-effort: si la tabla de respaldos aún no existe (migración pendiente),
+    // NO bloquear la inscripción; el jugador ya quedó registrado.
     const { error } = await supabase
       .from(TABLES.PLAYER_DOCS)
       .insert({ id: player.id, data: { verificationDoc: player.verificationDoc }, updated_at: new Date().toISOString() });
-    if (error) throw new Error(`Error al guardar el respaldo: ${error.message}`);
+    if (error) console.error('No se pudo guardar el respaldo (se continúa):', error.message);
   }
 }
 
