@@ -49,7 +49,7 @@ import {
 import { signIn, signOut, getCurrentSessionEmail } from '@/lib/auth';
 import { asset } from '@/lib/basePath';
 import { recomputePlayoffs, changedPlayoffMatches } from '@/lib/playoffs';
-import { repackSchedule, moveTeamCategory } from '@/lib/fixtureGenerator';
+import { repackSchedule, moveTeamCategory, regenerateCategories } from '@/lib/fixtureGenerator';
 import { Header, TabType } from '@/components/Header';
 import { CategorySelector } from '@/components/CategorySelector';
 import { StandingsTable } from '@/components/StandingsTable';
@@ -443,6 +443,18 @@ export default function Home() {
     }
   };
 
+  // Rehacer el calendario de UNA categoría (todos contra todos + play offs),
+  // acomodándola alrededor de las demás categorías (que no se mueven).
+  const handleRegenerateCategory = async (cat: Category) => {
+    const regen = recomputePlayoffs(regenerateCategories(matches, teams, [cat]), teams);
+    setMatches(regen);
+    try {
+      await replaceMatches(regen);
+    } catch (err) {
+      alert(`No se pudo rehacer el calendario de ${cat}: ${errMsg(err)}`);
+    }
+  };
+
   // Reacomodar horarios (quitar huecos) sin cambiar los enfrentamientos.
   const handleRepackSchedule = async () => {
     const repacked = repackSchedule(matches, teams, hiddenCalendarCategories);
@@ -698,6 +710,7 @@ export default function Home() {
             comingSoonCategories={comingSoonCategories}
             onSetCategoryStatus={handleSetCategoryStatus}
             onRepackSchedule={handleRepackSchedule}
+            onRegenerateCategory={handleRegenerateCategory}
           />
         )}
         {activeTab === 'registration' && (
