@@ -2,7 +2,7 @@
 
 import React, { useMemo, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
-import { Match, Team, Category } from '@/types';
+import { Match, Team, Category, SUSPENDED_CATEGORIES } from '@/types';
 import { asset } from '@/lib/basePath';
 import { Download, FileImage, CalendarDays, ClipboardList, ChevronDown, Loader2 } from 'lucide-react';
 
@@ -21,7 +21,13 @@ const fmtLongDate = (iso?: string) => {
   });
 };
 
-export const CalendarExport: React.FC<CalendarExportProps> = ({ matches, teams }) => {
+export const CalendarExport: React.FC<CalendarExportProps> = ({ matches: allMatches, teams }) => {
+  // No mostrar/exportar categorías suspendidas (p. ej. +50), sin tocar el
+  // calendario guardado.
+  const matches = useMemo(
+    () => allMatches.filter((m) => !SUSPENDED_CATEGORIES.includes(m.category)),
+    [allMatches]
+  );
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'FECHA' | 'CATEGORIA'>('FECHA');
   const [downloading, setDownloading] = useState(false);
