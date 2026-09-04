@@ -527,13 +527,21 @@ export function generateRandomFixture(
 /**
  * Reacomoda SOLO los horarios y canchas del calendario existente para quitar
  * huecos (turnos vacíos), SIN cambiar los enfrentamientos. Agrupa por fecha y
- * vuelve a colocar los partidos de cada día llenando desde el primer turno,
- * respetando la regla de dueños (nunca dos equipos del mismo dueño a la vez).
- * Devuelve una copia de `matches` con `time`/`stadium` actualizados.
+ * vuelve a colocar los partidos VISIBLES de cada día llenando desde el primer
+ * turno, respetando la regla de dueños (nunca dos del mismo dueño a la vez).
+ *
+ * `hiddenCategories`: categorías ocultas (suspendidas / próximamente). Sus
+ * partidos NO cuentan para el llenado (así no dejan un turno visible vacío) y
+ * se estacionan al final del día. Devuelve copia con `time`/`stadium` nuevos.
  */
-export function repackSchedule(matches: Match[], teams: Team[]): Match[] {
+export function repackSchedule(
+  matches: Match[],
+  teams: Team[],
+  hiddenCategories: Category[] = []
+): Match[] {
   const clubOf = new Map<string, string>();
   teams.forEach((t) => clubOf.set(t.id, t.clubId || t.id));
+  const hidden = new Set(hiddenCategories);
 
   const byDate = new Map<string, Match[]>();
   matches.forEach((m) => {
@@ -544,7 +552,11 @@ export function repackSchedule(matches: Match[], teams: Team[]): Match[] {
 
   const result: Match[] = [];
   byDate.forEach((dayMatches) => {
-    const unsched: UnscheduledMatch[] = dayMatches.map((m) => ({
+    const visible = dayMatches.filter((m) => !hidden.has(m.category));
+    const hiddenMs = dayMatches.filter((m) => hidden.has(m.category));
+
+    // Programar densamente SOLO los visibles (llenan desde el turno 0).
+    const unsched: UnscheduledMatch[] = visible.map((m) => ({
       category: m.category,
       round: m.round,
       homeTeamId: m.homeTeamId,
@@ -554,13 +566,26 @@ export function repackSchedule(matches: Match[], teams: Team[]): Match[] {
       bracketSlot: m.bracketSlot,
     }));
 
-    const placements = scheduleMatchday(unsched, clubOf, MATCH_TIMES.length, STADIUMS.length);
-    const slotOf = new Map<UnscheduledMatch, { time: string; stadium: string }>();
-    placements.forEach((p) => slotOf.set(p.match, { time: MATCH_TIMES[p.slotIndex], stadium: STADIUMS[p.canchaIndex] }));
+    let maxSlot = -1;
+    if (unsched.length > 0) {
+      const placements = scheduleMatchday(unsched, clubOf, MATCH_TIMES.length, STADIUMS.length);
+      const slotOf = new Map<UnscheduledMatch, { slot: number; time: string; stadium: string }>();
+      placements.forEach((p) => {
+        maxSlot = Math.max(maxSlot, p.slotIndex);
+        slotOf.set(p.match, { slot: p.slotIndex, time: MATCH_TIMES[p.slotIndex], stadium: STADIUMS[p.canchaIndex] });
+      });
+      visible.forEach((m, i) => {
+        const pos = slotOf.get(unsched[i]);
+        result.push(pos ? { ...m, time: pos.time, stadium: pos.stadium } : m);
+      });
+    }
 
-    dayMatches.forEach((m, i) => {
-      const pos = slotOf.get(unsched[i]);
-      result.push(pos ? { ...m, time: pos.time, stadium: pos.stadium } : m);
+    // Partidos ocultos (p. ej. +50 en "próximamente"): estacionarlos en turnos
+    // posteriores para que no colisionen con los visibles ni dejen huecos.
+    hiddenMs.forEach((m, i) => {
+      const slot = Math.min(maxSlot + 1 + Math.floor(i / STADIUMS.length), MATCH_TIMES.length - 1);
+      const cancha = i % STADIUMS.length;
+      result.push({ ...m, time: MATCH_TIMES[slot], stadium: STADIUMS[cancha] });
     });
   });
 

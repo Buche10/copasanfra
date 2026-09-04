@@ -417,7 +417,7 @@ export default function Home() {
 
   // Reacomodar horarios (quitar huecos) sin cambiar los enfrentamientos.
   const handleRepackSchedule = async () => {
-    const repacked = repackSchedule(matches, teams);
+    const repacked = repackSchedule(matches, teams, hiddenCalendarCategories);
     setMatches(repacked);
     try {
       await replaceMatches(repacked);
