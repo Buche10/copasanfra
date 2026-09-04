@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Team, Player, Category, CATEGORIES, MAX_PLAYERS_PER_TEAM } from '@/types';
+import { Team, Player, Category, CategoryStatus, CATEGORIES, MAX_PLAYERS_PER_TEAM } from '@/types';
 import { TeamShield } from './TeamShield';
 import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Download, Upload, Pencil, Trash2, Search } from 'lucide-react';
 import { TeamEditModal } from './TeamEditModal';
@@ -20,7 +20,8 @@ interface AdminModalProps {
   onDeletePlayer?: (player: Player) => void;
   onResetData: () => void;
   suspendedCategories: Category[];
-  onToggleCategory: (category: Category, suspended: boolean) => void;
+  comingSoonCategories: Category[];
+  onSetCategoryStatus: (category: Category, status: CategoryStatus) => void;
   onRepackSchedule?: () => void;
 }
 
@@ -36,7 +37,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onDeletePlayer,
   onResetData,
   suspendedCategories,
-  onToggleCategory,
+  comingSoonCategories,
+  onSetCategoryStatus,
   onRepackSchedule,
 }) => {
   const [editTeam, setEditTeam] = useState<Team | null>(null);
@@ -792,26 +794,45 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               </p>
             </div>
 
+            <p className="text-[11px] text-slate-500 -mt-2">
+              <strong>Activa</strong>: normal. <strong>Próximamente</strong>: visible y con inscripción
+              abierta, pero su calendario/tablas dicen “Próximamente”. <strong>Suspendida</strong>: oculta del todo.
+            </p>
+
             <div className="space-y-2">
               {CATEGORIES.map((c) => {
-                const suspended = suspendedCategories.includes(c);
+                const status: CategoryStatus = suspendedCategories.includes(c)
+                  ? 'SUSPENDED'
+                  : comingSoonCategories.includes(c)
+                  ? 'COMING_SOON'
+                  : 'ACTIVE';
+                const opts: [CategoryStatus, string][] = [
+                  ['ACTIVE', 'Activa'],
+                  ['COMING_SOON', 'Próximamente'],
+                  ['SUSPENDED', 'Suspendida'],
+                ];
                 return (
-                  <div key={c} className="flex items-center justify-between gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
-                    <div className="min-w-0 flex items-center gap-2">
-                      <span className="text-sm font-black text-slate-800">{c}</span>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${suspended ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                        {suspended ? 'Suspendida' : 'Activa'}
-                      </span>
+                  <div key={c} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                    <span className="text-sm font-black text-slate-800">{c}</span>
+                    <div className="flex items-center gap-1 p-1 bg-white rounded-xl border border-slate-200">
+                      {opts.map(([value, label]) => (
+                        <button
+                          key={value}
+                          onClick={() => onSetCategoryStatus(c, value)}
+                          className={`px-2.5 py-1.5 text-[11px] font-extrabold rounded-lg transition-all ${
+                            status === value
+                              ? value === 'SUSPENDED'
+                                ? 'bg-rose-600 text-white shadow-sm'
+                                : value === 'COMING_SOON'
+                                ? 'bg-amber-500 text-white shadow-sm'
+                                : 'bg-[#00A859] text-white shadow-sm'
+                              : 'text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
                     </div>
-                    <button
-                      role="switch"
-                      aria-checked={!suspended}
-                      onClick={() => onToggleCategory(c, !suspended)}
-                      className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${suspended ? 'bg-slate-300' : 'bg-[#00A859]'}`}
-                      title={suspended ? 'Reactivar categoría' : 'Suspender categoría'}
-                    >
-                      <span className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${suspended ? '' : 'translate-x-5'}`} />
-                    </button>
                   </div>
                 );
               })}

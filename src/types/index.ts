@@ -7,21 +7,27 @@ export const CATEGORIES: Category[] = [
   'Damas',
 ];
 
-// Categorías SUSPENDIDAS (hasta nuevo aviso): no se muestran al público, no se
-// pueden inscribir ni se programan. Los datos se conservan. Para reactivar una,
-// quítala de esta lista.
-export const SUSPENDED_CATEGORIES: Category[] = ['+50 Varones'];
+// Estado por categoría:
+//  - SUSPENDIDA: oculta del público, inscripción e informes (datos se conservan).
+//  - PRÓXIMAMENTE: visible y con inscripción abierta, pero su calendario/tablas
+//    muestran "Próximamente" (aún no juega).
+//  - ACTIVA: normal.
+// Defaults (se usan si no hay ajustes guardados en la base):
+export const SUSPENDED_CATEGORIES: Category[] = [];
+export const COMING_SOON_CATEGORIES: Category[] = ['+50 Varones'];
 
-// Categorías activas = todas menos las suspendidas. Úsala en los selectores
-// públicos, la inscripción y el generador de calendario.
+// Categorías activas = todas menos las suspendidas. Úsala en el generador.
 export const ACTIVE_CATEGORIES: Category[] = CATEGORIES.filter(
   (c) => !SUSPENDED_CATEGORIES.includes(c)
 );
 
-// Ajustes globales del torneo (persistidos y compartidos). Por ahora, qué
-// categorías están suspendidas (configurable desde el panel Admin).
+export type CategoryStatus = 'ACTIVE' | 'COMING_SOON' | 'SUSPENDED';
+
+// Ajustes globales del torneo (persistidos y compartidos): estado de cada
+// categoría (suspendidas / próximamente).
 export interface AppSettings {
   suspendedCategories: Category[];
+  comingSoonCategories: Category[];
 }
 
 export type Role = 'PUBLIC' | 'REFEREE' | 'ADMIN';

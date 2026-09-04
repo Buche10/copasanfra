@@ -8,6 +8,7 @@ interface CategorySelectorProps {
   selectedCategory: Category;
   onSelectCategory: (category: Category) => void;
   categories: Category[];
+  comingSoonCategories?: Category[];
   teams: Team[];
 }
 
@@ -15,6 +16,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
   selectedCategory,
   onSelectCategory,
   categories,
+  comingSoonCategories = [],
   teams,
 }) => {
   const getTeamCount = (cat: Category) => {
@@ -73,15 +75,23 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                 </span>
                 <span className="truncate">{cat}</span>
               </div>
-              <span
-                className={`ml-1.5 px-2 py-0.5 rounded-full text-[11px] font-extrabold shrink-0 ${
-                  isSelected
-                    ? 'bg-[#00A859] text-white'
-                    : 'bg-slate-200/70 text-slate-600'
-                }`}
-              >
-                {count}
-              </span>
+              {comingSoonCategories.includes(cat) ? (
+                <span
+                  className={`ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold shrink-0 ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
+                  }`}
+                >
+                  Pronto
+                </span>
+              ) : (
+                <span
+                  className={`ml-1.5 px-2 py-0.5 rounded-full text-[11px] font-extrabold shrink-0 ${
+                    isSelected ? 'bg-[#00A859] text-white' : 'bg-slate-200/70 text-slate-600'
+                  }`}
+                >
+                  {count}
+                </span>
+              )}
             </button>
           );
         })}

@@ -10,7 +10,8 @@ import {
   GoalkeeperStat,
   ArbitrajePayment,
   AppSettings,
-  SUSPENDED_CATEGORIES
+  SUSPENDED_CATEGORIES,
+  COMING_SOON_CATEGORIES
 } from '@/types';
 import {
   INITIAL_TEAMS,
@@ -123,17 +124,23 @@ export async function getUsers(): Promise<User[]> {
 // ---- Ajustes globales ----
 // Default: mientras no exista la fila (o falle la lectura), se usan las
 // categorías suspendidas definidas en el código, para no cambiar el comportamiento.
-const DEFAULT_SETTINGS: AppSettings = { suspendedCategories: [...SUSPENDED_CATEGORIES] };
+const DEFAULT_SETTINGS: AppSettings = {
+  suspendedCategories: [...SUSPENDED_CATEGORIES],
+  comingSoonCategories: [...COMING_SOON_CATEGORIES],
+};
 
 export async function getSettings(): Promise<AppSettings> {
   assertConfigured();
   const { data, error } = await supabase.from(TABLES.SETTINGS).select('data').eq('id', 'app').maybeSingle();
   if (error) throw new Error(`Error al leer los ajustes: ${error.message}`);
-  const s = (data as { data: AppSettings } | null)?.data;
+  const s = (data as { data: Partial<AppSettings> } | null)?.data;
   return {
     suspendedCategories: Array.isArray(s?.suspendedCategories)
-      ? s!.suspendedCategories
+      ? s!.suspendedCategories!
       : DEFAULT_SETTINGS.suspendedCategories,
+    comingSoonCategories: Array.isArray(s?.comingSoonCategories)
+      ? s!.comingSoonCategories!
+      : DEFAULT_SETTINGS.comingSoonCategories,
   };
 }
 

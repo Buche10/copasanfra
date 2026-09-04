@@ -13,6 +13,8 @@ import {
   Category,
   CATEGORIES,
   SUSPENDED_CATEGORIES,
+  COMING_SOON_CATEGORIES,
+  CategoryStatus,
   ArbitrajePayment,
   ARBITRAJE_FEE,
   MAX_PLAYERS_PER_TEAM
@@ -64,7 +66,7 @@ import { RegistrationView } from '@/components/RegistrationView';
 import { QRScannerModal } from '@/components/QRScannerModal';
 import { ArbitrajeView } from '@/components/ArbitrajeView';
 import { CalendarExport } from '@/components/CalendarExport';
-import { Award, Shield, ShieldAlert } from 'lucide-react';
+import { Award, Shield, ShieldAlert, Clock } from 'lucide-react';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabType>('standings');
@@ -83,7 +85,25 @@ export default function Home() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [payments, setPayments] = useState<ArbitrajePayment[]>([]);
   const [suspendedCategories, setSuspendedCategories] = useState<Category[]>([...SUSPENDED_CATEGORIES]);
-  const activeCategories = CATEGORIES.filter((c) => !suspendedCategories.includes(c));
+  const [comingSoonCategories, setComingSoonCategories] = useState<Category[]>([...COMING_SOON_CATEGORIES]);
+  // Categorías visibles/inscribibles = todas menos las suspendidas (las de
+  // "próximamente" SÍ se muestran e inscriben, pero su calendario está pendiente).
+  const selectableCategories = CATEGORIES.filter((c) => !suspendedCategories.includes(c));
+  const isComingSoon = comingSoonCategories.includes(selectedCategory);
+  const hiddenCalendarCategories = [...new Set([...suspendedCategories, ...comingSoonCategories])];
+
+  const comingSoonView = (
+    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-10 text-center">
+      <div className="mx-auto w-14 h-14 rounded-2xl bg-[#00A859]/10 flex items-center justify-center mb-3">
+        <Clock className="w-7 h-7 text-[#00A859]" />
+      </div>
+      <h3 className="text-xl font-black text-slate-900">Próximamente</h3>
+      <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
+        La categoría <strong>{selectedCategory}</strong> aún no tiene calendario. Las inscripciones
+        siguen <strong>abiertas</strong>: regístrate en la pestaña <strong>Inscripción</strong>.
+      </p>
+    </div>
+  );
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -119,10 +139,11 @@ export default function Home() {
           const s = await getSettings();
           if (!cancelled) {
             setSuspendedCategories(s.suspendedCategories);
-            // Si la categoría por defecto quedó suspendida, mostrar una activa.
+            setComingSoonCategories(s.comingSoonCategories);
+            // Si la categoría por defecto quedó suspendida, mostrar una visible.
             if (s.suspendedCategories.includes(selectedCategory)) {
-              const firstActive = CATEGORIES.find((c) => !s.suspendedCategories.includes(c));
-              if (firstActive) setSelectedCategory(firstActive);
+              const firstVisible = CATEGORIES.find((c) => !s.suspendedCategories.includes(c));
+              if (firstVisible) setSelectedCategory(firstVisible);
             }
           }
         } catch (e) {
@@ -405,23 +426,33 @@ export default function Home() {
     }
   };
 
-  // Suspender / reactivar una categoría (switch del panel Admin). Persiste en
-  // los ajustes globales y afecta a todos los dispositivos.
-  const handleToggleCategory = async (category: Category, suspended: boolean) => {
-    const next = suspended
-      ? Array.from(new Set([...suspendedCategories, category]))
-      : suspendedCategories.filter((c) => c !== category);
-    const prev = suspendedCategories;
-    setSuspendedCategories(next);
-    // Si se suspende la categoría que se está viendo, saltar a una activa.
-    if (suspended && selectedCategory === category) {
-      const firstActive = CATEGORIES.find((c) => !next.includes(c));
-      if (firstActive) setSelectedCategory(firstActive);
+  // Cambiar el estado de una categoría (Activa / Próximamente / Suspendida)
+  // desde el panel Admin. Persiste y afecta a todos los dispositivos.
+  const handleSetCategoryStatus = async (category: Category, status: CategoryStatus) => {
+    const nextSuspended = (
+      status === 'SUSPENDED'
+        ? Array.from(new Set([...suspendedCategories, category]))
+        : suspendedCategories.filter((c) => c !== category)
+    );
+    const nextComingSoon = (
+      status === 'COMING_SOON'
+        ? Array.from(new Set([...comingSoonCategories, category]))
+        : comingSoonCategories.filter((c) => c !== category)
+    );
+    const prevS = suspendedCategories;
+    const prevC = comingSoonCategories;
+    setSuspendedCategories(nextSuspended);
+    setComingSoonCategories(nextComingSoon);
+    // Si se suspende la categoría que se está viendo, saltar a una visible.
+    if (status === 'SUSPENDED' && selectedCategory === category) {
+      const firstVisible = CATEGORIES.find((c) => !nextSuspended.includes(c));
+      if (firstVisible) setSelectedCategory(firstVisible);
     }
     try {
-      await saveSettings({ suspendedCategories: next });
+      await saveSettings({ suspendedCategories: nextSuspended, comingSoonCategories: nextComingSoon });
     } catch (err) {
-      setSuspendedCategories(prev);
+      setSuspendedCategories(prevS);
+      setComingSoonCategories(prevC);
       alert(`No se pudo guardar el cambio de categoría: ${errMsg(err)}`);
     }
   };
@@ -523,19 +554,22 @@ export default function Home() {
         <CategorySelector
           selectedCategory={selectedCategory}
           onSelectCategory={(cat) => setSelectedCategory(cat)}
-          categories={activeCategories}
+          categories={selectableCategories}
+          comingSoonCategories={comingSoonCategories}
           teams={teams}
         />
 
         {/* Dynamic Tab Views */}
         {activeTab === 'standings' && (
-          <StandingsTable
-            standings={standings}
-            teams={teams}
-            onSelectTeam={(t) => setSelectedTeam(t)}
-          />
+          isComingSoon ? comingSoonView : (
+            <StandingsTable
+              standings={standings}
+              teams={teams}
+              onSelectTeam={(t) => setSelectedTeam(t)}
+            />
+          )
         )}
-        {activeTab === 'stats' && (
+        {activeTab === 'stats' && (isComingSoon ? comingSoonView : (
           <div className="space-y-5">
             <div className="flex items-center gap-2 p-1.5 bg-white rounded-2xl border border-slate-200 shadow-xs w-full sm:w-fit overflow-x-auto scrollbar-none">
               {([
@@ -584,10 +618,11 @@ export default function Home() {
               />
             )}
           </div>
-        )}
+        ))}
         {activeTab === 'fixture' && (
           <div className="space-y-6">
-            <CalendarExport matches={matches} teams={teams} suspendedCategories={suspendedCategories} />
+            <CalendarExport matches={matches} teams={teams} suspendedCategories={hiddenCalendarCategories} />
+            {isComingSoon ? comingSoonView : (
             <FixtureView
               matches={filteredMatches}
             teams={teams}
@@ -595,9 +630,10 @@ export default function Home() {
               onSelectTeam={(t) => setSelectedTeam(t)}
               onUpdateMatch={canManageMatches ? handleUpdateMatch : undefined}
             />
+            )}
           </div>
         )}
-        {activeTab === 'arbitraje' && (
+        {activeTab === 'arbitraje' && (isComingSoon ? comingSoonView : (
           <ArbitrajeView
             teams={teams}
             matches={matches}
@@ -608,8 +644,8 @@ export default function Home() {
             onReview={handleReviewPayment}
             onDelete={handleDeletePayment}
           />
-        )}
-        {activeTab === 'sheet' && (
+        ))}
+        {activeTab === 'sheet' && (isComingSoon ? comingSoonView : (
           <MatchSheetModal
             matches={filteredMatches}
             teams={teams}
@@ -617,7 +653,7 @@ export default function Home() {
             payments={payments}
             onUpdateMatch={handleUpdateMatch}
           />
-        )}
+        ))}
         {activeTab === 'admin' && (
           <AdminModal
             teams={teams}
@@ -631,14 +667,15 @@ export default function Home() {
             onDeletePlayer={handleDeletePlayer}
             onResetData={handleResetData}
             suspendedCategories={suspendedCategories}
-            onToggleCategory={handleToggleCategory}
+            comingSoonCategories={comingSoonCategories}
+            onSetCategoryStatus={handleSetCategoryStatus}
             onRepackSchedule={handleRepackSchedule}
           />
         )}
         {activeTab === 'registration' && (
           <RegistrationView
             teams={teams}
-            categories={activeCategories}
+            categories={selectableCategories}
             players={players}
             onAddPlayer={handleAddPlayer}
             onCancel={() => setActiveTab('standings')}
