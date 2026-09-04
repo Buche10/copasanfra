@@ -523,3 +523,46 @@ export function generateRandomFixture(
 
   return generatedMatches;
 }
+
+/**
+ * Reacomoda SOLO los horarios y canchas del calendario existente para quitar
+ * huecos (turnos vacíos), SIN cambiar los enfrentamientos. Agrupa por fecha y
+ * vuelve a colocar los partidos de cada día llenando desde el primer turno,
+ * respetando la regla de dueños (nunca dos equipos del mismo dueño a la vez).
+ * Devuelve una copia de `matches` con `time`/`stadium` actualizados.
+ */
+export function repackSchedule(matches: Match[], teams: Team[]): Match[] {
+  const clubOf = new Map<string, string>();
+  teams.forEach((t) => clubOf.set(t.id, t.clubId || t.id));
+
+  const byDate = new Map<string, Match[]>();
+  matches.forEach((m) => {
+    const arr = byDate.get(m.date) ?? [];
+    arr.push(m);
+    byDate.set(m.date, arr);
+  });
+
+  const result: Match[] = [];
+  byDate.forEach((dayMatches) => {
+    const unsched: UnscheduledMatch[] = dayMatches.map((m) => ({
+      category: m.category,
+      round: m.round,
+      homeTeamId: m.homeTeamId,
+      awayTeamId: m.awayTeamId,
+      isPlayoff: m.isPlayoff,
+      playoffStage: m.playoffStage,
+      bracketSlot: m.bracketSlot,
+    }));
+
+    const placements = scheduleMatchday(unsched, clubOf, MATCH_TIMES.length, STADIUMS.length);
+    const slotOf = new Map<UnscheduledMatch, { time: string; stadium: string }>();
+    placements.forEach((p) => slotOf.set(p.match, { time: MATCH_TIMES[p.slotIndex], stadium: STADIUMS[p.canchaIndex] }));
+
+    dayMatches.forEach((m, i) => {
+      const pos = slotOf.get(unsched[i]);
+      result.push(pos ? { ...m, time: pos.time, stadium: pos.stadium } : m);
+    });
+  });
+
+  return result;
+}

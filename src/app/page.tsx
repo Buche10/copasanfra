@@ -47,6 +47,7 @@ import {
 import { signIn, signOut, getCurrentSessionEmail } from '@/lib/auth';
 import { asset } from '@/lib/basePath';
 import { recomputePlayoffs, changedPlayoffMatches } from '@/lib/playoffs';
+import { repackSchedule } from '@/lib/fixtureGenerator';
 import { Header, TabType } from '@/components/Header';
 import { CategorySelector } from '@/components/CategorySelector';
 import { StandingsTable } from '@/components/StandingsTable';
@@ -393,6 +394,17 @@ export default function Home() {
     }
   };
 
+  // Reacomodar horarios (quitar huecos) sin cambiar los enfrentamientos.
+  const handleRepackSchedule = async () => {
+    const repacked = repackSchedule(matches, teams);
+    setMatches(repacked);
+    try {
+      await replaceMatches(repacked);
+    } catch (err) {
+      alert(`No se pudieron reacomodar los horarios: ${errMsg(err)}`);
+    }
+  };
+
   // Suspender / reactivar una categoría (switch del panel Admin). Persiste en
   // los ajustes globales y afecta a todos los dispositivos.
   const handleToggleCategory = async (category: Category, suspended: boolean) => {
@@ -620,6 +632,7 @@ export default function Home() {
             onResetData={handleResetData}
             suspendedCategories={suspendedCategories}
             onToggleCategory={handleToggleCategory}
+            onRepackSchedule={handleRepackSchedule}
           />
         )}
         {activeTab === 'registration' && (

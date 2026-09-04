@@ -21,6 +21,7 @@ interface AdminModalProps {
   onResetData: () => void;
   suspendedCategories: Category[];
   onToggleCategory: (category: Category, suspended: boolean) => void;
+  onRepackSchedule?: () => void;
 }
 
 export const AdminModal: React.FC<AdminModalProps> = ({
@@ -36,6 +37,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onResetData,
   suspendedCategories,
   onToggleCategory,
+  onRepackSchedule,
 }) => {
   const [editTeam, setEditTeam] = useState<Team | null>(null);
   const [editPlayer, setEditPlayer] = useState<Player | null>(null);
@@ -815,6 +817,37 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               })}
             </div>
           </div>
+
+          {/* Card: Reacomodar horarios */}
+          {onRepackSchedule && (
+            <div className="glass-card rounded-3xl p-6 border border-slate-200 shadow-md space-y-4">
+              <div className="space-y-1 border-b pb-4">
+                <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
+                  <RefreshCw className="w-5 h-5 text-[#00A859]" /> Reacomodar Horarios (quitar huecos)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Compacta los horarios y canchas de cada fecha para que no queden turnos vacíos.
+                  <strong> No cambia los enfrentamientos</strong>: solo la hora y la cancha, respetando
+                  que dos equipos del mismo dueño no jueguen a la vez.
+                </p>
+              </div>
+              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+                <span className="text-emerald-800 font-semibold">
+                  Los partidos se corren hacia arriba para llenar los huecos. Los marcadores y datos se conservan.
+                </span>
+                <button
+                  onClick={() => {
+                    if (window.confirm('¿Reacomodar los horarios para quitar huecos? Cambian horas y canchas, NO los enfrentamientos ni los resultados.')) {
+                      onRepackSchedule();
+                    }
+                  }}
+                  className="px-5 py-3 bg-[#00A859] hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors shrink-0 flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" /> Reacomodar
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Card: Backup & Restore */}
           <div className="glass-card rounded-3xl p-6 border border-slate-200 shadow-md space-y-4">
