@@ -524,6 +524,105 @@ export function generateRandomFixture(
   return generatedMatches;
 }
 
+// Coloca `newMatches` en los turnos LIBRES alrededor de `fixedMatches` (que NO
+// se mueven), respetando la regla de dueños y llenando desde el turno 0.
+function scheduleAround(
+  newMatches: Match[],
+  fixedMatches: Match[],
+  clubOf: Map<string, string>,
+  slotCount: number,
+  fieldsPerSlot: number
+): { match: Match; slotIndex: number; canchaIndex: number }[] {
+  const clubsOf = (m: Match) => [clubOf.get(m.homeTeamId) ?? m.homeTeamId, clubOf.get(m.awayTeamId) ?? m.awayTeamId];
+  const used: boolean[][] = Array.from({ length: slotCount }, () => Array.from({ length: fieldsPerSlot }, () => false));
+  const clubsInSlot: Set<string>[] = Array.from({ length: slotCount }, () => new Set<string>());
+
+  // Sembrar los partidos fijos (Damas / +50) en su turno y cancha actuales.
+  fixedMatches.forEach((fm) => {
+    const s = MATCH_TIMES.indexOf(fm.time);
+    if (s < 0) return;
+    let c = STADIUMS.indexOf(fm.stadium);
+    if (c < 0 || c >= fieldsPerSlot || used[s][c]) c = used[s].findIndex((u) => !u);
+    if (c >= 0) used[s][c] = true;
+    clubsOf(fm).forEach((x) => clubsInSlot[s].add(x));
+  });
+
+  const placements: { match: Match; slotIndex: number; canchaIndex: number }[] = [];
+  const placeAt = (m: Match, s: number, c: number) => {
+    used[s][c] = true;
+    clubsOf(m).forEach((x) => clubsInSlot[s].add(x));
+    placements.push({ match: m, slotIndex: s, canchaIndex: c });
+  };
+
+  // Ordenar por dueño para que los equipos del mismo dueño caigan en turnos seguidos.
+  const ordered = [...newMatches].sort((a, b) => clubsOf(a)[0].localeCompare(clubsOf(b)[0]));
+  ordered.forEach((m) => {
+    let done = false;
+    for (let s = 0; s < slotCount && !done; s++) {
+      if (clubsOf(m).some((x) => clubsInSlot[s].has(x))) continue;
+      const c = used[s].findIndex((u) => !u);
+      if (c === -1) continue;
+      placeAt(m, s, c);
+      done = true;
+    }
+    if (!done) {
+      // Último recurso: primer turno con cancha libre (ignora regla de dueño).
+      for (let s = 0; s < slotCount && !done; s++) {
+        const c = used[s].findIndex((u) => !u);
+        if (c !== -1) { placeAt(m, s, c); done = true; }
+      }
+    }
+  });
+
+  return placements;
+}
+
+/**
+ * Rehace el calendario SOLO de `categoriesToRegen`, dejando intactas las demás
+ * (mismas fechas/horas/canchas). Genera enfrentamientos nuevos (todos contra
+ * todos + play offs) para esas categorías y los acomoda en los turnos libres
+ * alrededor de los partidos de las categorías que no se tocan.
+ */
+export function regenerateCategories(
+  allMatches: Match[],
+  teams: Team[],
+  categoriesToRegen: Category[]
+): Match[] {
+  const catSet = new Set(categoriesToRegen);
+  const kept = allMatches.filter((m) => !catSet.has(m.category));
+  const regenTeams = teams.filter((t) => catSet.has(t.category));
+
+  // Reusar el generador con SOLO los equipos de esas categorías: las demás
+  // quedan sin equipos y no producen partidos. Tomamos sus enfrentamientos,
+  // jornadas y fechas; las horas/canchas las reasignamos alrededor de lo fijo.
+  const draft = generateRandomFixture(regenTeams);
+
+  const clubOf = new Map<string, string>();
+  teams.forEach((t) => clubOf.set(t.id, t.clubId || t.id));
+
+  const groupByDate = (arr: Match[]) => {
+    const map = new Map<string, Match[]>();
+    arr.forEach((m) => {
+      const a = map.get(m.date) ?? [];
+      a.push(m);
+      map.set(m.date, a);
+    });
+    return map;
+  };
+  const keptByDate = groupByDate(kept);
+
+  const result: Match[] = [...kept];
+  groupByDate(draft).forEach((dayNew, date) => {
+    const fixed = keptByDate.get(date) ?? [];
+    const placements = scheduleAround(dayNew, fixed, clubOf, MATCH_TIMES.length, STADIUMS.length);
+    placements.forEach(({ match, slotIndex, canchaIndex }) => {
+      result.push({ ...match, time: MATCH_TIMES[slotIndex], stadium: STADIUMS[canchaIndex] });
+    });
+  });
+
+  return result;
+}
+
 /**
  * Reacomoda SOLO los horarios y canchas del calendario existente para quitar
  * huecos (turnos vacíos), SIN cambiar los enfrentamientos. Agrupa por fecha y

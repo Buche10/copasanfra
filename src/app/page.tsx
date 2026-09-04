@@ -49,7 +49,7 @@ import {
 import { signIn, signOut, getCurrentSessionEmail } from '@/lib/auth';
 import { asset } from '@/lib/basePath';
 import { recomputePlayoffs, changedPlayoffMatches } from '@/lib/playoffs';
-import { repackSchedule } from '@/lib/fixtureGenerator';
+import { repackSchedule, regenerateCategories } from '@/lib/fixtureGenerator';
 import { Header, TabType } from '@/components/Header';
 import { CategorySelector } from '@/components/CategorySelector';
 import { StandingsTable } from '@/components/StandingsTable';
@@ -303,11 +303,36 @@ export default function Home() {
 
   // Update Team
   const handleUpdateTeam = async (updatedTeam: Team) => {
-    setTeams((prev) => prev.map((t) => (t.id === updatedTeam.id ? updatedTeam : t)));
+    const old = teams.find((t) => t.id === updatedTeam.id);
+    const nextTeams = teams.map((t) => (t.id === updatedTeam.id ? updatedTeam : t));
+    setTeams(nextTeams);
     try {
       await upsertTeam(updatedTeam);
     } catch (err) {
       alert(`No se pudo actualizar el equipo: ${errMsg(err)}`);
+      return;
+    }
+
+    // Si cambió de categoría, ofrecer rehacer el calendario de las categorías
+    // afectadas (origen y destino), sin tocar las demás.
+    if (old && old.category !== updatedTeam.category) {
+      const cats: Category[] = [old.category, updatedTeam.category];
+      const affected = matches.some((m) => cats.includes(m.category));
+      const ok = window.confirm(
+        `Cambiaste "${updatedTeam.name}" de ${old.category} a ${updatedTeam.category}.\n\n` +
+          `¿Rehacer el calendario de esas categorías (${old.category} y ${updatedTeam.category})? ` +
+          `Se reemplazan sus partidos por unos nuevos. Las demás categorías NO se tocan.\n\n` +
+          `Úsalo solo si esas categorías aún no tienen resultados que quieras conservar.`
+      );
+      if (affected && ok) {
+        const regen = recomputePlayoffs(regenerateCategories(matches, nextTeams, cats), nextTeams);
+        setMatches(regen);
+        try {
+          await replaceMatches(regen);
+        } catch (err) {
+          alert(`No se pudo rehacer el calendario: ${errMsg(err)}`);
+        }
+      }
     }
   };
 
