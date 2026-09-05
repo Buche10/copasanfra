@@ -50,8 +50,7 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
   // Event Form State
   const [eventType, setEventType] = useState<EventType>('GOAL');
   const [eventTeamId, setEventTeamId] = useState<string>('');
-  const [eventPlayerId, setEventPlayerId] = useState<string>(''); // Gol/Tarjeta, o el que SALE en un cambio
-  const [eventPlayerInId, setEventPlayerInId] = useState<string>(''); // El que ENTRA en un cambio
+  const [eventPlayerId, setEventPlayerId] = useState<string>('');
   const [eventMinute, setEventMinute] = useState<number>(15);
   const [goalType, setGoalType] = useState<GoalType>('REGULAR');
   const [cardReason, setCardReason] = useState<CardReason>('UNSPORTING');
@@ -117,16 +116,6 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
   const allSuspendedInMatch = [...suspendedHomePlayers, ...suspendedAwayPlayers];
 
   const currentTeamPlayers = eventTeamId === currentMatch.homeTeamId ? homePlayers : awayPlayers;
-
-  // Para cambios: quién puede SALIR (ya presente en el acta) y quién puede
-  // ENTRAR (de la nómina, no presente y sin sanción).
-  const currentTeamLineup: LineupPlayer[] =
-    (eventTeamId === currentMatch.homeTeamId ? currentMatch.homeLineup : currentMatch.awayLineup) || [];
-  const presentIds = new Set(currentTeamLineup.map((lp) => lp.playerId));
-  const presentPlayers = currentTeamPlayers.filter((p) => presentIds.has(p.id));
-  const benchPlayers = currentTeamPlayers.filter(
-    (p) => !presentIds.has(p.id) && !sanctionsMap.get(p.id)?.isSuspended
-  );
 
   // Goalkeepers
   const currentHomeGkId = currentMatch.homeGoalkeeperId || homePlayers.find((p) => p.position === 'POR')?.id || '';
@@ -308,50 +297,6 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
   // Handle Event Addition
   const handleAddEvent = (e: React.FormEvent) => {
     e.preventDefault();
-
-    // --- Cambio (sustitución): sale uno, entra otro ---
-    if (eventType === 'SUBSTITUTION') {
-      if (!eventTeamId || !eventPlayerId || !eventPlayerInId) return;
-      if (eventPlayerId === eventPlayerInId) return;
-
-      const playerIn = playerMap.get(eventPlayerInId);
-      const newEvent: MatchEvent = {
-        id: `ev-${crypto.randomUUID()}`,
-        matchId: currentMatch.id,
-        minute: eventMinute,
-        type: 'SUBSTITUTION',
-        teamId: eventTeamId,
-        playerId: eventPlayerInId, // referencia principal: el que entra
-        playerOutId: eventPlayerId,
-        playerInId: eventPlayerInId,
-      };
-
-      // El que entra queda registrado como presente en el acta.
-      const isHome = eventTeamId === currentMatch.homeTeamId;
-      const lineupKey = isHome ? 'homeLineup' : 'awayLineup';
-      const currentLineup: LineupPlayer[] = currentMatch[lineupKey] || [];
-      const nextLineup = currentLineup.some((lp) => lp.playerId === eventPlayerInId)
-        ? currentLineup
-        : [
-            ...currentLineup,
-            {
-              playerId: eventPlayerInId,
-              isStarter: false,
-              dorsal: playerIn?.dorsal ?? 0,
-              isGoalkeeper: playerIn?.position === 'POR',
-            },
-          ];
-
-      onUpdateMatch({
-        ...currentMatch,
-        [lineupKey]: nextLineup,
-        events: [...currentMatch.events, newEvent],
-      });
-      setEventPlayerId('');
-      setEventPlayerInId('');
-      return;
-    }
-
     if (!eventTeamId || !eventPlayerId) return;
 
     const newEvent: MatchEvent = {
@@ -892,7 +837,6 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
                   <option value="GOAL">Gol Anotado</option>
                   <option value="YELLOW_CARD">Tarjeta Amarilla</option>
                   <option value="RED_CARD">Tarjeta Roja Directa</option>
-                  <option value="SUBSTITUTION">Cambio (Sustitución)</option>
                 </select>
               </div>
 
@@ -914,70 +858,26 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
                 </select>
               </div>
 
-              {/* Player Select (Gol/Tarjeta) */}
-              {eventType !== 'SUBSTITUTION' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Jugador Habilitado</label>
-                  <select
-                    value={eventPlayerId}
-                    onChange={(e) => setEventPlayerId(e.target.value)}
-                    className="w-full bg-white text-slate-900 font-bold text-xs p-3 rounded-xl border border-slate-300"
-                    disabled={!eventTeamId}
-                    required
-                  >
-                    <option value="">-- Seleccionar Jugador --</option>
-                    {currentTeamPlayers
-                      .filter((p) => !sanctionsMap.get(p.id)?.isSuspended)
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>
-                          #{p.dorsal} {p.name} ({p.position})
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Cambio: SALE (presente) */}
-              {eventType === 'SUBSTITUTION' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Sale (jugador en cancha)</label>
-                  <select
-                    value={eventPlayerId}
-                    onChange={(e) => setEventPlayerId(e.target.value)}
-                    className="w-full bg-white text-slate-900 font-bold text-xs p-3 rounded-xl border border-slate-300"
-                    disabled={!eventTeamId}
-                    required
-                  >
-                    <option value="">-- ¿Quién sale? --</option>
-                    {presentPlayers.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        #{p.dorsal} {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Cambio: ENTRA (suplente) */}
-              {eventType === 'SUBSTITUTION' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Entra (suplente)</label>
-                  <select
-                    value={eventPlayerInId}
-                    onChange={(e) => setEventPlayerInId(e.target.value)}
-                    className="w-full bg-white text-slate-900 font-bold text-xs p-3 rounded-xl border border-slate-300"
-                    disabled={!eventTeamId}
-                    required
-                  >
-                    <option value="">-- ¿Quién entra? --</option>
-                    {benchPlayers.map((p) => (
+              {/* Player Select */}
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Jugador Habilitado</label>
+                <select
+                  value={eventPlayerId}
+                  onChange={(e) => setEventPlayerId(e.target.value)}
+                  className="w-full bg-white text-slate-900 font-bold text-xs p-3 rounded-xl border border-slate-300"
+                  disabled={!eventTeamId}
+                  required
+                >
+                  <option value="">-- Seleccionar Jugador --</option>
+                  {currentTeamPlayers
+                    .filter((p) => !sanctionsMap.get(p.id)?.isSuspended)
+                    .map((p) => (
                       <option key={p.id} value={p.id}>
                         #{p.dorsal} {p.name} ({p.position})
                       </option>
                     ))}
-                  </select>
-                </div>
-              )}
+                </select>
+              </div>
 
               {/* Minute */}
               <div>
@@ -1069,8 +969,6 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
               {currentMatch.events.map((ev) => {
                 const player = playerMap.get(ev.playerId);
                 const team = teamMap.get(ev.teamId);
-                const outPlayer = ev.playerOutId ? playerMap.get(ev.playerOutId) : undefined;
-                const inPlayer = ev.playerInId ? playerMap.get(ev.playerInId) : undefined;
 
                 return (
                   <div
@@ -1082,25 +980,14 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
                         {ev.minute}&apos;
                       </span>
                       <div>
-                        {ev.type === 'SUBSTITUTION' ? (
-                          <>
-                            <span className="font-black text-blue-700 mr-2">🔁 Cambio</span>
-                            <span className="font-bold text-slate-700">
-                              Sale #{outPlayer?.dorsal} {outPlayer?.name} · Entra #{inPlayer?.dorsal} {inPlayer?.name}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="font-black text-slate-900 mr-2">
-                              {ev.type === 'GOAL' && `Gol (${ev.goalType || 'Normal'})`}
-                              {ev.type === 'YELLOW_CARD' && 'Tarjeta Amarilla'}
-                              {ev.type === 'RED_CARD' && 'Tarjeta Roja'}
-                            </span>
-                            <span className="font-bold text-slate-700">
-                              {player?.name} (#{player?.dorsal})
-                            </span>
-                          </>
-                        )}
+                        <span className="font-black text-slate-900 mr-2">
+                          {ev.type === 'GOAL' && `Gol (${ev.goalType || 'Normal'})`}
+                          {ev.type === 'YELLOW_CARD' && 'Tarjeta Amarilla'}
+                          {ev.type === 'RED_CARD' && 'Tarjeta Roja'}
+                        </span>
+                        <span className="font-bold text-slate-700">
+                          {player?.name} (#{player?.dorsal})
+                        </span>
                         <span className="text-slate-400 ml-2 font-medium">({team?.shortName})</span>
                       </div>
                     </div>
