@@ -602,15 +602,11 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
             <div className="flex items-center space-x-2">
               <Users className="w-5 h-5 text-[#00A859]" />
               <div>
-                <h4 className="font-extrabold text-slate-900 text-sm">Nómina y Concurrencia de Jugadores en Acta (8 vs 8)</h4>
+                <h4 className="font-extrabold text-slate-900 text-sm">Nómina y Concurrencia de Jugadores en Acta</h4>
                 <p className="text-xs text-slate-500">
-                  Formato 8 en cancha: Máximo 3 del Foro de Abogados por equipo (Mínimo 5 del Colegio de Abogados).
+                  Marca los jugadores que participaron. Se indica si cada uno es del Colegio o del Foro de Abogados.
                 </p>
               </div>
-            </div>
-
-            <div className="inline-flex items-center space-x-1.5 px-3 py-1 bg-[#00A859]/10 text-[#00A859] rounded-full text-xs font-black shrink-0">
-              <span>Regla Cancha 8v8</span>
             </div>
           </div>
 
@@ -665,22 +661,6 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
             )}
           </div>
 
-          {/* 8v8 Rule Violation Warning Banner */}
-          {(homeForoCount > 3 || awayForoCount > 3) && (
-            <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-2xl text-amber-950 text-xs font-bold space-y-1">
-              <div className="flex items-center gap-1.5 text-amber-800 font-black uppercase">
-                <AlertTriangle className="w-4 h-4 text-amber-600 animate-bounce" />
-                <span>Advertencia de Alineación en Cancha (Regla 8v8)</span>
-              </div>
-              {homeForoCount > 3 && (
-                <p>⚠️ {homeTeam?.name} excede el límite: <strong className="text-red-700 font-black">{homeForoCount} jugadores del Foro en cancha</strong> (Máximo permitido: 3).</p>
-              )}
-              {awayForoCount > 3 && (
-                <p>⚠️ {awayTeam?.name} excede el límite: <strong className="text-red-700 font-black">{awayForoCount} jugadores del Foro en cancha</strong> (Máximo permitido: 3).</p>
-              )}
-            </div>
-          )}
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Home Lineup List */}
             <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
@@ -692,12 +672,8 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[10px] font-bold">
-                  <span className={homeForoCount > 3 ? 'text-rose-600 font-black' : 'text-slate-600'}>
-                    Foro: {homeForoCount}/3 máx {homeForoCount > 3 && '⚠️ Excedido'}
-                  </span>
-                  <span className="text-slate-600">
-                    Colegio: {homeColegioCount}/5 mín
-                  </span>
+                  <span className="text-blue-700">Foro: {homeForoCount}</span>
+                  <span className="text-[#00A859]">Colegio: {homeColegioCount}</span>
                 </div>
               </div>
               <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
@@ -759,12 +735,8 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[10px] font-bold">
-                  <span className={awayForoCount > 3 ? 'text-rose-600 font-black' : 'text-slate-600'}>
-                    Foro: {awayForoCount}/3 máx {awayForoCount > 3 && '⚠️ Excedido'}
-                  </span>
-                  <span className="text-slate-600">
-                    Colegio: {awayColegioCount}/5 mín
-                  </span>
+                  <span className="text-blue-700">Foro: {awayForoCount}</span>
+                  <span className="text-[#00A859]">Colegio: {awayColegioCount}</span>
                 </div>
               </div>
               <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
