@@ -84,9 +84,9 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
         setCedulaError('Esta cédula ya está registrada en este mismo equipo.');
         return;
       }
-      if (res === 'OTHER_OWNER') {
+      if (res === 'SAME_CATEGORY') {
         setCedulaError(
-          'Esta cédula ya juega en un equipo de otro dueño. Un jugador solo puede repetir en categorías de equipos del mismo dueño.'
+          'Esta cédula ya está registrada en otro equipo de esta misma categoría. Un jugador solo puede jugar en categorías distintas.'
         );
         return;
       }

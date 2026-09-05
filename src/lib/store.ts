@@ -103,7 +103,7 @@ export async function getMatches(): Promise<Match[]> {
   return selectAll<Match>(TABLES.MATCHES);
 }
 
-export type CedulaCheck = 'OK' | 'SAME_TEAM' | 'OTHER_OWNER';
+export type CedulaCheck = 'OK' | 'SAME_TEAM' | 'SAME_CATEGORY';
 
 // Verifica si una cédula puede inscribirse en un equipo. Un jugador puede
 // repetir en otra categoría SOLO si el equipo es del mismo dueño. Devuelve solo

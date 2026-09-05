@@ -399,6 +399,25 @@ export default function Home() {
     }
   };
 
+  // Aprobar TODOS los jugadores pendientes de una vez.
+  const handleApproveAllPending = async () => {
+    const pending = players.filter((p) => (p.approvalStatus || 'APPROVED') === 'PENDING');
+    if (pending.length === 0) return;
+    const approvedList: Player[] = pending.map((p) => ({
+      ...p,
+      approvalStatus: 'APPROVED',
+      hasDoc: false,
+      verificationDoc: undefined,
+    }));
+    setPlayers((prev) => prev.map((p) => approvedList.find((a) => a.id === p.id) ?? p));
+    try {
+      await Promise.all(pending.map((p) => deletePlayerDoc(p.id).catch(() => {})));
+      await Promise.all(approvedList.map((p) => upsertPlayer(p)));
+    } catch (err) {
+      alert(`No se pudieron aprobar todos los jugadores: ${errMsg(err)}`);
+    }
+  };
+
   // Delete Player (al rechazar una inscripción se elimina del torneo)
   const handleDeletePlayer = async (player: Player) => {
     setPlayers((prev) => prev.filter((p) => p.id !== player.id));
@@ -685,6 +704,7 @@ export default function Home() {
             onAddPlayer={handleAddPlayer}
             onUpdatePlayer={handleUpdatePlayer}
             onApprovePlayer={handleApprovePlayer}
+            onApproveAllPending={handleApproveAllPending}
             onDeletePlayer={handleDeletePlayer}
             onResetData={handleResetData}
             suspendedCategories={suspendedCategories}

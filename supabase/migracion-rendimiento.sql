@@ -64,8 +64,8 @@ $$;
 revoke all on function public.cedula_exists(text) from public;
 grant execute on function public.cedula_exists(text) to anon, authenticated;
 
--- Cédula por dueño: permite repetir en otra categoría SOLO si el equipo es del
--- mismo dueño. 'OK' | 'SAME_TEAM' | 'OTHER_OWNER'.
+-- Cédula por categoría: puede estar en dos equipos SOLO si son de categorías
+-- distintas. 'OK' | 'SAME_TEAM' | 'SAME_CATEGORY'.
 create or replace function public.cedula_check(p_cedula text, p_team_id text)
 returns text
 language plpgsql
@@ -73,11 +73,11 @@ security definer
 stable
 as $$
 declare
-  target_owner text;
-  same_team    boolean;
-  other_owner  boolean;
+  target_cat text;
+  same_team  boolean;
+  same_cat   boolean;
 begin
-  select coalesce(data->>'clubId', id) into target_owner from public.teams where id = p_team_id;
+  select data->>'category' into target_cat from public.teams where id = p_team_id;
 
   select exists (
     select 1 from public.players p
@@ -90,9 +90,9 @@ begin
     select 1 from public.players p
     join public.teams t on t.id = p.data->>'teamId'
     where btrim(p.data->>'cedula') = btrim(p_cedula)
-      and coalesce(t.data->>'clubId', t.id) is distinct from target_owner
-  ) into other_owner;
-  if other_owner then return 'OTHER_OWNER'; end if;
+      and t.data->>'category' = target_cat
+  ) into same_cat;
+  if same_cat then return 'SAME_CATEGORY'; end if;
 
   return 'OK';
 end $$;

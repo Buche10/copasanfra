@@ -17,6 +17,7 @@ interface AdminModalProps {
   onAddPlayer: (player: Player) => void;
   onUpdatePlayer?: (player: Player) => void;
   onApprovePlayer?: (player: Player) => void;
+  onApproveAllPending?: () => void;
   onDeletePlayer?: (player: Player) => void;
   onResetData: () => void;
   suspendedCategories: Category[];
@@ -35,6 +36,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onAddPlayer,
   onUpdatePlayer,
   onApprovePlayer,
+  onApproveAllPending,
   onDeletePlayer,
   onResetData,
   suspendedCategories,
@@ -548,6 +550,22 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
                   <Users className="w-5 h-5 text-[#00A859]" /> Jugadores ({visiblePlayers.length})
                 </h3>
+                {onApproveAllPending && (() => {
+                  const pendingCount = players.filter((p) => (p.approvalStatus || 'APPROVED') === 'PENDING').length;
+                  if (pendingCount === 0) return null;
+                  return (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`¿Aprobar los ${pendingCount} jugadores pendientes? Se les habilita el carnet y se elimina su respaldo (ya cumplió su función).`)) {
+                          onApproveAllPending();
+                        }
+                      }}
+                      className="px-4 py-2.5 bg-[#00A859] hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-sm transition-colors whitespace-nowrap"
+                    >
+                      ✓ Aprobar todos ({pendingCount})
+                    </button>
+                  );
+                })()}
                 <div className="relative sm:w-64">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
