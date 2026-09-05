@@ -201,10 +201,11 @@ export async function deletePlayerDoc(id: string): Promise<void> {
   if (error) throw new Error(`Error al eliminar el respaldo: ${error.message}`);
 }
 
-// Eliminar un jugador de la base (p. ej. al rechazar una inscripción). Su
-// respaldo se elimina en cascada (FK) — igual lo intentamos por si acaso.
+// Eliminar un jugador de la base (p. ej. al rechazar una inscripción). También
+// borra su respaldo para no dejar filas huérfanas en player_docs.
 export async function deletePlayer(id: string): Promise<void> {
   assertConfigured();
+  await supabase.from(TABLES.PLAYER_DOCS).delete().eq('id', id);
   const { error } = await supabase.from(TABLES.PLAYERS).delete().eq('id', id);
   if (error) throw new Error(`Error al eliminar el jugador: ${error.message}`);
 }
