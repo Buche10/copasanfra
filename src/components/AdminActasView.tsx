@@ -11,11 +11,12 @@ interface AdminActasViewProps {
   players: Player[];
 }
 
-// Costos por PARTIDO (según definición del torneo).
-export const REFEREE_FEE = 13;
-export const CANCHA_FEE = 20;
-export const YELLOW_FINE = 1;
-export const RED_FINE = 2;
+// Valores por PARTIDO (según definición del torneo).
+export const TEAM_FEE = 15; // vocalía/arbitraje por equipo (ingreso)
+export const REFEREE_FEE = 13; // pago árbitro (egreso)
+export const CANCHA_FEE = 20; // alquiler cancha (egreso)
+export const YELLOW_FINE = 1; // multa por amarilla (ingreso)
+export const RED_FINE = 2; // multa por roja (ingreso)
 
 const money = (n: number) => `$${n.toFixed(2)}`;
 
@@ -39,19 +40,26 @@ export const AdminActasView: React.FC<AdminActasViewProps> = ({ matches, teams, 
     [matches, effRound]
   );
 
+  // Ingreso/egreso por partido.
+  const calc = (m: Match) => {
+    const yellows = m.events.filter((e) => e.type === 'YELLOW_CARD').length;
+    const reds = m.events.filter((e) => e.type === 'RED_CARD').length;
+    const fines = yellows * YELLOW_FINE + reds * RED_FINE;
+    const income = TEAM_FEE * 2 + fines; // 2 equipos + multas
+    const expense = REFEREE_FEE + CANCHA_FEE; // árbitro + cancha
+    return { yellows, reds, fines, income, expense, balance: income - expense };
+  };
+
   // Totales de la fecha
   const totals = inRound.reduce(
     (acc, m) => {
-      const yellows = m.events.filter((e) => e.type === 'YELLOW_CARD').length;
-      const reds = m.events.filter((e) => e.type === 'RED_CARD').length;
-      const fines = yellows * YELLOW_FINE + reds * RED_FINE;
-      acc.fines += fines;
-      acc.referee += REFEREE_FEE;
-      acc.cancha += CANCHA_FEE;
-      acc.total += fines + REFEREE_FEE + CANCHA_FEE;
+      const { income, expense, balance } = calc(m);
+      acc.income += income;
+      acc.expense += expense;
+      acc.balance += balance;
       return acc;
     },
-    { fines: 0, referee: 0, cancha: 0, total: 0 }
+    { income: 0, expense: 0, balance: 0 }
   );
 
   if (rounds.length === 0) {
@@ -96,19 +104,24 @@ export const AdminActasView: React.FC<AdminActasViewProps> = ({ matches, teams, 
         ))}
       </div>
 
-      {/* Resumen de la fecha */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: 'Multas tarjetas', value: totals.fines, color: 'text-rose-700' },
-          { label: `Árbitros (${inRound.length}×${money(REFEREE_FEE)})`, value: totals.referee, color: 'text-slate-800' },
-          { label: `Canchas (${inRound.length}×${money(CANCHA_FEE)})`, value: totals.cancha, color: 'text-slate-800' },
-          { label: 'Total de la fecha', value: totals.total, color: 'text-[#00A859]' },
-        ].map((c) => (
-          <div key={c.label} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-            <span className="text-[10px] font-bold text-slate-500 uppercase block leading-tight">{c.label}</span>
-            <span className={`text-lg font-black ${c.color}`}>{money(c.value)}</span>
-          </div>
-        ))}
+      {/* Resumen de la fecha: ingresos, egresos y saldo */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
+          <span className="text-[10px] font-bold text-slate-500 uppercase block leading-tight">Ingresos (vocalías + multas)</span>
+          <span className="text-lg font-black text-slate-800">{money(totals.income)}</span>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
+          <span className="text-[10px] font-bold text-slate-500 uppercase block leading-tight">Egresos (árbitros + canchas)</span>
+          <span className="text-lg font-black text-rose-700">−{money(totals.expense)}</span>
+        </div>
+        <div className={`rounded-2xl border p-4 shadow-xs ${totals.balance >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+          <span className="text-[10px] font-bold text-slate-500 uppercase block leading-tight">
+            Saldo de la fecha ({totals.balance >= 0 ? 'ganancia' : 'pérdida'})
+          </span>
+          <span className={`text-lg font-black ${totals.balance >= 0 ? 'text-[#00A859]' : 'text-rose-700'}`}>
+            {totals.balance >= 0 ? '' : '−'}{money(Math.abs(totals.balance))}
+          </span>
+        </div>
       </div>
 
       {/* Actas por partido */}
@@ -117,10 +130,7 @@ export const AdminActasView: React.FC<AdminActasViewProps> = ({ matches, teams, 
           const home = teamMap.get(m.homeTeamId);
           const away = teamMap.get(m.awayTeamId);
           const cards = m.events.filter((e) => e.type === 'YELLOW_CARD' || e.type === 'RED_CARD');
-          const yellows = cards.filter((c) => c.type === 'YELLOW_CARD').length;
-          const reds = cards.filter((c) => c.type === 'RED_CARD').length;
-          const fines = yellows * YELLOW_FINE + reds * RED_FINE;
-          const total = fines + REFEREE_FEE + CANCHA_FEE;
+          const { yellows, reds, income, expense, balance } = calc(m);
 
           return (
             <div key={m.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
@@ -176,8 +186,13 @@ export const AdminActasView: React.FC<AdminActasViewProps> = ({ matches, teams, 
                   )}
                 </div>
 
-                {/* Cobros */}
+                {/* Cuentas del partido: ingresos − egresos = saldo */}
                 <div className="mt-3 md:mt-0 bg-slate-50 rounded-2xl border border-slate-200 p-3 text-xs space-y-1.5">
+                  <span className="text-[10px] font-black text-emerald-700 uppercase">Ingresos</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Vocalía (2 × {money(TEAM_FEE)})</span>
+                    <span className="font-bold text-slate-800">{money(TEAM_FEE * 2)}</span>
+                  </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-600 flex items-center gap-1"><Square className="w-3 h-3 text-amber-500" /> Amarillas ({yellows})</span>
                     <span className="font-bold text-slate-800">{money(yellows * YELLOW_FINE)}</span>
@@ -186,19 +201,33 @@ export const AdminActasView: React.FC<AdminActasViewProps> = ({ matches, teams, 
                     <span className="text-slate-600 flex items-center gap-1"><Square className="w-3 h-3 text-rose-600" /> Rojas ({reds})</span>
                     <span className="font-bold text-slate-800">{money(reds * RED_FINE)}</span>
                   </div>
+                  <div className="flex items-center justify-between border-t border-slate-200 pt-1">
+                    <span className="font-bold text-slate-700">Total ingresos</span>
+                    <span className="font-black text-emerald-700">{money(income)}</span>
+                  </div>
+
+                  <span className="text-[10px] font-black text-rose-700 uppercase pt-1 block">Egresos</span>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-600">Árbitro</span>
-                    <span className="font-bold text-slate-800">{money(REFEREE_FEE)}</span>
+                    <span className="font-bold text-slate-800">−{money(REFEREE_FEE)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-600">Cancha</span>
-                    <span className="font-bold text-slate-800">{money(CANCHA_FEE)}</span>
+                    <span className="font-bold text-slate-800">−{money(CANCHA_FEE)}</span>
                   </div>
-                  <div className="flex items-center justify-between border-t border-slate-200 pt-1.5 mt-1">
+                  <div className="flex items-center justify-between border-t border-slate-200 pt-1">
+                    <span className="font-bold text-slate-700">Total egresos</span>
+                    <span className="font-black text-rose-700">−{money(expense)}</span>
+                  </div>
+
+                  <div className={`flex items-center justify-between rounded-xl px-2 py-1.5 mt-1 ${balance >= 0 ? 'bg-emerald-100' : 'bg-rose-100'}`}>
                     <span className="font-black text-slate-900 flex items-center gap-1">
-                      <DollarSign className="w-3.5 h-3.5 text-[#00A859]" /> Total partido
+                      <DollarSign className={`w-3.5 h-3.5 ${balance >= 0 ? 'text-[#00A859]' : 'text-rose-600'}`} />
+                      Saldo ({balance >= 0 ? 'ganancia' : 'pérdida'})
                     </span>
-                    <span className="font-black text-[#00A859] text-sm">{money(total)}</span>
+                    <span className={`font-black text-sm ${balance >= 0 ? 'text-[#00A859]' : 'text-rose-700'}`}>
+                      {balance >= 0 ? '' : '−'}{money(Math.abs(balance))}
+                    </span>
                   </div>
                 </div>
               </div>
