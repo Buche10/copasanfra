@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Match, Team, Player, EventType, GoalType, CardReason, MatchEvent, LineupPlayer, MatchFinancials, ArbitrajePayment } from '@/types';
+import { Match, Team, Player, EventType, GoalType, CardReason, MatchEvent, LineupPlayer } from '@/types';
 import { calculateSanctions } from '@/lib/store';
 import { TeamShield } from './TeamShield';
-import { FinancialReportModal } from './FinancialReportModal';
 import { CameraQrScanner } from './CameraQrScanner';
 import confetti from 'canvas-confetti';
 import {
@@ -24,8 +23,6 @@ import {
   QrCode,
   Search,
   X,
-  DollarSign,
-  Printer,
   Camera
 } from 'lucide-react';
 
@@ -33,7 +30,6 @@ interface MatchSheetModalProps {
   matches: Match[];
   teams: Team[];
   players: Player[];
-  payments: ArbitrajePayment[];
   onUpdateMatch: (updatedMatch: Match) => void;
 }
 
@@ -41,7 +37,6 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
   matches,
   teams,
   players,
-  payments,
   onUpdateMatch,
 }) => {
   const [selectedRound, setSelectedRound] = useState<number | null>(matches[0]?.round ?? null);
@@ -60,9 +55,6 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
   const [qrScanInput, setQrScanInput] = useState('');
   const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
   const [showCamera, setShowCamera] = useState(false);
-
-  // Financial Report Modal State
-  const [showFinancialReportModal, setShowFinancialReportModal] = useState(false);
 
   const teamMap = new Map(teams.map((t) => [t.id, t]));
   const playerMap = new Map(players.map((p) => [p.id, p]));
@@ -95,17 +87,6 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
 
   const homeTeam = teamMap.get(currentMatch.homeTeamId);
   const awayTeam = teamMap.get(currentMatch.awayTeamId);
-
-  // Estado del arbitraje ($15 por fecha) de cada equipo en ESTA fecha. Se toma
-  // el último respaldo enviado; "pagado" = respaldo APROBADO por el Admin.
-  const arbFor = (teamId: string): ArbitrajePayment | undefined =>
-    payments
-      .filter((p) => p.teamId === teamId && p.round === currentMatch.round)
-      .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''))[0];
-  const homeArb = arbFor(currentMatch.homeTeamId);
-  const awayArb = arbFor(currentMatch.awayTeamId);
-  const homeArbPaid = homeArb?.status === 'APPROVED';
-  const awayArbPaid = awayArb?.status === 'APPROVED';
 
   const homePlayers = players.filter((p) => p.teamId === currentMatch.homeTeamId);
   const awayPlayers = players.filter((p) => p.teamId === currentMatch.awayTeamId);
@@ -213,38 +194,6 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
       text: `✅ ¡REGISTRO AUTOMÁTICO EN VOCALÍA! #${player.dorsal} ${player.name} agregado exitosamente a la nómina de ${targetTeam?.name}.`,
     });
     setQrScanInput('');
-  };
-
-  // Financial Calculations for currentMatch
-  const homeYellows = currentMatch.events.filter((e) => e.teamId === currentMatch.homeTeamId && e.type === 'YELLOW_CARD').length;
-  const awayYellows = currentMatch.events.filter((e) => e.teamId === currentMatch.awayTeamId && e.type === 'YELLOW_CARD').length;
-  const homeReds = currentMatch.events.filter((e) => e.teamId === currentMatch.homeTeamId && e.type === 'RED_CARD').length;
-  const awayReds = currentMatch.events.filter((e) => e.teamId === currentMatch.awayTeamId && e.type === 'RED_CARD').length;
-
-  const homeFinesAmount = homeYellows * 1 + homeReds * 2;
-  const awayFinesAmount = awayYellows * 1 + awayReds * 2;
-
-  const totalMatchFees = 30; // $15 x 2 teams
-  const totalMatchFines = homeFinesAmount + awayFinesAmount;
-  const totalCollected = totalMatchFees + totalMatchFines;
-  const netBalance = totalCollected - 13;
-
-  const handleUpdateFinancialField = (
-    field: keyof MatchFinancials,
-    value: MatchFinancials[keyof MatchFinancials]
-  ) => {
-    const updatedMatch: Match = {
-      ...currentMatch,
-      financials: {
-        feePerTeam: 15,
-        yellowCardFine: 1,
-        redCardFine: 2,
-        refereePayment: 13,
-        ...currentMatch.financials,
-        [field]: value,
-      },
-    };
-    onUpdateMatch(updatedMatch);
   };
 
   // Toggle player participation in homeLineup or awayLineup
@@ -980,156 +929,6 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
           )}
         </div>
 
-        {/* SECTION 4: RECAUDACIÓN Y CIERRE FINANCIERO DEL PARTIDO */}
-        <div className="bg-emerald-50/60 p-5 rounded-2xl border border-emerald-200 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200 pb-3">
-            <div className="flex items-center space-x-2">
-              <DollarSign className="w-5 h-5 text-[#00A859]" />
-              <div>
-                <h4 className="font-extrabold text-slate-900 text-sm">Control de Cierre de Caja y Cuentas del Partido</h4>
-                <p className="text-xs text-slate-500">
-                  Tarifas: $15 por equipo • $1 por Amarilla • $2 por Roja • Honorario Árbitro: $13
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setShowFinancialReportModal(true)}
-              className="flex items-center space-x-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-sm shrink-0"
-            >
-              <Printer className="w-4 h-4 text-[#00A859]" />
-              <span>📄 Generar Reporte PDF</span>
-            </button>
-          </div>
-
-          {/* Estado del arbitraje ($15/fecha) por equipo */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {[
-              { team: homeTeam, paid: homeArbPaid, arb: homeArb, label: 'Local' },
-              { team: awayTeam, paid: awayArbPaid, arb: awayArb, label: 'Visitante' },
-            ].map(({ team, paid, arb, label }) => (
-              <div
-                key={label}
-                className={`flex items-center justify-between gap-2 p-3 rounded-xl border ${
-                  paid ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-300'
-                }`}
-              >
-                <div className="min-w-0">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Arbitraje {label} ($15)</span>
-                  <span className="text-xs font-black text-slate-800 truncate block">{team?.shortName}</span>
-                </div>
-                <div className="text-right shrink-0">
-                  {paid ? (
-                    <span className="text-xs font-black text-emerald-700 flex items-center gap-1">
-                      <CheckCheck className="w-4 h-4" /> Pagado
-                    </span>
-                  ) : (
-                    <span className="text-xs font-black text-amber-700 flex items-center gap-1">
-                      <AlertTriangle className="w-4 h-4" /> {arb?.status === 'PENDING' ? 'En revisión' : 'No pagado'}
-                    </span>
-                  )}
-                  {paid && arb?.receiptUrl && (
-                    <a
-                      href={arb.receiptUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[10px] font-bold text-emerald-700 underline"
-                    >
-                      ver respaldo
-                    </a>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {(!homeArbPaid || !awayArbPaid) && (
-            <div className="p-3 bg-amber-100 border border-amber-300 rounded-xl text-[11px] font-bold text-amber-900 flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <span>
-                Cobrar el arbitraje en efectivo a:{' '}
-                {[!homeArbPaid ? homeTeam?.shortName : null, !awayArbPaid ? awayTeam?.shortName : null]
-                  .filter(Boolean)
-                  .join(' y ')}
-                . Esta novedad constará en el reporte final.
-              </span>
-            </div>
-          )}
-
-          {/* Methods Selection Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            {/* Home Financials */}
-            <div className="bg-white p-3.5 rounded-xl border border-emerald-200 space-y-2">
-              <span className="font-extrabold text-slate-900 block border-b pb-1 uppercase">{homeTeam?.shortName}</span>
-              <div className="flex items-center justify-between">
-                <span>Vocalía ($15.00):</span>
-                <select
-                  value={currentMatch.financials?.homeFeeMethod || 'EFECTIVO'}
-                  onChange={(e) => handleUpdateFinancialField('homeFeeMethod', e.target.value)}
-                  disabled={currentMatch.status === 'FINISHED'}
-                  className="bg-slate-50 font-bold px-2 py-1 rounded-lg border border-slate-200 text-xs"
-                >
-                  <option value="EFECTIVO">Efectivo</option>
-                  <option value="TRANSFERENCIA">Transferencia</option>
-                </select>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Multas Tarjetas (${homeFinesAmount.toFixed(2)}):</span>
-                <select
-                  value={currentMatch.financials?.homeFinesMethod || 'EFECTIVO'}
-                  onChange={(e) => handleUpdateFinancialField('homeFinesMethod', e.target.value)}
-                  disabled={currentMatch.status === 'FINISHED'}
-                  className="bg-slate-50 font-bold px-2 py-1 rounded-lg border border-slate-200 text-xs"
-                >
-                  <option value="EFECTIVO">Efectivo</option>
-                  <option value="TRANSFERENCIA">Transferencia</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Away Financials */}
-            <div className="bg-white p-3.5 rounded-xl border border-emerald-200 space-y-2">
-              <span className="font-extrabold text-slate-900 block border-b pb-1 uppercase">{awayTeam?.shortName}</span>
-              <div className="flex items-center justify-between">
-                <span>Vocalía ($15.00):</span>
-                <select
-                  value={currentMatch.financials?.awayFeeMethod || 'EFECTIVO'}
-                  onChange={(e) => handleUpdateFinancialField('awayFeeMethod', e.target.value)}
-                  disabled={currentMatch.status === 'FINISHED'}
-                  className="bg-slate-50 font-bold px-2 py-1 rounded-lg border border-slate-200 text-xs"
-                >
-                  <option value="EFECTIVO">Efectivo</option>
-                  <option value="TRANSFERENCIA">Transferencia</option>
-                </select>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Multas Tarjetas (${awayFinesAmount.toFixed(2)}):</span>
-                <select
-                  value={currentMatch.financials?.awayFinesMethod || 'EFECTIVO'}
-                  onChange={(e) => handleUpdateFinancialField('awayFinesMethod', e.target.value)}
-                  disabled={currentMatch.status === 'FINISHED'}
-                  className="bg-slate-50 font-bold px-2 py-1 rounded-lg border border-slate-200 text-xs"
-                >
-                  <option value="EFECTIVO">Efectivo</option>
-                  <option value="TRANSFERENCIA">Transferencia</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Real-time Cash Balance Box */}
-          <div className="bg-slate-900 text-white p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="space-y-0.5 text-xs">
-              <p className="text-slate-400 font-bold">Vocalías: <strong className="text-white">$30.00</strong> • Multas: <strong className="text-white">${totalMatchFines.toFixed(2)}</strong></p>
-              <p className="text-slate-400 font-bold">Total Recaudado: <strong className="text-emerald-400">${totalCollected.toFixed(2)}</strong> • Pago Árbitro: <strong className="text-rose-400">-$13.00</strong></p>
-            </div>
-
-            <div className="text-right shrink-0">
-              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">Saldo Neto entregado a caja</span>
-              <span className="text-xl font-black text-white">${netBalance.toFixed(2)}</span>
-            </div>
-          </div>
-        </div>
 
         {/* Referee Final Notes & Sign Off */}
         <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
@@ -1169,17 +968,6 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
         </div>
 
       </div>
-
-      {/* Financial Report Printable Modal */}
-      {showFinancialReportModal && (
-        <FinancialReportModal
-          match={currentMatch}
-          teams={teams}
-          players={players}
-          payments={payments}
-          onClose={() => setShowFinancialReportModal(false)}
-        />
-      )}
 
       {showCamera && (
         <CameraQrScanner

@@ -161,6 +161,9 @@ export default function Home() {
         if (cancelled) return;
         const sessionUser = list.find((x) => x.email?.toLowerCase() === email.toLowerCase()) ?? null;
         setUser(sessionUser);
+        // El árbitro solo ve Calendario/Planilla: al restaurar sesión, ubícalo
+        // en su pestaña (Posiciones estaría oculta para él).
+        if (sessionUser?.role === 'REFEREE') setActiveTab('sheet');
         // Authenticated staff see full player records (cedula, documents).
         // Si esta lectura completa falla o tarda demasiado (timeout), se
         // conserva la lista pública y la app NO queda en blanco.
@@ -428,6 +431,18 @@ export default function Home() {
     }
   };
 
+  // Borrar solo las HORAS de los partidos (deja fecha, cancha, enfrentamientos y
+  // resultados). El admin luego asigna las horas que quiera con Editar.
+  const handleClearTimes = async () => {
+    const cleared = matches.map((m) => ({ ...m, time: '' }));
+    setMatches(cleared);
+    try {
+      await replaceMatches(cleared);
+    } catch (err) {
+      alert(`No se pudieron borrar los horarios: ${errMsg(err)}`);
+    }
+  };
+
   // Reset Data
   const handleResetData = async () => {
     try {
@@ -690,7 +705,6 @@ export default function Home() {
             matches={filteredMatches}
             teams={teams}
             players={players}
-            payments={payments}
             onUpdateMatch={handleUpdateMatch}
           />
         ))}
@@ -698,6 +712,7 @@ export default function Home() {
           <AdminModal
             teams={teams}
             players={players}
+            matches={matches}
             onAddTeam={handleAddTeam}
             onUpdateTeam={handleUpdateTeam}
             onDeleteTeam={handleDeleteTeam}
@@ -712,6 +727,7 @@ export default function Home() {
             onSetCategoryStatus={handleSetCategoryStatus}
             onRepackSchedule={handleRepackSchedule}
             onRegenerateCategory={handleRegenerateCategory}
+            onClearTimes={handleClearTimes}
           />
         )}
         {activeTab === 'registration' && (

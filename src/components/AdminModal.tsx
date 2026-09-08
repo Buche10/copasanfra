@@ -1,16 +1,18 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Team, Player, Category, CategoryStatus, CATEGORIES, MAX_PLAYERS_PER_TEAM } from '@/types';
+import { Team, Player, Match, Category, CategoryStatus, CATEGORIES, MAX_PLAYERS_PER_TEAM } from '@/types';
 import { TeamShield } from './TeamShield';
-import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Download, Upload, Pencil, Trash2, Search } from 'lucide-react';
+import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Download, Upload, Pencil, Trash2, Search, Clock } from 'lucide-react';
 import { TeamEditModal } from './TeamEditModal';
 import { PlayerEditModal } from './PlayerEditModal';
+import { AdminActasView } from './AdminActasView';
 import { exportAllData, importAllData, getPlayerVerificationDoc } from '@/lib/store';
 
 interface AdminModalProps {
   teams: Team[];
   players: Player[];
+  matches: Match[];
   onAddTeam: (team: Team) => void;
   onUpdateTeam?: (team: Team) => void;
   onDeleteTeam?: (team: Team) => void;
@@ -25,11 +27,13 @@ interface AdminModalProps {
   onSetCategoryStatus: (category: Category, status: CategoryStatus) => void;
   onRepackSchedule?: () => void;
   onRegenerateCategory?: (category: Category) => void;
+  onClearTimes?: () => void;
 }
 
 export const AdminModal: React.FC<AdminModalProps> = ({
   teams,
   players,
+  matches,
   onAddTeam,
   onUpdateTeam,
   onDeleteTeam,
@@ -44,10 +48,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onSetCategoryStatus,
   onRepackSchedule,
   onRegenerateCategory,
+  onClearTimes,
 }) => {
   const [editTeam, setEditTeam] = useState<Team | null>(null);
   const [editPlayer, setEditPlayer] = useState<Player | null>(null);
-  const [activeTab, setActiveTab] = useState<'teams' | 'players' | 'settings'>('teams');
+  const [activeTab, setActiveTab] = useState<'teams' | 'players' | 'actas' | 'settings'>('teams');
   const [filterCategory, setFilterCategory] = useState<Category | 'ALL'>('ALL');
   const [filterTeamId, setFilterTeamId] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'APPROVED' | 'PENDING'>('ALL');
@@ -275,6 +280,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             }`}
           >
             Jugadores ({players.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('actas')}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+              activeTab === 'actas' ? 'bg-white text-rose-900 shadow' : 'text-rose-200 hover:bg-white/10'
+            }`}
+          >
+            Actas
           </button>
           <button
             onClick={() => setActiveTab('settings')}
@@ -800,6 +813,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         </div>
       )}
 
+      {/* Tab: Actas y cobros por partido */}
+      {activeTab === 'actas' && (
+        <AdminActasView matches={matches} teams={teams} players={players} />
+      )}
+
       {/* Tab 3: System Settings & Reset */}
       {activeTab === 'settings' && (
         <div className="space-y-6">
@@ -926,6 +944,37 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   className="px-5 py-3 bg-[#00A859] hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors shrink-0 flex items-center justify-center gap-2"
                 >
                   <RefreshCw className="w-4 h-4" /> Reacomodar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Card: Borrar horarios (dejar solo las horas en blanco) */}
+          {onClearTimes && (
+            <div className="glass-card rounded-3xl p-6 border border-slate-200 shadow-md space-y-4">
+              <div className="space-y-1 border-b pb-4">
+                <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-[#00A859]" /> Borrar Horarios Establecidos
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Deja todos los partidos <strong>sin hora</strong> para que tú asignes la que quieras.
+                  <strong> No cambia la fecha, los enfrentamientos ni los resultados</strong>. Luego pones
+                  la hora (y cancha) de cada partido con <strong>Editar</strong> en el Calendario.
+                </p>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+                <span className="text-amber-800 font-semibold">
+                  Solo se borran las horas. Todo lo demás queda igual.
+                </span>
+                <button
+                  onClick={() => {
+                    if (window.confirm('¿Borrar las horas de TODOS los partidos? Quedarán sin hora (la fecha, enfrentamientos y resultados NO se tocan). Luego asignas cada hora con Editar.')) {
+                      onClearTimes();
+                    }
+                  }}
+                  className="px-5 py-3 bg-[#00A859] hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors shrink-0 flex items-center justify-center gap-2"
+                >
+                  <Clock className="w-4 h-4" /> Borrar Horarios
                 </button>
               </div>
             </div>

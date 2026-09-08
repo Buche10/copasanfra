@@ -34,6 +34,11 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenScanner,
   onLogout,
 }) => {
+  // Los árbitros SOLO ven Calendario y Hoja de Control (Planilla). El público y
+  // el admin ven el resto.
+  const isReferee = currentUser?.role === 'REFEREE';
+  const isAdmin = currentUser?.role === 'ADMIN';
+
   const getTabClass = (tab: TabType) =>
     `flex items-center space-x-1.5 px-3 py-1.5 text-xs lg:text-sm font-extrabold rounded-xl transition-all whitespace-nowrap ${
       activeTab === tab
@@ -47,8 +52,8 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center justify-between h-16 gap-3">
           
           {/* Logo & Brand Title */}
-          <div 
-            onClick={() => setActiveTab('standings')}
+          <div
+            onClick={() => setActiveTab(isReferee ? 'fixture' : 'standings')}
             className="flex items-center space-x-3 cursor-pointer group shrink-0"
           >
             <div className="w-10 h-10 rounded-full overflow-hidden p-0.5 border-2 border-[#00A859] shadow-sm group-hover:scale-105 transition-transform shrink-0">
@@ -68,39 +73,47 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Navigation Tabs */}
           <nav className="hidden lg:flex items-center space-x-1 p-1 overflow-x-auto scrollbar-none">
-            <button onClick={() => setActiveTab('standings')} className={getTabClass('standings')}>
-              <Trophy className="w-4 h-4 shrink-0" />
-              <span>Posiciones</span>
-            </button>
+            {!isReferee && (
+              <>
+                <button onClick={() => setActiveTab('standings')} className={getTabClass('standings')}>
+                  <Trophy className="w-4 h-4 shrink-0" />
+                  <span>Posiciones</span>
+                </button>
 
-            <button onClick={() => setActiveTab('stats')} className={getTabClass('stats')}>
-              <Award className="w-4 h-4 shrink-0" />
-              <span>Estadísticas</span>
-            </button>
+                <button onClick={() => setActiveTab('stats')} className={getTabClass('stats')}>
+                  <Award className="w-4 h-4 shrink-0" />
+                  <span>Estadísticas</span>
+                </button>
+              </>
+            )}
 
             <button onClick={() => setActiveTab('fixture')} className={getTabClass('fixture')}>
               <Calendar className="w-4 h-4 shrink-0" />
               <span>Calendario</span>
             </button>
 
-            <button onClick={() => setActiveTab('arbitraje')} className={getTabClass('arbitraje')}>
-              <DollarSign className="w-4 h-4 shrink-0" />
-              <span>Arbitraje</span>
-            </button>
+            {!isReferee && (
+              <>
+                <button onClick={() => setActiveTab('arbitraje')} className={getTabClass('arbitraje')}>
+                  <DollarSign className="w-4 h-4 shrink-0" />
+                  <span>Arbitraje</span>
+                </button>
 
-            <button onClick={() => setActiveTab('registration')} className={getTabClass('registration')}>
-              <UserPlus className="w-4 h-4 shrink-0" />
-              <span>Inscripción</span>
-            </button>
+                <button onClick={() => setActiveTab('registration')} className={getTabClass('registration')}>
+                  <UserPlus className="w-4 h-4 shrink-0" />
+                  <span>Inscripción</span>
+                </button>
+              </>
+            )}
 
-            {(currentUser?.role === 'REFEREE' || currentUser?.role === 'ADMIN') && (
+            {(isReferee || isAdmin) && (
               <button onClick={() => setActiveTab('sheet')} className={getTabClass('sheet')}>
                 <ClipboardList className="w-4 h-4 shrink-0" />
                 <span>Hoja de Control</span>
               </button>
             )}
 
-            {currentUser?.role === 'ADMIN' && (
+            {isAdmin && (
               <button onClick={() => setActiveTab('admin')} className={getTabClass('admin')}>
                 <Settings className="w-4 h-4 shrink-0" />
                 <span>Admin</span>
@@ -155,22 +168,26 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Mobile / Tablet Navigation Row (below lg, where the desktop nav is hidden) */}
         <div className="flex lg:hidden items-center justify-between py-2 border-t border-slate-100 overflow-x-auto gap-2 scrollbar-none">
-          <button
-            onClick={() => setActiveTab('standings')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
-              activeTab === 'standings' ? 'bg-[#00A859] text-white shadow-sm' : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            Posiciones
-          </button>
-          <button
-            onClick={() => setActiveTab('stats')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
-              activeTab === 'stats' ? 'bg-[#00A859] text-white shadow-sm' : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            Estadísticas
-          </button>
+          {!isReferee && (
+            <button
+              onClick={() => setActiveTab('standings')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
+                activeTab === 'standings' ? 'bg-[#00A859] text-white shadow-sm' : 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              Posiciones
+            </button>
+          )}
+          {!isReferee && (
+            <button
+              onClick={() => setActiveTab('stats')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
+                activeTab === 'stats' ? 'bg-[#00A859] text-white shadow-sm' : 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              Estadísticas
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('fixture')}
             className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
@@ -179,23 +196,27 @@ export const Header: React.FC<HeaderProps> = ({
           >
             Calendario
           </button>
-          <button
-            onClick={() => setActiveTab('arbitraje')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
-              activeTab === 'arbitraje' ? 'bg-[#00A859] text-white shadow-sm' : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            Arbitraje
-          </button>
-          <button
-            onClick={() => setActiveTab('registration')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
-              activeTab === 'registration' ? 'bg-[#00A859] text-white shadow-sm' : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            Inscripción
-          </button>
-          {(currentUser?.role === 'REFEREE' || currentUser?.role === 'ADMIN') && (
+          {!isReferee && (
+            <button
+              onClick={() => setActiveTab('arbitraje')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
+                activeTab === 'arbitraje' ? 'bg-[#00A859] text-white shadow-sm' : 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              Arbitraje
+            </button>
+          )}
+          {!isReferee && (
+            <button
+              onClick={() => setActiveTab('registration')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
+                activeTab === 'registration' ? 'bg-[#00A859] text-white shadow-sm' : 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              Inscripción
+            </button>
+          )}
+          {(isReferee || isAdmin) && (
             <button
               onClick={() => setActiveTab('sheet')}
               className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
@@ -205,7 +226,7 @@ export const Header: React.FC<HeaderProps> = ({
               Planilla Arbitral
             </button>
           )}
-          {currentUser?.role === 'ADMIN' && (
+          {isAdmin && (
             <button
               onClick={() => setActiveTab('admin')}
               className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap ${
