@@ -443,6 +443,34 @@ export default function Home() {
     }
   };
 
+  // Cargar resultados en lote (varios partidos a la vez) y marcarlos FINALIZADOS.
+  // Se hace en una sola actualización de estado para no pisar cambios entre sí.
+  const handleSaveResults = async (
+    results: { id: string; homeScore: number; awayScore: number }[]
+  ) => {
+    const map = new Map(results.map((r) => [r.id, r]));
+    const next = matches.map((m) => {
+      const r = map.get(m.id);
+      return r
+        ? {
+            ...m,
+            homeScore: r.homeScore,
+            awayScore: r.awayScore,
+            status: 'FINISHED' as const,
+            refereeSigned: true,
+            signedAt: m.signedAt || new Date().toLocaleString(),
+          }
+        : m;
+    });
+    const reconciled = recomputePlayoffs(next, teams);
+    setMatches(reconciled);
+    try {
+      await replaceMatches(reconciled);
+    } catch (err) {
+      alert(`No se pudieron guardar los resultados: ${errMsg(err)}`);
+    }
+  };
+
   // Reset Data
   const handleResetData = async () => {
     try {
@@ -728,6 +756,7 @@ export default function Home() {
             onRepackSchedule={handleRepackSchedule}
             onRegenerateCategory={handleRegenerateCategory}
             onClearTimes={handleClearTimes}
+            onSaveResults={handleSaveResults}
           />
         )}
         {activeTab === 'registration' && (
