@@ -757,6 +757,7 @@ export default function Home() {
             onRegenerateCategory={handleRegenerateCategory}
             onClearTimes={handleClearTimes}
             onSaveResults={handleSaveResults}
+            onUpdateMatch={handleUpdateMatch}
           />
         )}
         {activeTab === 'registration' && (

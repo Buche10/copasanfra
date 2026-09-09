@@ -8,6 +8,7 @@ import { TeamEditModal } from './TeamEditModal';
 import { PlayerEditModal } from './PlayerEditModal';
 import { AdminActasView } from './AdminActasView';
 import { AdminResultsView } from './AdminResultsView';
+import { AdminScorersView } from './AdminScorersView';
 import { exportAllData, importAllData, getPlayerVerificationDoc } from '@/lib/store';
 
 interface AdminModalProps {
@@ -30,6 +31,7 @@ interface AdminModalProps {
   onRegenerateCategory?: (category: Category) => void;
   onClearTimes?: () => void;
   onSaveResults?: (results: { id: string; homeScore: number; awayScore: number }[]) => void;
+  onUpdateMatch?: (match: Match) => void;
 }
 
 export const AdminModal: React.FC<AdminModalProps> = ({
@@ -52,10 +54,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onRegenerateCategory,
   onClearTimes,
   onSaveResults,
+  onUpdateMatch,
 }) => {
   const [editTeam, setEditTeam] = useState<Team | null>(null);
   const [editPlayer, setEditPlayer] = useState<Player | null>(null);
-  const [activeTab, setActiveTab] = useState<'teams' | 'players' | 'resultados' | 'actas' | 'settings'>('teams');
+  const [activeTab, setActiveTab] = useState<'teams' | 'players' | 'resultados' | 'goleadores' | 'actas' | 'settings'>('teams');
   const [filterCategory, setFilterCategory] = useState<Category | 'ALL'>('ALL');
   const [filterTeamId, setFilterTeamId] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'APPROVED' | 'PENDING'>('ALL');
@@ -291,6 +294,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             }`}
           >
             Resultados
+          </button>
+          <button
+            onClick={() => setActiveTab('goleadores')}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+              activeTab === 'goleadores' ? 'bg-white text-rose-900 shadow' : 'text-rose-200 hover:bg-white/10'
+            }`}
+          >
+            Goleadores
           </button>
           <button
             onClick={() => setActiveTab('actas')}
@@ -827,6 +838,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       {/* Tab: Cargar resultados en lote */}
       {activeTab === 'resultados' && onSaveResults && (
         <AdminResultsView matches={matches} teams={teams} onSaveResults={onSaveResults} />
+      )}
+
+      {/* Tab: Cargar goleadores */}
+      {activeTab === 'goleadores' && onUpdateMatch && (
+        <AdminScorersView matches={matches} teams={teams} players={players} onUpdateMatch={onUpdateMatch} />
       )}
 
       {/* Tab: Actas y cobros por partido */}
