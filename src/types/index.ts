@@ -237,6 +237,10 @@ export interface PlayerSanction {
   yellowCards: number;
   redCards: number;
   isSuspended: boolean;
+  // Suspensión SOLO por tarjetas (para el bloqueo general en la Planilla).
+  cardSuspended: boolean;
+  // Fechas de suspensión MANUAL (para bloquear solo esa fecha).
+  suspendedRounds: number[];
   suspensionReason?: string;
   matchesRemaining: number;
 }

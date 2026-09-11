@@ -94,7 +94,7 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
   // Suspensión para ESTE partido: por tarjetas (automática) O manual (fecha del
   // partido incluida en suspendedRounds, fijada por el Admin).
   const isManualSusp = (p: Player) => (p.suspendedRounds || []).includes(currentMatch.round);
-  const isSusp = (p: Player) => Boolean(sanctionsMap.get(p.id)?.isSuspended) || isManualSusp(p);
+  const isSusp = (p: Player) => Boolean(sanctionsMap.get(p.id)?.cardSuspended) || isManualSusp(p);
   const suspReason = (p: Player) =>
     isManualSusp(p)
       ? `Suspensión fecha ${currentMatch.round}`

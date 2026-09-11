@@ -613,7 +613,12 @@ export function calculateSanctions(players: Player[], teams: Team[], matches: Ma
     const doubleYellowMatches = stat.doubleYellows * 1;
     const directRedMatches = stat.directReds * 2;
 
-    const totalMatchesRemaining = yellowAccumulationMatches + doubleYellowMatches + directRedMatches;
+    // Suspensión MANUAL fijada por el Admin (fechas concretas).
+    const manualRounds = (p.suspendedRounds || []).slice().sort((a, b) => a - b);
+
+    const cardMatchesRemaining = yellowAccumulationMatches + doubleYellowMatches + directRedMatches;
+    const cardSuspended = cardMatchesRemaining > 0;
+    const totalMatchesRemaining = cardMatchesRemaining + manualRounds.length;
     const isSuspended = totalMatchesRemaining > 0;
 
     const reasons: string[] = [];
@@ -625,6 +630,9 @@ export function calculateSanctions(players: Player[], teams: Team[], matches: Ma
     }
     if (yellowAccumulationMatches > 0) {
       reasons.push(`5 Amarillas (${yellowAccumulationMatches} partido)`);
+    }
+    if (manualRounds.length > 0) {
+      reasons.push(`Suspensión (fecha ${manualRounds.join(', ')})`);
     }
 
     const reasonStr = reasons.length > 0 ? reasons.join(' • ') : '';
@@ -641,6 +649,8 @@ export function calculateSanctions(players: Player[], teams: Team[], matches: Ma
         yellowCards: stat.yellowCards,
         redCards: totalRedCards,
         isSuspended,
+        cardSuspended,
+        suspendedRounds: manualRounds,
         suspensionReason: reasonStr,
         matchesRemaining: totalMatchesRemaining,
       });
