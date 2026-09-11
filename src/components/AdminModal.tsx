@@ -23,6 +23,7 @@ interface AdminModalProps {
   onUpdatePlayer?: (player: Player) => void;
   onApprovePlayer?: (player: Player) => void;
   onApproveAllPending?: () => void;
+  onBulkAffiliation?: (playerIds: string[], affiliation: Player['affiliation']) => void;
   onDeletePlayer?: (player: Player) => void;
   onResetData: () => void;
   suspendedCategories: Category[];
@@ -46,6 +47,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onUpdatePlayer,
   onApprovePlayer,
   onApproveAllPending,
+  onBulkAffiliation,
   onDeletePlayer,
   onResetData,
   suspendedCategories,
@@ -607,6 +609,22 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       className="px-4 py-2.5 bg-[#00A859] hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-sm transition-colors whitespace-nowrap"
                     >
                       ✓ Aprobar todos ({pendingCount})
+                    </button>
+                  );
+                })()}
+                {onBulkAffiliation && (() => {
+                  const foroVisible = visiblePlayers.filter((p) => p.affiliation !== 'Colegio de Abogados');
+                  if (foroVisible.length === 0) return null;
+                  return (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`¿Pasar del Foro al Colegio de Abogados a ${foroVisible.length} jugador(es) visible(s)? (según los filtros actuales)`)) {
+                          onBulkAffiliation(foroVisible.map((p) => p.id), 'Colegio de Abogados');
+                        }
+                      }}
+                      className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold rounded-xl shadow-sm transition-colors whitespace-nowrap"
+                    >
+                      Foro → Colegio ({foroVisible.length})
                     </button>
                   );
                 })()}

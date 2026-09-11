@@ -421,6 +421,23 @@ export default function Home() {
     }
   };
 
+  // Cambiar la afiliación de varios jugadores a la vez (p. ej. pasar del Foro al
+  // Colegio de Abogados). Una sola actualización de estado para no pisar cambios.
+  const handleBulkAffiliation = async (
+    playerIds: string[],
+    affiliation: Player['affiliation']
+  ) => {
+    const ids = new Set(playerIds);
+    if (ids.size === 0) return;
+    const updated = players.filter((p) => ids.has(p.id)).map((p) => ({ ...p, affiliation }));
+    setPlayers((prev) => prev.map((p) => (ids.has(p.id) ? { ...p, affiliation } : p)));
+    try {
+      await Promise.all(updated.map((p) => upsertPlayer(p)));
+    } catch (err) {
+      alert(`No se pudo cambiar la afiliación: ${errMsg(err)}`);
+    }
+  };
+
   // Delete Player (al rechazar una inscripción se elimina del torneo)
   const handleDeletePlayer = async (player: Player) => {
     setPlayers((prev) => prev.filter((p) => p.id !== player.id));
@@ -748,6 +765,7 @@ export default function Home() {
             onUpdatePlayer={handleUpdatePlayer}
             onApprovePlayer={handleApprovePlayer}
             onApproveAllPending={handleApproveAllPending}
+            onBulkAffiliation={handleBulkAffiliation}
             onDeletePlayer={handleDeletePlayer}
             onResetData={handleResetData}
             suspendedCategories={suspendedCategories}
