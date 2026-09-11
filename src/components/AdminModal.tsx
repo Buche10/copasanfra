@@ -9,6 +9,7 @@ import { PlayerEditModal } from './PlayerEditModal';
 import { AdminActasView } from './AdminActasView';
 import { AdminResultsView } from './AdminResultsView';
 import { AdminScorersView } from './AdminScorersView';
+import { AdminSanctionsView } from './AdminSanctionsView';
 import { exportAllData, importAllData, getPlayerVerificationDoc } from '@/lib/store';
 
 interface AdminModalProps {
@@ -58,7 +59,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 }) => {
   const [editTeam, setEditTeam] = useState<Team | null>(null);
   const [editPlayer, setEditPlayer] = useState<Player | null>(null);
-  const [activeTab, setActiveTab] = useState<'teams' | 'players' | 'resultados' | 'goleadores' | 'actas' | 'settings'>('teams');
+  const [activeTab, setActiveTab] = useState<'teams' | 'players' | 'resultados' | 'goleadores' | 'sanciones' | 'actas' | 'settings'>('teams');
   const [filterCategory, setFilterCategory] = useState<Category | 'ALL'>('ALL');
   const [filterTeamId, setFilterTeamId] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'APPROVED' | 'PENDING'>('ALL');
@@ -302,6 +303,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             }`}
           >
             Goleadores
+          </button>
+          <button
+            onClick={() => setActiveTab('sanciones')}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+              activeTab === 'sanciones' ? 'bg-white text-rose-900 shadow' : 'text-rose-200 hover:bg-white/10'
+            }`}
+          >
+            Sanciones
           </button>
           <button
             onClick={() => setActiveTab('actas')}
@@ -843,6 +852,17 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       {/* Tab: Cargar goleadores */}
       {activeTab === 'goleadores' && onUpdateMatch && (
         <AdminScorersView matches={matches} teams={teams} players={players} onUpdateMatch={onUpdateMatch} />
+      )}
+
+      {/* Tab: Tarjetas y suspensiones */}
+      {activeTab === 'sanciones' && onUpdateMatch && onUpdatePlayer && (
+        <AdminSanctionsView
+          matches={matches}
+          teams={teams}
+          players={players}
+          onUpdateMatch={onUpdateMatch}
+          onUpdatePlayer={onUpdatePlayer}
+        />
       )}
 
       {/* Tab: Actas y cobros por partido */}

@@ -91,9 +91,18 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
   const homePlayers = players.filter((p) => p.teamId === currentMatch.homeTeamId);
   const awayPlayers = players.filter((p) => p.teamId === currentMatch.awayTeamId);
 
+  // Suspensión para ESTE partido: por tarjetas (automática) O manual (fecha del
+  // partido incluida en suspendedRounds, fijada por el Admin).
+  const isManualSusp = (p: Player) => (p.suspendedRounds || []).includes(currentMatch.round);
+  const isSusp = (p: Player) => Boolean(sanctionsMap.get(p.id)?.isSuspended) || isManualSusp(p);
+  const suspReason = (p: Player) =>
+    isManualSusp(p)
+      ? `Suspensión fecha ${currentMatch.round}`
+      : sanctionsMap.get(p.id)?.suspensionReason || 'Sancionado';
+
   // Check suspended players for this match
-  const suspendedHomePlayers = homePlayers.filter((p) => sanctionsMap.get(p.id)?.isSuspended);
-  const suspendedAwayPlayers = awayPlayers.filter((p) => sanctionsMap.get(p.id)?.isSuspended);
+  const suspendedHomePlayers = homePlayers.filter(isSusp);
+  const suspendedAwayPlayers = awayPlayers.filter(isSusp);
   const allSuspendedInMatch = [...suspendedHomePlayers, ...suspendedAwayPlayers];
 
   const currentTeamPlayers = eventTeamId === currentMatch.homeTeamId ? homePlayers : awayPlayers;
@@ -149,11 +158,10 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
       return;
     }
 
-    const sanction = sanctionsMap.get(player.id);
-    if (sanction?.isSuspended) {
+    if (isSusp(player)) {
       setScanMessage({
         type: 'error',
-        text: `⛔ ¡JUGADOR SANCIONADO! #${player.dorsal} ${player.name} no puede ingresar por sanción disciplinaria (${sanction.suspensionReason}).`,
+        text: `⛔ ¡JUGADOR SANCIONADO! #${player.dorsal} ${player.name} no puede ingresar por sanción disciplinaria (${suspReason(player)}).`,
       });
       return;
     }
@@ -200,9 +208,8 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
   const handleTogglePlayerLineup = (teamType: 'HOME' | 'AWAY', player: Player) => {
     if (currentMatch.status === 'FINISHED') return;
 
-    const sanction = sanctionsMap.get(player.id);
-    if (sanction?.isSuspended) {
-      alert(`⚠️ ¡ATENCIÓN JUEZ / VOCAL DE MESA!\n\nEl jugador ${player.name} (#${player.dorsal}) se encuentra SANCIONADO y NO PUEDE jugar este partido.\n\nMotivo: ${sanction.suspensionReason}`);
+    if (isSusp(player)) {
+      alert(`⚠️ ¡ATENCIÓN JUEZ / VOCAL DE MESA!\n\nEl jugador ${player.name} (#${player.dorsal}) se encuentra SANCIONADO y NO PUEDE jugar este partido.\n\nMotivo: ${suspReason(player)}`);
       return;
     }
 
@@ -418,7 +425,6 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
             {allSuspendedInMatch.map((p) => {
-              const sanc = sanctionsMap.get(p.id);
               const team = teamMap.get(p.teamId);
               return (
                 <div key={p.id} className="bg-white p-3 rounded-2xl border border-rose-300 text-xs font-bold flex items-center justify-between shadow-sm">
@@ -427,7 +433,7 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
                     <span>#{p.dorsal} {p.name} <span className="text-slate-500">({team?.shortName})</span></span>
                   </div>
                   <span className="text-[10px] font-extrabold bg-rose-100 text-rose-800 px-2 py-1 rounded-lg border border-rose-200">
-                    {sanc?.suspensionReason || 'Sancionado'}
+                    {suspReason(p)}
                   </span>
                 </div>
               );
@@ -628,7 +634,7 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
               <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
                 {homePlayers.map((p) => {
                   const isPresent = (currentMatch.homeLineup || []).some((lp) => lp.playerId === p.id);
-                  const isSuspended = sanctionsMap.get(p.id)?.isSuspended;
+                  const isSuspended = isSusp(p);
                   const isForo = p.affiliation === 'Foro de Abogados';
 
                   return (
@@ -691,7 +697,7 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
               <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
                 {awayPlayers.map((p) => {
                   const isPresent = (currentMatch.awayLineup || []).some((lp) => lp.playerId === p.id);
-                  const isSuspended = sanctionsMap.get(p.id)?.isSuspended;
+                  const isSuspended = isSusp(p);
                   const isForo = p.affiliation === 'Foro de Abogados';
 
                   return (
@@ -791,7 +797,7 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
                 >
                   <option value="">-- Seleccionar Jugador --</option>
                   {currentTeamPlayers
-                    .filter((p) => !sanctionsMap.get(p.id)?.isSuspended)
+                    .filter((p) => !isSusp(p))
                     .map((p) => (
                       <option key={p.id} value={p.id}>
                         #{p.dorsal} {p.name} ({p.position})

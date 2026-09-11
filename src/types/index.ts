@@ -74,6 +74,9 @@ export interface Player {
   verificationDoc?: string;
   registeredAt?: string;
   approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  // Suspensión MANUAL (fijada por el Admin): fechas/jornadas en las que el
+  // jugador NO puede jugar. Complementa la sanción automática por tarjetas.
+  suspendedRounds?: number[];
   // Campo transitorio (solo lectura vista players_admin): indica si el jugador
   // tiene documento de respaldo, sin traer la imagen pesada. No se persiste.
   hasDoc?: boolean;
