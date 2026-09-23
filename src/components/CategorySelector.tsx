@@ -9,6 +9,7 @@ interface CategorySelectorProps {
   onSelectCategory: (category: Category) => void;
   categories: Category[];
   comingSoonCategories?: Category[];
+  pausedCategories?: Category[];
   teams: Team[];
 }
 
@@ -17,6 +18,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
   onSelectCategory,
   categories,
   comingSoonCategories = [],
+  pausedCategories = [],
   teams,
 }) => {
   const getTeamCount = (cat: Category) => {
@@ -82,6 +84,14 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                   }`}
                 >
                   Pronto
+                </span>
+              ) : pausedCategories.includes(cat) ? (
+                <span
+                  className={`ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold shrink-0 ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
+                  }`}
+                >
+                  Pausa
                 </span>
               ) : (
                 <span

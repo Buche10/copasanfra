@@ -28,6 +28,7 @@ interface RegistrationViewProps {
   teams: Team[];
   players: Player[];
   categories: Category[];
+  registrationsOpen?: boolean;
   // Devuelve true si el jugador se guardó correctamente (false si falló).
   onAddPlayer: (player: Player) => Promise<boolean> | void;
   onCancel?: () => void;
@@ -37,6 +38,7 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
   teams,
   players,
   categories,
+  registrationsOpen = true,
   onAddPlayer,
   onCancel,
 }) => {
@@ -184,6 +186,23 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
     setRegisteredPlayer({ ...playerToSave, photo: photoUrl });
     setStep(5);
   };
+
+  if (!registrationsOpen) {
+    return (
+      <div className="max-w-lg mx-auto py-10 px-4 text-center">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-10">
+          <div className="mx-auto w-14 h-14 rounded-2xl bg-rose-100 flex items-center justify-center mb-3">
+            <ShieldCheck className="w-7 h-7 text-rose-600" />
+          </div>
+          <h2 className="text-2xl font-black text-slate-900">Inscripciones cerradas</h2>
+          <p className="text-sm text-slate-500 mt-2">
+            Por el momento no se admiten nuevas inscripciones de jugadores. Si crees que es un error,
+            comunícate con la organización.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto py-4 px-4 sm:px-6">

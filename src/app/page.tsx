@@ -86,10 +86,19 @@ export default function Home() {
   const [payments, setPayments] = useState<ArbitrajePayment[]>([]);
   const [suspendedCategories, setSuspendedCategories] = useState<Category[]>([...SUSPENDED_CATEGORIES]);
   const [comingSoonCategories, setComingSoonCategories] = useState<Category[]>([...COMING_SOON_CATEGORIES]);
-  // Categorías visibles/inscribibles = todas menos las suspendidas (las de
-  // "próximamente" SÍ se muestran e inscriben, pero su calendario está pendiente).
+  const [pausedCategories, setPausedCategories] = useState<Category[]>([]);
+  const [registrationsOpen, setRegistrationsOpen] = useState<boolean>(true);
+  // Categorías visibles en el selector = todas menos las suspendidas. Las de
+  // "próximamente" y "en pausa" SÍ se muestran (las próximamente sin calendario;
+  // las en pausa con su calendario y resultados jugados).
   const selectableCategories = CATEGORIES.filter((c) => !suspendedCategories.includes(c));
+  // Inscribibles = ni suspendidas ni en pausa ni próximamente-cerradas; además la
+  // inscripción global debe estar abierta. (Próximamente SÍ admite inscripción.)
+  const registrableCategories = CATEGORIES.filter(
+    (c) => !suspendedCategories.includes(c) && !pausedCategories.includes(c)
+  );
   const isComingSoon = comingSoonCategories.includes(selectedCategory);
+  const isPaused = pausedCategories.includes(selectedCategory);
   const hiddenCalendarCategories = [...new Set([...suspendedCategories, ...comingSoonCategories])];
 
   const comingSoonView = (
@@ -140,6 +149,8 @@ export default function Home() {
           if (!cancelled) {
             setSuspendedCategories(s.suspendedCategories);
             setComingSoonCategories(s.comingSoonCategories);
+            setPausedCategories(s.pausedCategories);
+            setRegistrationsOpen(s.registrationsOpen);
             // Si la categoría por defecto quedó suspendida, mostrar una visible.
             if (s.suspendedCategories.includes(selectedCategory)) {
               const firstVisible = CATEGORIES.find((c) => !s.suspendedCategories.includes(c));
@@ -526,34 +537,55 @@ export default function Home() {
     }
   };
 
-  // Cambiar el estado de una categoría (Activa / Próximamente / Suspendida)
+  // Cambiar el estado de una categoría (Activa / Próximamente / Pausa / Suspendida)
   // desde el panel Admin. Persiste y afecta a todos los dispositivos.
   const handleSetCategoryStatus = async (category: Category, status: CategoryStatus) => {
-    const nextSuspended = (
-      status === 'SUSPENDED'
-        ? Array.from(new Set([...suspendedCategories, category]))
-        : suspendedCategories.filter((c) => c !== category)
-    );
-    const nextComingSoon = (
-      status === 'COMING_SOON'
-        ? Array.from(new Set([...comingSoonCategories, category]))
-        : comingSoonCategories.filter((c) => c !== category)
-    );
+    // Los tres estados son excluyentes: se quita de todas y se agrega a la que toca.
+    const nextSuspended = status === 'SUSPENDED'
+      ? Array.from(new Set([...suspendedCategories, category]))
+      : suspendedCategories.filter((c) => c !== category);
+    const nextComingSoon = status === 'COMING_SOON'
+      ? Array.from(new Set([...comingSoonCategories, category]))
+      : comingSoonCategories.filter((c) => c !== category);
+    const nextPaused = status === 'PAUSED'
+      ? Array.from(new Set([...pausedCategories, category]))
+      : pausedCategories.filter((c) => c !== category);
+
     const prevS = suspendedCategories;
     const prevC = comingSoonCategories;
+    const prevP = pausedCategories;
     setSuspendedCategories(nextSuspended);
     setComingSoonCategories(nextComingSoon);
+    setPausedCategories(nextPaused);
     // Si se suspende la categoría que se está viendo, saltar a una visible.
     if (status === 'SUSPENDED' && selectedCategory === category) {
       const firstVisible = CATEGORIES.find((c) => !nextSuspended.includes(c));
       if (firstVisible) setSelectedCategory(firstVisible);
     }
     try {
-      await saveSettings({ suspendedCategories: nextSuspended, comingSoonCategories: nextComingSoon });
+      await saveSettings({
+        suspendedCategories: nextSuspended,
+        comingSoonCategories: nextComingSoon,
+        pausedCategories: nextPaused,
+        registrationsOpen,
+      });
     } catch (err) {
       setSuspendedCategories(prevS);
       setComingSoonCategories(prevC);
+      setPausedCategories(prevP);
       alert(`No se pudo guardar el cambio de categoría: ${errMsg(err)}`);
+    }
+  };
+
+  // Abrir / cerrar la inscripción de jugadores (global).
+  const handleSetRegistrations = async (open: boolean) => {
+    const prev = registrationsOpen;
+    setRegistrationsOpen(open);
+    try {
+      await saveSettings({ suspendedCategories, comingSoonCategories, pausedCategories, registrationsOpen: open });
+    } catch (err) {
+      setRegistrationsOpen(prev);
+      alert(`No se pudo guardar el cambio de inscripciones: ${errMsg(err)}`);
     }
   };
 
@@ -656,8 +688,20 @@ export default function Home() {
           onSelectCategory={(cat) => setSelectedCategory(cat)}
           categories={selectableCategories}
           comingSoonCategories={comingSoonCategories}
+          pausedCategories={pausedCategories}
           teams={teams}
         />
+
+        {/* Aviso de categoría en pausa (se muestran calendario y resultados) */}
+        {isPaused && (
+          <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+            <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+            <p className="text-xs sm:text-sm text-amber-900 font-semibold">
+              La categoría <strong>{selectedCategory}</strong> está <strong>en pausa</strong>. Se muestran su
+              calendario y los resultados ya jugados; por ahora no se programan nuevas fechas ni hay inscripción.
+            </p>
+          </div>
+        )}
 
         {/* Dynamic Tab Views */}
         {activeTab === 'standings' && (
@@ -770,7 +814,10 @@ export default function Home() {
             onResetData={handleResetData}
             suspendedCategories={suspendedCategories}
             comingSoonCategories={comingSoonCategories}
+            pausedCategories={pausedCategories}
             onSetCategoryStatus={handleSetCategoryStatus}
+            registrationsOpen={registrationsOpen}
+            onSetRegistrations={handleSetRegistrations}
             onRepackSchedule={handleRepackSchedule}
             onRegenerateCategory={handleRegenerateCategory}
             onClearTimes={handleClearTimes}
@@ -781,7 +828,8 @@ export default function Home() {
         {activeTab === 'registration' && (
           <RegistrationView
             teams={teams}
-            categories={selectableCategories}
+            categories={registrableCategories}
+            registrationsOpen={registrationsOpen}
             players={players}
             onAddPlayer={handleAddPlayer}
             onCancel={() => setActiveTab('standings')}

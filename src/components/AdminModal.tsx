@@ -28,7 +28,10 @@ interface AdminModalProps {
   onResetData: () => void;
   suspendedCategories: Category[];
   comingSoonCategories: Category[];
+  pausedCategories: Category[];
   onSetCategoryStatus: (category: Category, status: CategoryStatus) => void;
+  registrationsOpen: boolean;
+  onSetRegistrations: (open: boolean) => void;
   onRepackSchedule?: () => void;
   onRegenerateCategory?: (category: Category) => void;
   onClearTimes?: () => void;
@@ -52,7 +55,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onResetData,
   suspendedCategories,
   comingSoonCategories,
+  pausedCategories,
   onSetCategoryStatus,
+  registrationsOpen,
+  onSetRegistrations,
   onRepackSchedule,
   onRegenerateCategory,
   onClearTimes,
@@ -904,8 +910,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             </div>
 
             <p className="text-[11px] text-slate-500 -mt-2">
-              <strong>Activa</strong>: normal. <strong>Próximamente</strong>: visible y con inscripción
-              abierta, pero su calendario/tablas dicen “Próximamente”. <strong>Suspendida</strong>: oculta del todo.
+              <strong>Activa</strong>: normal. <strong>Próximamente</strong>: visible y con inscripción,
+              pero su calendario/tablas dicen “Próximamente”. <strong>Pausa</strong>: se ven su calendario y
+              resultados jugados, pero no se programan nuevas fechas ni admite inscripción. <strong>Suspendida</strong>: oculta del todo.
             </p>
 
             <div className="space-y-2">
@@ -914,16 +921,19 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   ? 'SUSPENDED'
                   : comingSoonCategories.includes(c)
                   ? 'COMING_SOON'
+                  : pausedCategories.includes(c)
+                  ? 'PAUSED'
                   : 'ACTIVE';
                 const opts: [CategoryStatus, string][] = [
                   ['ACTIVE', 'Activa'],
                   ['COMING_SOON', 'Próximamente'],
+                  ['PAUSED', 'Pausa'],
                   ['SUSPENDED', 'Suspendida'],
                 ];
                 return (
                   <div key={c} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200">
                     <span className="text-sm font-black text-slate-800">{c}</span>
-                    <div className="flex items-center gap-1 p-1 bg-white rounded-xl border border-slate-200">
+                    <div className="flex flex-wrap items-center gap-1 p-1 bg-white rounded-xl border border-slate-200">
                       {opts.map(([value, label]) => (
                         <button
                           key={value}
@@ -932,7 +942,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             status === value
                               ? value === 'SUSPENDED'
                                 ? 'bg-rose-600 text-white shadow-sm'
-                                : value === 'COMING_SOON'
+                                : value === 'COMING_SOON' || value === 'PAUSED'
                                 ? 'bg-amber-500 text-white shadow-sm'
                                 : 'bg-[#00A859] text-white shadow-sm'
                               : 'text-slate-600 hover:bg-slate-100'
@@ -945,6 +955,35 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Card: Inscripciones abiertas / cerradas */}
+          <div className="glass-card rounded-3xl p-6 border border-slate-200 shadow-md space-y-4">
+            <div className="space-y-1 border-b pb-4">
+              <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#00A859]" /> Inscripción de Jugadores
+              </h3>
+              <p className="text-xs text-slate-500">
+                Cierra la inscripción para que <strong>nadie más pueda registrarse</strong>. Los datos y
+                jugadores actuales no se tocan. Puedes reabrirla cuando quieras.
+              </p>
+            </div>
+            <div className={`flex items-center justify-between gap-3 p-4 rounded-2xl border ${registrationsOpen ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+              <div className="min-w-0">
+                <span className="text-sm font-black text-slate-800">Estado actual: </span>
+                <span className={`text-sm font-black ${registrationsOpen ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {registrationsOpen ? 'Abiertas' : 'Cerradas'}
+                </span>
+              </div>
+              <button
+                onClick={() => onSetRegistrations(!registrationsOpen)}
+                className={`px-5 py-2.5 text-white text-xs font-extrabold rounded-xl shadow-sm transition-colors whitespace-nowrap ${
+                  registrationsOpen ? 'bg-rose-600 hover:bg-rose-700' : 'bg-[#00A859] hover:bg-emerald-700'
+                }`}
+              >
+                {registrationsOpen ? 'Cerrar inscripciones' : 'Abrir inscripciones'}
+              </button>
             </div>
           </div>
 

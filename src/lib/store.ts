@@ -127,6 +127,8 @@ export async function getUsers(): Promise<User[]> {
 const DEFAULT_SETTINGS: AppSettings = {
   suspendedCategories: [...SUSPENDED_CATEGORIES],
   comingSoonCategories: [...COMING_SOON_CATEGORIES],
+  pausedCategories: [],
+  registrationsOpen: true,
 };
 
 export async function getSettings(): Promise<AppSettings> {
@@ -141,6 +143,12 @@ export async function getSettings(): Promise<AppSettings> {
     comingSoonCategories: Array.isArray(s?.comingSoonCategories)
       ? s!.comingSoonCategories!
       : DEFAULT_SETTINGS.comingSoonCategories,
+    pausedCategories: Array.isArray(s?.pausedCategories)
+      ? s!.pausedCategories!
+      : DEFAULT_SETTINGS.pausedCategories,
+    registrationsOpen: typeof s?.registrationsOpen === 'boolean'
+      ? s!.registrationsOpen!
+      : DEFAULT_SETTINGS.registrationsOpen,
   };
 }
 

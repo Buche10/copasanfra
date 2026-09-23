@@ -11,6 +11,8 @@ export const CATEGORIES: Category[] = [
 //  - SUSPENDIDA: oculta del público, inscripción e informes (datos se conservan).
 //  - PRÓXIMAMENTE: visible y con inscripción abierta, pero su calendario/tablas
 //    muestran "Próximamente" (aún no juega).
+//  - EN PAUSA: se muestran su calendario y resultados ya jugados, pero está
+//    marcada como pausada (no se programan nuevas fechas) y sin inscripción.
 //  - ACTIVA: normal.
 // Defaults (se usan si no hay ajustes guardados en la base):
 export const SUSPENDED_CATEGORIES: Category[] = [];
@@ -21,13 +23,15 @@ export const ACTIVE_CATEGORIES: Category[] = CATEGORIES.filter(
   (c) => !SUSPENDED_CATEGORIES.includes(c)
 );
 
-export type CategoryStatus = 'ACTIVE' | 'COMING_SOON' | 'SUSPENDED';
+export type CategoryStatus = 'ACTIVE' | 'COMING_SOON' | 'PAUSED' | 'SUSPENDED';
 
 // Ajustes globales del torneo (persistidos y compartidos): estado de cada
-// categoría (suspendidas / próximamente).
+// categoría y si la inscripción de jugadores está abierta.
 export interface AppSettings {
   suspendedCategories: Category[];
   comingSoonCategories: Category[];
+  pausedCategories: Category[];
+  registrationsOpen: boolean;
 }
 
 export type Role = 'PUBLIC' | 'REFEREE' | 'ADMIN';
