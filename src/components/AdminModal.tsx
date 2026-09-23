@@ -32,6 +32,8 @@ interface AdminModalProps {
   onSetCategoryStatus: (category: Category, status: CategoryStatus) => void;
   registrationsOpen: boolean;
   onSetRegistrations: (open: boolean) => void;
+  closedRegistrationCategories: Category[];
+  onSetCategoryRegistration: (category: Category, open: boolean) => void;
   onRepackSchedule?: () => void;
   onRegenerateCategory?: (category: Category) => void;
   onClearTimes?: () => void;
@@ -59,6 +61,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onSetCategoryStatus,
   registrationsOpen,
   onSetRegistrations,
+  closedRegistrationCategories,
+  onSetCategoryRegistration,
   onRepackSchedule,
   onRegenerateCategory,
   onClearTimes,
@@ -971,9 +975,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             </div>
             <div className={`flex items-center justify-between gap-3 p-4 rounded-2xl border ${registrationsOpen ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
               <div className="min-w-0">
-                <span className="text-sm font-black text-slate-800">Estado actual: </span>
+                <span className="text-sm font-black text-slate-800">General: </span>
                 <span className={`text-sm font-black ${registrationsOpen ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  {registrationsOpen ? 'Abiertas' : 'Cerradas'}
+                  {registrationsOpen ? 'Abiertas' : 'Cerradas (todas)'}
                 </span>
               </div>
               <button
@@ -982,8 +986,48 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   registrationsOpen ? 'bg-rose-600 hover:bg-rose-700' : 'bg-[#00A859] hover:bg-emerald-700'
                 }`}
               >
-                {registrationsOpen ? 'Cerrar inscripciones' : 'Abrir inscripciones'}
+                {registrationsOpen ? 'Cerrar todas' : 'Abrir todas'}
               </button>
+            </div>
+
+            {/* Inscripción por categoría (solo aplica si la general está abierta) */}
+            <div className="space-y-2">
+              <p className="text-[11px] font-black text-slate-500 uppercase">Por categoría</p>
+              {CATEGORIES.map((c) => {
+                const closed =
+                  !registrationsOpen ||
+                  closedRegistrationCategories.includes(c) ||
+                  suspendedCategories.includes(c) ||
+                  pausedCategories.includes(c);
+                // Solo se puede alternar la categoría si la general está abierta y
+                // no está suspendida/en pausa (esas cierran la inscripción por su estado).
+                const lockedByState = suspendedCategories.includes(c) || pausedCategories.includes(c);
+                const toggleable = registrationsOpen && !lockedByState;
+                return (
+                  <div key={c} className="flex items-center justify-between gap-2 p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-xs font-black text-slate-800 min-w-0 truncate">{c}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[11px] font-black ${closed ? 'text-rose-700' : 'text-emerald-700'}`}>
+                        {closed ? 'Cerrada' : 'Abierta'}
+                      </span>
+                      <button
+                        disabled={!toggleable}
+                        onClick={() => onSetCategoryRegistration(c, closedRegistrationCategories.includes(c))}
+                        className={`px-3 py-1.5 text-[11px] font-extrabold rounded-lg transition-colors ${
+                          !toggleable
+                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                            : closedRegistrationCategories.includes(c)
+                            ? 'bg-[#00A859] hover:bg-emerald-700 text-white'
+                            : 'bg-rose-600 hover:bg-rose-700 text-white'
+                        }`}
+                        title={lockedByState ? 'Cerrada por su estado (suspendida/pausa)' : undefined}
+                      >
+                        {closedRegistrationCategories.includes(c) ? 'Abrir' : 'Cerrar'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

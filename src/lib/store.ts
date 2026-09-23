@@ -129,6 +129,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   comingSoonCategories: [...COMING_SOON_CATEGORIES],
   pausedCategories: [],
   registrationsOpen: true,
+  closedRegistrationCategories: [],
 };
 
 export async function getSettings(): Promise<AppSettings> {
@@ -149,6 +150,9 @@ export async function getSettings(): Promise<AppSettings> {
     registrationsOpen: typeof s?.registrationsOpen === 'boolean'
       ? s!.registrationsOpen!
       : DEFAULT_SETTINGS.registrationsOpen,
+    closedRegistrationCategories: Array.isArray(s?.closedRegistrationCategories)
+      ? s!.closedRegistrationCategories!
+      : DEFAULT_SETTINGS.closedRegistrationCategories,
   };
 }
 

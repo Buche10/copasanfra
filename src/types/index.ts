@@ -32,6 +32,8 @@ export interface AppSettings {
   comingSoonCategories: Category[];
   pausedCategories: Category[];
   registrationsOpen: boolean;
+  // Categorías con la inscripción CERRADA (aunque la inscripción global esté abierta).
+  closedRegistrationCategories: Category[];
 }
 
 export type Role = 'PUBLIC' | 'REFEREE' | 'ADMIN';

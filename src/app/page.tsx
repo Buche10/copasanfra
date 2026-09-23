@@ -88,6 +88,7 @@ export default function Home() {
   const [comingSoonCategories, setComingSoonCategories] = useState<Category[]>([...COMING_SOON_CATEGORIES]);
   const [pausedCategories, setPausedCategories] = useState<Category[]>([]);
   const [registrationsOpen, setRegistrationsOpen] = useState<boolean>(true);
+  const [closedRegistrationCategories, setClosedRegistrationCategories] = useState<Category[]>([]);
   // Categorías visibles en el selector = todas menos las suspendidas. Las de
   // "próximamente" y "en pausa" SÍ se muestran (las próximamente sin calendario;
   // las en pausa con su calendario y resultados jugados).
@@ -95,11 +96,18 @@ export default function Home() {
   // Inscribibles = ni suspendidas ni en pausa ni próximamente-cerradas; además la
   // inscripción global debe estar abierta. (Próximamente SÍ admite inscripción.)
   const registrableCategories = CATEGORIES.filter(
-    (c) => !suspendedCategories.includes(c) && !pausedCategories.includes(c)
+    (c) =>
+      !suspendedCategories.includes(c) &&
+      !pausedCategories.includes(c) &&
+      !closedRegistrationCategories.includes(c)
   );
   const isComingSoon = comingSoonCategories.includes(selectedCategory);
   const isPaused = pausedCategories.includes(selectedCategory);
-  const hiddenCalendarCategories = [...new Set([...suspendedCategories, ...comingSoonCategories])];
+  // Categorías ocultas del informe/export de árbitros: suspendidas, próximamente
+  // y EN PAUSA (su calendario sigue visible en la app, pero no en el informe).
+  const hiddenCalendarCategories = [
+    ...new Set([...suspendedCategories, ...comingSoonCategories, ...pausedCategories]),
+  ];
 
   const comingSoonView = (
     <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-10 text-center">
@@ -151,6 +159,7 @@ export default function Home() {
             setComingSoonCategories(s.comingSoonCategories);
             setPausedCategories(s.pausedCategories);
             setRegistrationsOpen(s.registrationsOpen);
+            setClosedRegistrationCategories(s.closedRegistrationCategories);
             // Si la categoría por defecto quedó suspendida, mostrar una visible.
             if (s.suspendedCategories.includes(selectedCategory)) {
               const firstVisible = CATEGORIES.find((c) => !s.suspendedCategories.includes(c));
@@ -568,6 +577,7 @@ export default function Home() {
         comingSoonCategories: nextComingSoon,
         pausedCategories: nextPaused,
         registrationsOpen,
+        closedRegistrationCategories,
       });
     } catch (err) {
       setSuspendedCategories(prevS);
@@ -582,10 +592,37 @@ export default function Home() {
     const prev = registrationsOpen;
     setRegistrationsOpen(open);
     try {
-      await saveSettings({ suspendedCategories, comingSoonCategories, pausedCategories, registrationsOpen: open });
+      await saveSettings({
+        suspendedCategories,
+        comingSoonCategories,
+        pausedCategories,
+        registrationsOpen: open,
+        closedRegistrationCategories,
+      });
     } catch (err) {
       setRegistrationsOpen(prev);
       alert(`No se pudo guardar el cambio de inscripciones: ${errMsg(err)}`);
+    }
+  };
+
+  // Abrir / cerrar la inscripción de UNA categoría.
+  const handleSetCategoryRegistration = async (category: Category, open: boolean) => {
+    const next = open
+      ? closedRegistrationCategories.filter((c) => c !== category)
+      : Array.from(new Set([...closedRegistrationCategories, category]));
+    const prev = closedRegistrationCategories;
+    setClosedRegistrationCategories(next);
+    try {
+      await saveSettings({
+        suspendedCategories,
+        comingSoonCategories,
+        pausedCategories,
+        registrationsOpen,
+        closedRegistrationCategories: next,
+      });
+    } catch (err) {
+      setClosedRegistrationCategories(prev);
+      alert(`No se pudo guardar el cambio de inscripción: ${errMsg(err)}`);
     }
   };
 
@@ -818,6 +855,8 @@ export default function Home() {
             onSetCategoryStatus={handleSetCategoryStatus}
             registrationsOpen={registrationsOpen}
             onSetRegistrations={handleSetRegistrations}
+            closedRegistrationCategories={closedRegistrationCategories}
+            onSetCategoryRegistration={handleSetCategoryRegistration}
             onRepackSchedule={handleRepackSchedule}
             onRegenerateCategory={handleRegenerateCategory}
             onClearTimes={handleClearTimes}
