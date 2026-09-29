@@ -5,6 +5,7 @@ import { Match, Team, Player, PaymentMethod, ArbitrajePayment } from '@/types';
 import { TeamShield } from './TeamShield';
 import { asset } from '@/lib/basePath';
 import { DollarSign, Printer, X, FileSpreadsheet, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { YELLOW_CARD_FINE, RED_CARD_FINE, teamFinesForMatch } from '@/lib/cardFines';
 
 interface FinancialReportModalProps {
   match: Match;
@@ -38,23 +39,24 @@ export const FinancialReportModal: React.FC<FinancialReportModalProps> = ({
 
   // Financial rates
   const FEE_PER_TEAM = match.financials?.feePerTeam ?? 15;
-  const YELLOW_FINE = match.financials?.yellowCardFine ?? 1;
-  const RED_FINE = match.financials?.redCardFine ?? 2;
   const REFEREE_PAY = match.financials?.refereePayment ?? 13;
 
-  // Calculate cards per team
-  const homeYellows = match.events.filter((e) => e.teamId === match.homeTeamId && e.type === 'YELLOW_CARD').length;
-  const awayYellows = match.events.filter((e) => e.teamId === match.awayTeamId && e.type === 'YELLOW_CARD').length;
+  // Calculate card fines per team
+  const homeTeamFines = teamFinesForMatch(match, match.homeTeamId);
+  const awayTeamFines = teamFinesForMatch(match, match.awayTeamId);
 
-  const homeReds = match.events.filter((e) => e.teamId === match.homeTeamId && e.type === 'RED_CARD').length;
-  const awayReds = match.events.filter((e) => e.teamId === match.awayTeamId && e.type === 'RED_CARD').length;
+  const homeYellows = homeTeamFines.yellows;
+  const awayYellows = awayTeamFines.yellows;
+
+  const homeExpulsions = homeTeamFines.expulsions;
+  const awayExpulsions = awayTeamFines.expulsions;
 
   // Calculate totals
   const homeFee = FEE_PER_TEAM;
   const awayFee = FEE_PER_TEAM;
 
-  const homeFines = (homeYellows * YELLOW_FINE) + (homeReds * RED_FINE);
-  const awayFines = (awayYellows * YELLOW_FINE) + (awayReds * RED_FINE);
+  const homeFines = homeTeamFines.amount;
+  const awayFines = awayTeamFines.amount;
 
   const homeTotal = homeFee + homeFines;
   const awayTotal = awayFee + awayFines;
@@ -233,32 +235,32 @@ export const FinancialReportModal: React.FC<FinancialReportModalProps> = ({
                   {/* Yellow Cards */}
                   <tr>
                     <td className="py-2.5 px-3 font-bold text-slate-800">
-                      Multa Amarillas ($1.00 c/u)
+                      Multa Amarillas (${YELLOW_CARD_FINE.toFixed(2)} c/u)
                     </td>
                     <td className="py-2.5 px-3 text-center">
-                      <span>{homeYellows} amarillas (${(homeYellows * YELLOW_FINE).toFixed(2)})</span>
+                      <span>{homeYellows} amarillas (${(homeYellows * YELLOW_CARD_FINE).toFixed(2)})</span>
                     </td>
                     <td className="py-2.5 px-3 text-center">
-                      <span>{awayYellows} amarillas (${(awayYellows * YELLOW_FINE).toFixed(2)})</span>
+                      <span>{awayYellows} amarillas (${(awayYellows * YELLOW_CARD_FINE).toFixed(2)})</span>
                     </td>
                     <td className="py-2.5 px-3 text-right font-black text-slate-900">
-                      ${((homeYellows + awayYellows) * YELLOW_FINE).toFixed(2)}
+                      ${((homeYellows + awayYellows) * YELLOW_CARD_FINE).toFixed(2)}
                     </td>
                   </tr>
 
-                  {/* Red Cards */}
+                  {/* Expulsions */}
                   <tr>
                     <td className="py-2.5 px-3 font-bold text-slate-800">
-                      Multa Rojas ($2.00 c/u)
+                      Multa Expulsiones (${RED_CARD_FINE.toFixed(2)} c/u)
                     </td>
                     <td className="py-2.5 px-3 text-center">
-                      <span>{homeReds} rojas (${(homeReds * RED_FINE).toFixed(2)})</span>
+                      <span>{homeExpulsions} expulsiones (${(homeExpulsions * RED_CARD_FINE).toFixed(2)})</span>
                     </td>
                     <td className="py-2.5 px-3 text-center">
-                      <span>{awayReds} rojas (${(awayReds * RED_FINE).toFixed(2)})</span>
+                      <span>{awayExpulsions} expulsiones (${(awayExpulsions * RED_CARD_FINE).toFixed(2)})</span>
                     </td>
                     <td className="py-2.5 px-3 text-right font-black text-slate-900">
-                      ${((homeReds + awayReds) * RED_FINE).toFixed(2)}
+                      ${((homeExpulsions + awayExpulsions) * RED_CARD_FINE).toFixed(2)}
                     </td>
                   </tr>
 

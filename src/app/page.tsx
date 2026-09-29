@@ -212,7 +212,7 @@ export default function Home() {
   // Update Match and persist. If the match's slot (fecha+hora+cancha) changed
   // and lands on a slot already used by another match, warn and SWAP: the other
   // match takes this match's original slot.
-  const handleUpdateMatch = async (updatedMatch: Match) => {
+  const handleUpdateMatch = async (updatedMatch: Match): Promise<boolean> => {
     const old = matches.find((m) => m.id === updatedMatch.id);
     const slotChanged =
       !!old &&
@@ -231,10 +231,10 @@ export default function Home() {
     let nextRaw: Match[];
     if (conflict && old) {
       const ok = window.confirm(
-        `⚠️ Ese horario (${updatedMatch.date} ${updatedMatch.time} · ${updatedMatch.stadium}) ya está ocupado por otro partido.\n\n` +
+        `Ese horario (${updatedMatch.date} ${updatedMatch.time} · ${updatedMatch.stadium}) ya está ocupado por otro partido.\n\n` +
           `Se intercambiarán los horarios: ese partido pasará al horario original de este (${old.time} · ${old.stadium}).\n\n¿Continuar?`
       );
-      if (!ok) return;
+      if (!ok) return false;
       const swapped: Match = { ...conflict, date: old.date, time: old.time, stadium: old.stadium };
       nextRaw = matches.map((m) => (m.id === updatedMatch.id ? updatedMatch : m.id === conflict.id ? swapped : m));
       try {
@@ -242,7 +242,7 @@ export default function Home() {
         await upsertMatch(swapped);
       } catch (err) {
         alert(`No se pudo guardar el intercambio de horarios: ${errMsg(err)}`);
-        return;
+        return false;
       }
     } else {
       nextRaw = matches.map((m) => (m.id === updatedMatch.id ? updatedMatch : m));
@@ -250,7 +250,7 @@ export default function Home() {
         await upsertMatch(updatedMatch);
       } catch (err) {
         alert(`No se pudo guardar el partido: ${errMsg(err)}`);
-        return;
+        return false;
       }
     }
 
@@ -259,6 +259,7 @@ export default function Home() {
     const reconciled = recomputePlayoffs(nextRaw, teams);
     setMatches(reconciled);
     persistPlayoffs(nextRaw, reconciled);
+    return true;
   };
 
   // ---- Arbitraje: subir respaldo (público), revisar (admin), eliminar ----
@@ -832,6 +833,8 @@ export default function Home() {
             teams={teams}
             players={players}
             onUpdateMatch={handleUpdateMatch}
+            isAdmin={currentUser?.role === 'ADMIN'}
+            editorName={currentUser?.name}
           />
         ))}
         {activeTab === 'admin' && (
@@ -839,6 +842,7 @@ export default function Home() {
             teams={teams}
             players={players}
             matches={matches}
+            adminName={currentUser?.name}
             onAddTeam={handleAddTeam}
             onUpdateTeam={handleUpdateTeam}
             onDeleteTeam={handleDeleteTeam}

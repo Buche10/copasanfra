@@ -195,11 +195,31 @@ drop policy if exists "matches_write" on public.matches;
 create policy "matches_read"  on public.matches for select using (true);
 create policy "matches_write" on public.matches for all to authenticated using (true) with check (true);
 
+-- ---------- Helper de rol ADMIN ----------
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.users u
+    where lower(u.data->>'email') = lower(auth.jwt()->>'email')
+      and u.data->>'role' = 'ADMIN'
+  );
+$$;
+
+revoke all on function public.is_admin() from public;
+grant execute on function public.is_admin() to authenticated;
+
 -- users (contiene emails/nombres del staff: NO es de lectura pública)
+-- Nota: El primer usuario ADMIN se crea desde el SQL Editor de Supabase
+-- (que ignora RLS), tal como describe supabase/seed.sql.
 drop policy if exists "users_read"  on public.users;
 drop policy if exists "users_write" on public.users;
 create policy "users_read"  on public.users for select to authenticated using (true);
-create policy "users_write" on public.users for all    to authenticated using (true) with check (true);
+create policy "users_write" on public.users for all    to authenticated using (public.is_admin()) with check (public.is_admin());
 
 -- payments (arbitraje)
 -- Lectura pública: todos ven qué equipos ya cancelaron cada fecha.
@@ -238,3 +258,27 @@ drop policy if exists "respaldos_anon_insert" on storage.objects;
 drop policy if exists "respaldos_auth_write"  on storage.objects;
 create policy "respaldos_anon_insert" on storage.objects for insert to anon          with check (bucket_id = 'respaldos');
 create policy "respaldos_auth_write"  on storage.objects for all    to authenticated using (bucket_id = 'respaldos') with check (bucket_id = 'respaldos');
+
+-- ---------- Pagos de Multas por Tarjetas (Admin-only) ----------
+create table if not exists public.fine_payments (
+  id text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.fine_payments enable row level security;
+
+drop policy if exists "fine_payments_admin_read" on public.fine_payments;
+drop policy if exists "fine_payments_admin_write" on public.fine_payments;
+
+create policy "fine_payments_admin_read" on public.fine_payments
+  for select to authenticated
+  using (public.is_admin());
+
+create policy "fine_payments_admin_write" on public.fine_payments
+  for all to authenticated
+  using (public.is_admin())
+  with check (public.is_admin());
+
+create index if not exists fine_payments_team_idx on public.fine_payments ((data->>'teamId'));
+

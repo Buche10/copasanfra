@@ -5,6 +5,8 @@ import { Match, Team, Player } from '@/types';
 import { TeamShield } from './TeamShield';
 import { FileText, DollarSign, Square, AlertTriangle } from 'lucide-react';
 
+import { YELLOW_CARD_FINE, RED_CARD_FINE, matchFinesTotal, playerFinesForMatch } from '@/lib/cardFines';
+
 interface AdminActasViewProps {
   matches: Match[];
   teams: Team[];
@@ -15,8 +17,6 @@ interface AdminActasViewProps {
 export const TEAM_FEE = 15; // vocalía/arbitraje por equipo (ingreso)
 export const REFEREE_FEE = 13; // pago árbitro (egreso)
 export const CANCHA_FEE = 20; // alquiler cancha (egreso)
-export const YELLOW_FINE = 1; // multa por amarilla (ingreso)
-export const RED_FINE = 2; // multa por roja (ingreso)
 
 const money = (n: number) => `$${n.toFixed(2)}`;
 
@@ -42,12 +42,10 @@ export const AdminActasView: React.FC<AdminActasViewProps> = ({ matches, teams, 
 
   // Ingreso/egreso por partido.
   const calc = (m: Match) => {
-    const yellows = m.events.filter((e) => e.type === 'YELLOW_CARD').length;
-    const reds = m.events.filter((e) => e.type === 'RED_CARD').length;
-    const fines = yellows * YELLOW_FINE + reds * RED_FINE;
+    const { yellows, expulsions, amount: fines } = matchFinesTotal(m);
     const income = TEAM_FEE * 2 + fines; // 2 equipos + multas
     const expense = REFEREE_FEE + CANCHA_FEE; // árbitro + cancha
-    return { yellows, reds, fines, income, expense, balance: income - expense };
+    return { yellows, expulsions, fines, income, expense, balance: income - expense };
   };
 
   // Totales de la fecha
@@ -129,8 +127,8 @@ export const AdminActasView: React.FC<AdminActasViewProps> = ({ matches, teams, 
         {inRound.map((m) => {
           const home = teamMap.get(m.homeTeamId);
           const away = teamMap.get(m.awayTeamId);
-          const cards = m.events.filter((e) => e.type === 'YELLOW_CARD' || e.type === 'RED_CARD');
-          const { yellows, reds, income, expense, balance } = calc(m);
+          const playerFines = playerFinesForMatch(m);
+          const { yellows, expulsions, income, expense, balance } = calc(m);
 
           return (
             <div key={m.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
@@ -157,27 +155,35 @@ export const AdminActasView: React.FC<AdminActasViewProps> = ({ matches, teams, 
                   <h4 className="text-xs font-black text-slate-700 uppercase flex items-center gap-1.5">
                     <AlertTriangle className="w-4 h-4 text-amber-500" /> Sanciones (tarjetas)
                   </h4>
-                  {cards.length === 0 ? (
+                  {playerFines.length === 0 ? (
                     <p className="text-xs text-slate-400 italic">Sin tarjetas en este partido.</p>
                   ) : (
                     <ul className="space-y-1">
-                      {cards.map((ev) => {
-                        const pl = playerMap.get(ev.playerId);
-                        const tm = teamMap.get(ev.teamId);
-                        const isRed = ev.type === 'RED_CARD';
+                      {playerFines.map((fine) => {
+                        const pl = playerMap.get(fine.playerId);
+                        const tm = teamMap.get(fine.teamId);
+                        const isExpulsion = fine.kind === 'EXPULSION';
+                        const label = isExpulsion
+                          ? fine.isDoubleYellow
+                            ? 'Expulsión (doble amarilla)'
+                            : 'Expulsión'
+                          : 'Amarilla';
                         return (
-                          <li key={ev.id} className="flex items-center justify-between text-xs">
+                          <li key={`${fine.matchId}-${fine.playerId}`} className="flex items-center justify-between text-xs">
                             <span className="flex items-center gap-2 min-w-0">
                               <span
-                                className={`inline-block w-3 h-4 rounded-sm shrink-0 ${isRed ? 'bg-rose-600' : 'bg-amber-400'}`}
+                                className={`inline-block w-3 h-4 rounded-sm shrink-0 ${isExpulsion ? 'bg-rose-600' : 'bg-amber-400'}`}
                               />
                               <span className="font-bold text-slate-800 truncate">
                                 #{pl?.dorsal} {pl?.name || 'Jugador'}
                               </span>
                               <span className="text-slate-400">({tm?.shortName})</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isExpulsion ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                                {label}
+                              </span>
                             </span>
-                            <span className={`font-black ${isRed ? 'text-rose-700' : 'text-amber-700'}`}>
-                              {money(isRed ? RED_FINE : YELLOW_FINE)}
+                            <span className={`font-black ${isExpulsion ? 'text-rose-700' : 'text-amber-700'}`}>
+                              {money(fine.amount)}
                             </span>
                           </li>
                         );
@@ -195,11 +201,11 @@ export const AdminActasView: React.FC<AdminActasViewProps> = ({ matches, teams, 
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-600 flex items-center gap-1"><Square className="w-3 h-3 text-amber-500" /> Amarillas ({yellows})</span>
-                    <span className="font-bold text-slate-800">{money(yellows * YELLOW_FINE)}</span>
+                    <span className="font-bold text-slate-800">{money(yellows * YELLOW_CARD_FINE)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-600 flex items-center gap-1"><Square className="w-3 h-3 text-rose-600" /> Rojas ({reds})</span>
-                    <span className="font-bold text-slate-800">{money(reds * RED_FINE)}</span>
+                    <span className="text-slate-600 flex items-center gap-1"><Square className="w-3 h-3 text-rose-600" /> Expulsiones ({expulsions})</span>
+                    <span className="font-bold text-slate-800">{money(expulsions * RED_CARD_FINE)}</span>
                   </div>
                   <div className="flex items-center justify-between border-t border-slate-200 pt-1">
                     <span className="font-bold text-slate-700">Total ingresos</span>

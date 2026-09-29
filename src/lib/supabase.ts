@@ -33,6 +33,8 @@ export const TABLES = {
   USERS: 'users',
   // Pagos de arbitraje por equipo/fecha (respaldo en Storage, no en el JSONB).
   PAYMENTS: 'payments',
+  // Pagos y abonos de multas por tarjetas (gestión exclusiva de Admin).
+  FINE_PAYMENTS: 'fine_payments',
   // Ajustes globales del torneo (una sola fila id='app').
   SETTINGS: 'settings',
 } as const;

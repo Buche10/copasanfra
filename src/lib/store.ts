@@ -9,6 +9,7 @@ import {
   Category,
   GoalkeeperStat,
   ArbitrajePayment,
+  CardFinePayment,
   AppSettings,
   SUSPENDED_CATEGORIES,
   COMING_SOON_CATEGORIES
@@ -20,6 +21,8 @@ import {
   INITIAL_USERS
 } from './mockData';
 import { supabase, TABLES, RECEIPTS_BUCKET, isSupabaseConfigured } from './supabase';
+import { getCurrentSessionEmail } from './auth';
+import { replaceUsers, validateUsersContainAdmin } from './usersSync';
 
 // ----------------------------------------------------
 // DATA ACCESS (Supabase)
@@ -249,6 +252,21 @@ export async function deletePayment(id: string): Promise<void> {
   if (error) throw new Error(`Error al eliminar el pago: ${error.message}`);
 }
 
+// ---- Multas por tarjetas (pagos y abonos) ----
+export async function getFinePayments(): Promise<CardFinePayment[]> {
+  return selectAll<CardFinePayment>(TABLES.FINE_PAYMENTS);
+}
+
+export async function upsertFinePayment(payment: CardFinePayment): Promise<void> {
+  return upsertRows(TABLES.FINE_PAYMENTS, [payment]);
+}
+
+export async function deleteFinePayment(id: string): Promise<void> {
+  assertConfigured();
+  const { error } = await supabase.from(TABLES.FINE_PAYMENTS).delete().eq('id', id);
+  if (error) throw new Error(`Error al eliminar el pago de multa: ${error.message}`);
+}
+
 // Sube el respaldo (imagen/PDF) al bucket público y devuelve su URL pública.
 // El archivo NO se guarda en la base: en la fila `payments` solo va la URL.
 export async function uploadReceipt(file: File, teamId: string, round: number): Promise<string> {
@@ -269,19 +287,38 @@ export async function replaceMatches(matches: Match[]): Promise<void> {
   await upsertRows(TABLES.MATCHES, matches);
 }
 
+async function replaceUsersInStore(users: User[], currentEmail: string | null): Promise<void> {
+  await replaceUsers(users, currentEmail, {
+    upsert: (u) => upsertRows(TABLES.USERS, u),
+    listIds: async () => {
+      const allUsers = await getUsers();
+      return allUsers.map((u) => u.id);
+    },
+    deleteIds: async (ids) => {
+      if (ids.length === 0) return;
+      assertConfigured();
+      const { error } = await supabase.from(TABLES.USERS).delete().in('id', ids);
+      if (error) throw new Error(`Error al eliminar usuarios sobrantes: ${error.message}`);
+    },
+  });
+}
+
 // Loads the demo dataset. Admin-only action (requires an authenticated
 // session because writes are restricted by RLS).
 export async function resetAllDataToDefault(): Promise<void> {
+  const currentEmail = await getCurrentSessionEmail();
+  validateUsersContainAdmin(INITIAL_USERS, currentEmail);
+
   await deleteAllRows(TABLES.TEAMS);
   await deleteAllRows(TABLES.PLAYERS);
   await deleteAllRows(TABLES.MATCHES);
-  await deleteAllRows(TABLES.USERS);
   await deleteAllRows(TABLES.PAYMENTS);
+  await deleteAllRows(TABLES.FINE_PAYMENTS);
 
   await upsertRows(TABLES.TEAMS, INITIAL_TEAMS);
   await upsertRows(TABLES.PLAYERS, INITIAL_PLAYERS);
   await upsertRows(TABLES.MATCHES, INITIAL_MATCHES);
-  await upsertRows(TABLES.USERS, INITIAL_USERS);
+  await replaceUsersInStore(INITIAL_USERS, currentEmail);
 }
 
 // ----------------------------------------------------
@@ -331,6 +368,15 @@ export async function importAllData(raw: unknown): Promise<string | null> {
     return 'Faltan datos obligatorios (equipos, jugadores o partidos).';
   }
 
+  const currentEmail = await getCurrentSessionEmail();
+  if (Array.isArray(data.users)) {
+    try {
+      validateUsersContainAdmin(data.users, currentEmail);
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Error al validar usuarios de respaldo.';
+    }
+  }
+
   await deleteAllRows(TABLES.TEAMS);
   await deleteAllRows(TABLES.PLAYERS);
   await deleteAllRows(TABLES.MATCHES);
@@ -339,8 +385,11 @@ export async function importAllData(raw: unknown): Promise<string | null> {
   await upsertRows(TABLES.MATCHES, data.matches);
 
   if (Array.isArray(data.users)) {
-    await deleteAllRows(TABLES.USERS);
-    await upsertRows(TABLES.USERS, data.users);
+    try {
+      await replaceUsersInStore(data.users, currentEmail);
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Error al actualizar usuarios.';
+    }
   }
 
   return null;

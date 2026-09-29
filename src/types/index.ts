@@ -138,11 +138,11 @@ export type PaymentMethod = 'EFECTIVO' | 'TRANSFERENCIA';
 export interface MatchFinancials {
   homeFeeMethod?: PaymentMethod; // $15 por equipo
   awayFeeMethod?: PaymentMethod; // $15 por equipo
-  homeFinesMethod?: PaymentMethod; // $1 por amarilla, $2 por roja
-  awayFinesMethod?: PaymentMethod; // $1 por amarilla, $2 por roja
+  homeFinesMethod?: PaymentMethod; // $2 por amarilla, $4 por roja; doble amarilla = roja
+  awayFinesMethod?: PaymentMethod; // $2 por amarilla, $4 por roja; doble amarilla = roja
   feePerTeam?: number; // Default $15
-  yellowCardFine?: number; // Default $1
-  redCardFine?: number; // Default $2
+  yellowCardFine?: number; // Default $2
+  redCardFine?: number; // Default $4
   refereePayment?: number; // Default $13
   notes?: string;
 }
@@ -177,6 +177,14 @@ export interface Match {
   bracketSlot?: 'C1' | 'C2' | 'C3' | 'C4' | 'S1' | 'S2' | 'F';
   // Ganador definido a mano cuando el partido de play off termina empatado.
   winnerTeamId?: string;
+  // Historial de correcciones de planilla realizadas por administradores.
+  corrections?: SheetCorrection[];
+}
+
+export interface SheetCorrection {
+  at: string; // ISO
+  by: string; // nombre del admin
+  reason: string; // 5 a 300 caracteres
 }
 
 // ---- Arbitraje (pago semanal por fecha) ----
@@ -198,6 +206,19 @@ export interface ArbitrajePayment {
   submittedAt: string; // ISO — cuándo se subió el respaldo
   reviewedAt?: string; // ISO — cuándo el Admin aprobó/rechazó
   reviewedBy?: string; // Nombre del Admin que revisó
+}
+
+// ---- Multas por tarjetas (pagos y abonos registrados por el Admin) ----
+export interface CardFinePayment {
+  id: string;
+  teamId: string;
+  category: Category;
+  amount: number; // > 0, max 2 decimales
+  method: PaymentMethod; // 'EFECTIVO' | 'TRANSFERENCIA'
+  paidAt: string; // YYYY-MM-DD
+  note?: string; // max 200 caracteres
+  registeredBy: string; // nombre del admin
+  createdAt: string; // ISO
 }
 
 export interface TeamStanding {

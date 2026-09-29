@@ -7,6 +7,7 @@ import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Dow
 import { TeamEditModal } from './TeamEditModal';
 import { PlayerEditModal } from './PlayerEditModal';
 import { AdminActasView } from './AdminActasView';
+import { AdminFinesReportView } from './AdminFinesReportView';
 import { AdminResultsView } from './AdminResultsView';
 import { AdminScorersView } from './AdminScorersView';
 import { AdminSanctionsView } from './AdminSanctionsView';
@@ -16,6 +17,7 @@ interface AdminModalProps {
   teams: Team[];
   players: Player[];
   matches: Match[];
+  adminName?: string;
   onAddTeam: (team: Team) => void;
   onUpdateTeam?: (team: Team) => void;
   onDeleteTeam?: (team: Team) => void;
@@ -45,6 +47,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   teams,
   players,
   matches,
+  adminName = 'Administrador',
   onAddTeam,
   onUpdateTeam,
   onDeleteTeam,
@@ -71,7 +74,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 }) => {
   const [editTeam, setEditTeam] = useState<Team | null>(null);
   const [editPlayer, setEditPlayer] = useState<Player | null>(null);
-  const [activeTab, setActiveTab] = useState<'teams' | 'players' | 'resultados' | 'goleadores' | 'sanciones' | 'actas' | 'settings'>('teams');
+  const [activeTab, setActiveTab] = useState<'teams' | 'players' | 'resultados' | 'goleadores' | 'sanciones' | 'actas' | 'multas' | 'settings'>('teams');
   const [filterCategory, setFilterCategory] = useState<Category | 'ALL'>('ALL');
   const [filterTeamId, setFilterTeamId] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'APPROVED' | 'PENDING'>('ALL');
@@ -331,6 +334,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             }`}
           >
             Actas
+          </button>
+          <button
+            onClick={() => setActiveTab('multas')}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+              activeTab === 'multas' ? 'bg-white text-rose-900 shadow' : 'text-rose-200 hover:bg-white/10'
+            }`}
+          >
+            Multas
           </button>
           <button
             onClick={() => setActiveTab('settings')}
@@ -896,6 +907,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       {/* Tab: Actas y cobros por partido */}
       {activeTab === 'actas' && (
         <AdminActasView matches={matches} teams={teams} players={players} />
+      )}
+
+      {/* Tab: Multas por tarjetas y reporte de deuda */}
+      {activeTab === 'multas' && (
+        <AdminFinesReportView
+          teams={teams}
+          matches={matches}
+          players={players}
+          adminName={adminName}
+        />
       )}
 
       {/* Tab 3: System Settings & Reset */}
