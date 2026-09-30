@@ -131,7 +131,9 @@ export interface LineupPlayer {
 export const MAX_PLAYERS_PER_TEAM = 20;
 
 export const CANCHAS = ['Cancha 1', 'Cancha 2'] as const;
+export const STADIUMS = CANCHAS;
 export const MATCH_TIME_SLOTS = ['08:00', '09:15', '10:30', '11:45', '13:00', '14:15', '15:30', '16:45'] as const;
+export const MATCH_TIMES = MATCH_TIME_SLOTS;
 
 export type PaymentMethod = 'EFECTIVO' | 'TRANSFERENCIA';
 

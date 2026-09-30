@@ -110,8 +110,8 @@ export async function getMatches(): Promise<Match[]> {
 export type CedulaCheck = 'OK' | 'SAME_TEAM' | 'SAME_CATEGORY';
 
 // Verifica si una cédula puede inscribirse en un equipo. Un jugador puede
-// repetir en otra categoría SOLO si el equipo es del mismo dueño. Devuelve solo
-// un código (no expone datos). Se usa en la inscripción pública.
+// repetir en otra categoría. Devuelve solo un código (no expone datos). Se usa
+// en la inscripción pública.
 export async function checkCedula(cedula: string, teamId: string): Promise<CedulaCheck> {
   assertConfigured();
   const value = cedula.trim();

@@ -13,6 +13,11 @@ export default defineConfig({
         'src/lib/usersSync.ts',
         'src/lib/matchSheet.ts',
         'src/lib/registration.ts',
+        'src/lib/scheduling/random.ts',
+        'src/lib/scheduling/sharedPlayers.ts',
+        'src/lib/scheduling/fairness.ts',
+        'src/lib/scheduling/matchday.ts',
+        'src/lib/scheduling/rebalance.ts',
       ],
       thresholds: {
         lines: 80,

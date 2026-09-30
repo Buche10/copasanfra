@@ -1,4 +1,12 @@
-import { Team, Match, ACTIVE_CATEGORIES, Category, CANCHAS, MATCH_TIME_SLOTS } from '@/types';
+import { Team, Match, ACTIVE_CATEGORIES, Category, CANCHAS, MATCH_TIME_SLOTS, Player } from '@/types';
+import { scheduleMatchday, UnscheduledMatch, MatchdayPlacement } from './scheduling/matchday';
+import { buildSharedPlayerPairs, sharesPlayers } from './scheduling/sharedPlayers';
+import { addToHistory, SlotHistory } from './scheduling/fairness';
+import { rebalanceFutureDates } from './scheduling/rebalance';
+import { shuffleWith } from './scheduling/random';
+
+export { scheduleMatchday, rebalanceFutureDates };
+export type { UnscheduledMatch, MatchdayPlacement };
 
 /**
  * Fisher-Yates array shuffle helper
@@ -17,214 +25,6 @@ function shuffleArray<T>(array: T[]): T[] {
 // Each match ~75 min (30 + 5 break + 30 + buffer). 8 slots x 2 fields = 16/day.
 const STADIUMS: readonly string[] = CANCHAS;
 const MATCH_TIMES: readonly string[] = MATCH_TIME_SLOTS;
-
-interface UnscheduledMatch {
-  category: Category;
-  round: number;
-  homeTeamId: string;
-  awayTeamId: string;
-  isPlayoff?: boolean;
-  playoffStage?: 'CUARTOS' | 'SEMIS' | 'FINAL';
-  bracketSlot?: 'C1' | 'C2' | 'C3' | 'C4' | 'S1' | 'S2' | 'F';
-}
-
-interface Placement {
-  match: UnscheduledMatch;
-  slotIndex: number;
-  canchaIndex: number;
-}
-
-/**
- * Assigns the matches of a single matchday to time slots and fields respecting
- * owner constraints:
- *   - HARD: two teams of the same owner (club) never play at the same time.
- *   - SOFT: an owner's teams play in consecutive slots (e.g. 08:00 then 09:15).
- *
- * A single processing order can't keep every owner's matches together when
- * owners face opponents of different "sizes", so we run a greedy placement
- * (that prefers slots adjacent to an owner's already-used slots) over many
- * randomized orderings and keep the arrangement with the fewest violations.
- * The hard constraint is always honored; the soft one is minimized.
- */
-function scheduleMatchday(
-  dayMatches: UnscheduledMatch[],
-  clubOf: Map<string, string>,
-  slotCount: number,
-  fieldsPerSlot: number
-): Placement[] {
-  const clubsOfMatch = (m: UnscheduledMatch): string[] => [
-    clubOf.get(m.homeTeamId) ?? m.homeTeamId,
-    clubOf.get(m.awayTeamId) ?? m.awayTeamId,
-  ];
-
-  const clubMatchCount = new Map<string, number>();
-  dayMatches.forEach((m) => {
-    clubsOfMatch(m).forEach((c) => clubMatchCount.set(c, (clubMatchCount.get(c) ?? 0) + 1));
-  });
-
-  // Multi-team owners (the only ones with a contiguity constraint), and, for a
-  // given club, the matches it plays this day.
-  const multiClubs = [...clubMatchCount.entries()].filter(([, n]) => n >= 2).map(([c]) => c);
-  const matchesOfClub = (club: string) => dayMatches.filter((m) => clubsOfMatch(m).includes(club));
-
-  // Assign each match to a distinct slot from `slots` (backtracking), honoring
-  // the field/owner rules via `canPlace`. Returns the mapping or null.
-  const assignToSlots = (
-    matches: UnscheduledMatch[],
-    slots: number[],
-    canPlace: (m: UnscheduledMatch, s: number) => boolean
-  ): Map<UnscheduledMatch, number> | null => {
-    const result = new Map<UnscheduledMatch, number>();
-    const used = new Set<number>();
-    const bt = (i: number): boolean => {
-      if (i >= matches.length) return true;
-      for (const s of slots) {
-        if (used.has(s) || !canPlace(matches[i], s)) continue;
-        used.add(s);
-        result.set(matches[i], s);
-        if (bt(i + 1)) return true;
-        used.delete(s);
-        result.delete(matches[i]);
-      }
-      return false;
-    };
-    return bt(0) ? result : null;
-  };
-
-  // One full placement given an order in which to process the multi-team clubs.
-  const attempt = (clubOrder: string[]): { placements: Placement[]; score: number } => {
-    const slotMatches: UnscheduledMatch[][] = Array.from({ length: slotCount }, () => []);
-    const slotClubs: Set<string>[] = Array.from({ length: slotCount }, () => new Set());
-    const matchSlot = new Map<UnscheduledMatch, number>();
-    let hardViolations = 0;
-
-    const canPlace = (m: UnscheduledMatch, s: number) =>
-      slotMatches[s].length < fieldsPerSlot && !clubsOfMatch(m).some((c) => slotClubs[s].has(c));
-    const commit = (m: UnscheduledMatch, s: number) => {
-      slotMatches[s].push(m);
-      clubsOfMatch(m).forEach((c) => slotClubs[s].add(c));
-      matchSlot.set(m, s);
-    };
-    const placeAnywhere = (m: UnscheduledMatch) => {
-      let s = -1;
-      for (let i = 0; i < slotCount; i++) if (canPlace(m, i)) { s = i; break; }
-      if (s === -1) {
-        // never drop a match: force the least-full slot (soft/hard violation).
-        s = slotMatches.reduce((best, arr, i) => (arr.length < slotMatches[best].length ? i : best), 0);
-        hardViolations += 1;
-      }
-      commit(m, s);
-    };
-
-    // Place each multi-team owner's matches inside one contiguous window.
-    for (const club of clubOrder) {
-      const cms = matchesOfClub(club);
-      const k = cms.length;
-      const placed = cms.filter((m) => matchSlot.has(m));
-      const unplaced = cms.filter((m) => !matchSlot.has(m));
-      const placedSlots = placed.map((m) => matchSlot.get(m)!);
-
-      let done = false;
-      for (let start = 0; start + k <= slotCount && !done; start++) {
-        const end = start + k - 1;
-        if (!placedSlots.every((s) => s >= start && s <= end)) continue;
-        const freeWindow: number[] = [];
-        for (let s = start; s <= end; s++) if (!placedSlots.includes(s)) freeWindow.push(s);
-        const assign = assignToSlots(unplaced, freeWindow, canPlace);
-        if (assign) {
-          assign.forEach((s, m) => commit(m, s));
-          done = true;
-        }
-      }
-      if (!done) unplaced.forEach(placeAnywhere); // no clean window: best-effort
-    }
-
-    // Remaining matches (single-owner) fill the rest.
-    for (const m of dayMatches) if (!matchSlot.has(m)) placeAnywhere(m);
-
-    const placements: Placement[] = [];
-    slotMatches.forEach((arr, s) => arr.forEach((m, cancha) => placements.push({ match: m, slotIndex: s, canchaIndex: cancha })));
-
-    // Score: hard clashes weigh heavily; soft = gaps in each owner's block.
-    let score = hardViolations * 1000;
-    for (const club of multiClubs) {
-      const sorted = matchesOfClub(club).map((m) => matchSlot.get(m)!).sort((a, b) => a - b);
-      for (let i = 1; i < sorted.length; i++) score += Math.max(0, sorted[i] - sorted[i - 1] - 1);
-    }
-    return { placements, score };
-  };
-
-  // Local repair: swap two matches' slots whenever it reduces the total gap
-  // score without creating an owner clash. Closes the occasional 1-slot gap
-  // the constructive pass leaves behind. Never introduces a simultaneous clash.
-  const repair = (placements: Placement[]): Placement[] => {
-    const bySlot: UnscheduledMatch[][] = Array.from({ length: slotCount }, () => []);
-    const matchSlot = new Map<UnscheduledMatch, number>();
-    placements.forEach((p) => {
-      bySlot[p.slotIndex].push(p.match);
-      matchSlot.set(p.match, p.slotIndex);
-    });
-
-    const clubsInSlotExcept = (s: number, skip: UnscheduledMatch) => {
-      const set = new Set<string>();
-      bySlot[s].forEach((m) => { if (m !== skip) clubsOfMatch(m).forEach((c) => set.add(c)); });
-      return set;
-    };
-    const gapScore = () => {
-      let sc = 0;
-      for (const club of multiClubs) {
-        const sorted = matchesOfClub(club).map((m) => matchSlot.get(m)!).sort((a, b) => a - b);
-        for (let i = 1; i < sorted.length; i++) sc += Math.max(0, sorted[i] - sorted[i - 1] - 1);
-      }
-      return sc;
-    };
-
-    let improved = true;
-    let guard = 0;
-    while (improved && guard++ < 500 && gapScore() > 0) {
-      improved = false;
-      const all = [...matchSlot.keys()];
-      for (let i = 0; i < all.length && !improved; i++) {
-        for (let j = i + 1; j < all.length && !improved; j++) {
-          const m1 = all[i];
-          const m2 = all[j];
-          const s1 = matchSlot.get(m1)!;
-          const s2 = matchSlot.get(m2)!;
-          if (s1 === s2) continue;
-          // Swap must not put an owner twice in the same slot.
-          if (clubsOfMatch(m2).some((c) => clubsInSlotExcept(s1, m1).has(c))) continue;
-          if (clubsOfMatch(m1).some((c) => clubsInSlotExcept(s2, m2).has(c))) continue;
-
-          const before = gapScore();
-          matchSlot.set(m1, s2);
-          matchSlot.set(m2, s1);
-          if (gapScore() < before) {
-            bySlot[s1] = bySlot[s1].map((m) => (m === m1 ? m2 : m));
-            bySlot[s2] = bySlot[s2].map((m) => (m === m2 ? m1 : m));
-            improved = true;
-          } else {
-            matchSlot.set(m1, s1); // revert
-            matchSlot.set(m2, s2);
-          }
-        }
-      }
-    }
-
-    const out: Placement[] = [];
-    bySlot.forEach((arr, s) => arr.forEach((m, cancha) => out.push({ match: m, slotIndex: s, canchaIndex: cancha })));
-    return out;
-  };
-
-  // Seed: biggest owners first; then randomized restarts to escape dead ends.
-  const baseOrder = [...multiClubs].sort((a, b) => (clubMatchCount.get(b)! - clubMatchCount.get(a)!));
-  let best = attempt(baseOrder);
-  for (let k = 0; k < 400 && best.score > 0; k++) {
-    const candidate = attempt(shuffleArray(multiClubs));
-    if (candidate.score < best.score) best = candidate;
-  }
-
-  return repair(best.placements);
-}
 
 // Primer sábado del campeonato. Todas las fechas se cuentan desde aquí.
 export const SEASON_START = '2026-09-05';
@@ -251,7 +51,9 @@ export function seasonSaturdays(count: number): string[] {
  */
 export function generateRandomFixture(
   teams: Team[],
-  blockedByCategory?: Partial<Record<Category, string[]>>
+  blockedByCategory?: Partial<Record<Category, string[]>>,
+  players?: Player[],
+  options?: { rng?: () => number }
 ): Match[] {
   const generatedMatches: Match[] = [];
   let globalMatchCounter = 100;
@@ -261,7 +63,8 @@ export function generateRandomFixture(
   const roundMatchesMap: Record<number, UnscheduledMatch[]> = {};
 
   ACTIVE_CATEGORIES.forEach((cat) => {
-    const categoryTeams = shuffleArray(teams.filter((t) => t.category === cat));
+    const rawCategoryTeams = teams.filter((t) => t.category === cat);
+    const categoryTeams = options?.rng ? shuffleWith(options.rng, rawCategoryTeams) : shuffleArray(rawCategoryTeams);
     
     // Skip if less than 2 teams in category
     if (categoryTeams.length < 2) return;
@@ -478,7 +281,10 @@ export function generateRandomFixture(
     });
 
   // Programa cada sábado (todas las categorías de ese día) respetando las
-  // restricciones de dueño.
+  // restricciones de dueño y jugadores compartidos, acumulando equidad.
+  const sharedPairs = buildSharedPlayerPairs(players ?? []);
+  let history: SlotHistory = new Map();
+
   Object.keys(byDate)
     .sort()
     .forEach((dateString) => {
@@ -486,8 +292,16 @@ export function generateRandomFixture(
         byDate[dateString],
         clubOf,
         MATCH_TIMES.length,
-        STADIUMS.length
+        STADIUMS.length,
+        { history, sharedPairs, rng: options?.rng }
       );
+
+      const placementInfos = placements.map((p) => ({
+        homeTeamId: p.match.homeTeamId,
+        awayTeamId: p.match.awayTeamId,
+        slotIndex: p.slotIndex,
+      }));
+      history = addToHistory(history, placementInfos, MATCH_TIMES.length);
 
       // Order by slot then field so match ids are sequential across the day.
       placements.sort((a, b) => a.slotIndex - b.slotIndex || a.canchaIndex - b.canchaIndex);
@@ -525,19 +339,21 @@ export function generateRandomFixture(
 }
 
 // Coloca `newMatches` en los turnos LIBRES alrededor de `fixedMatches` (que NO
-// se mueven), respetando la regla de dueños y llenando desde el turno 0.
+// se mueven), respetando la regla de dueños y jugadores compartidos, llenando desde el turno 0.
 function scheduleAround(
   newMatches: Match[],
   fixedMatches: Match[],
   clubOf: Map<string, string>,
   slotCount: number,
-  fieldsPerSlot: number
+  fieldsPerSlot: number,
+  sharedPairs: ReadonlySet<string> = new Set()
 ): { match: Match; slotIndex: number; canchaIndex: number }[] {
   const clubsOf = (m: Match) => [clubOf.get(m.homeTeamId) ?? m.homeTeamId, clubOf.get(m.awayTeamId) ?? m.awayTeamId];
   const used: boolean[][] = Array.from({ length: slotCount }, () => Array.from({ length: fieldsPerSlot }, () => false));
   const clubsInSlot: Set<string>[] = Array.from({ length: slotCount }, () => new Set<string>());
+  const teamsInSlot: Set<string>[] = Array.from({ length: slotCount }, () => new Set<string>());
 
-  // Sembrar los partidos fijos (Damas / +50) en su turno y cancha actuales.
+  // Sembrar los partidos fijos en su turno y cancha actuales.
   fixedMatches.forEach((fm) => {
     const s = MATCH_TIMES.indexOf(fm.time);
     if (s < 0) return;
@@ -545,13 +361,36 @@ function scheduleAround(
     if (c < 0 || c >= fieldsPerSlot || used[s][c]) c = used[s].findIndex((u) => !u);
     if (c >= 0) used[s][c] = true;
     clubsOf(fm).forEach((x) => clubsInSlot[s].add(x));
+    teamsInSlot[s].add(fm.homeTeamId);
+    teamsInSlot[s].add(fm.awayTeamId);
   });
 
   const placements: { match: Match; slotIndex: number; canchaIndex: number }[] = [];
   const placeAt = (m: Match, s: number, c: number) => {
     used[s][c] = true;
     clubsOf(m).forEach((x) => clubsInSlot[s].add(x));
+    teamsInSlot[s].add(m.homeTeamId);
+    teamsInSlot[s].add(m.awayTeamId);
     placements.push({ match: m, slotIndex: s, canchaIndex: c });
+  };
+
+  const hasSharedClash = (m: Match, s: number): boolean => {
+    const mTeams = [m.homeTeamId, m.awayTeamId];
+    for (const t of mTeams) {
+      for (const ex of teamsInSlot[s]) {
+        if (sharesPlayers(sharedPairs, t, ex)) return true;
+      }
+    }
+    for (const neighbor of [s - 1, s + 1]) {
+      if (neighbor >= 0 && neighbor < slotCount) {
+        for (const t of mTeams) {
+          for (const ex of teamsInSlot[neighbor]) {
+            if (sharesPlayers(sharedPairs, t, ex)) return true;
+          }
+        }
+      }
+    }
+    return false;
   };
 
   // Ordenar por dueño para que los equipos del mismo dueño caigan en turnos seguidos.
@@ -560,13 +399,21 @@ function scheduleAround(
     let done = false;
     for (let s = 0; s < slotCount && !done; s++) {
       if (clubsOf(m).some((x) => clubsInSlot[s].has(x))) continue;
+      if (hasSharedClash(m, s)) continue;
       const c = used[s].findIndex((u) => !u);
       if (c === -1) continue;
       placeAt(m, s, c);
       done = true;
     }
     if (!done) {
-      // Último recurso: primer turno con cancha libre (ignora regla de dueño).
+      for (let s = 0; s < slotCount && !done; s++) {
+        if (hasSharedClash(m, s)) continue;
+        const c = used[s].findIndex((u) => !u);
+        if (c !== -1) { placeAt(m, s, c); done = true; }
+      }
+    }
+    if (!done) {
+      // Último recurso: primer turno con cancha libre.
       for (let s = 0; s < slotCount && !done; s++) {
         const c = used[s].findIndex((u) => !u);
         if (c !== -1) { placeAt(m, s, c); done = true; }
@@ -586,8 +433,10 @@ function scheduleAround(
 export function regenerateCategories(
   allMatches: Match[],
   teams: Team[],
-  categoriesToRegen: Category[]
+  categoriesToRegen: Category[],
+  players?: Player[]
 ): Match[] {
+  const sharedPairs = buildSharedPlayerPairs(players ?? []);
   const catSet = new Set(categoriesToRegen);
   const kept = allMatches.filter((m) => !catSet.has(m.category));
   const regenTeams = teams.filter((t) => catSet.has(t.category));
@@ -595,7 +444,7 @@ export function regenerateCategories(
   // Reusar el generador con SOLO los equipos de esas categorías: las demás
   // quedan sin equipos y no producen partidos. Tomamos sus enfrentamientos,
   // jornadas y fechas; las horas/canchas las reasignamos alrededor de lo fijo.
-  const draft = generateRandomFixture(regenTeams);
+  const draft = generateRandomFixture(regenTeams, undefined, players);
 
   const clubOf = new Map<string, string>();
   teams.forEach((t) => clubOf.set(t.id, t.clubId || t.id));
@@ -614,7 +463,7 @@ export function regenerateCategories(
   const result: Match[] = [...kept];
   groupByDate(draft).forEach((dayNew, date) => {
     const fixed = keptByDate.get(date) ?? [];
-    const placements = scheduleAround(dayNew, fixed, clubOf, MATCH_TIMES.length, STADIUMS.length);
+    const placements = scheduleAround(dayNew, fixed, clubOf, MATCH_TIMES.length, STADIUMS.length, sharedPairs);
     placements.forEach(({ match, slotIndex, canchaIndex }) => {
       result.push({ ...match, time: MATCH_TIMES[slotIndex], stadium: STADIUMS[canchaIndex] });
     });
@@ -637,10 +486,12 @@ export function moveTeamCategory(
   teams: Team[],
   teamId: string,
   oldCat: Category,
-  newCat: Category
+  newCat: Category,
+  players?: Player[]
 ): Match[] {
   const clubOf = new Map<string, string>();
   teams.forEach((t) => clubOf.set(t.id, t.clubId || t.id));
+  const sharedPairs = buildSharedPlayerPairs(players ?? []);
 
   // 1) Quitar los partidos del equipo en ambas categorías (origen y cualquier
   //    residual en destino), para partir de un estado limpio para ese equipo.
@@ -701,7 +552,7 @@ export function moveTeamCategory(
   });
   byDate.forEach((dayNew, date) => {
     const fixed = base.filter((m) => m.date === date);
-    const placements = scheduleAround(dayNew, fixed, clubOf, MATCH_TIMES.length, STADIUMS.length);
+    const placements = scheduleAround(dayNew, fixed, clubOf, MATCH_TIMES.length, STADIUMS.length, sharedPairs);
     placements.forEach(({ match, slotIndex, canchaIndex }) =>
       result.push({ ...match, time: MATCH_TIMES[slotIndex], stadium: STADIUMS[canchaIndex] })
     );
@@ -712,68 +563,16 @@ export function moveTeamCategory(
 
 /**
  * Reacomoda SOLO los horarios y canchas del calendario existente para quitar
- * huecos (turnos vacíos), SIN cambiar los enfrentamientos. Agrupa por fecha y
- * vuelve a colocar los partidos VISIBLES de cada día llenando desde el primer
- * turno, respetando la regla de dueños (nunca dos del mismo dueño a la vez).
+ * huecos (turnos vacíos), SIN cambiar los enfrentamientos.
  *
- * `hiddenCategories`: categorías ocultas (suspendidas / próximamente). Sus
- * partidos NO cuentan para el llenado (así no dejan un turno visible vacío) y
- * se estacionan al final del día. Devuelve copia con `time`/`stadium` nuevos.
+ * Solo modifica fechas estrictamente futuras sin partidos jugados/iniciados,
+ * respetando el historial acumulado y las reglas de jugadores compartidos.
  */
 export function repackSchedule(
   matches: Match[],
   teams: Team[],
-  hiddenCategories: Category[] = []
+  hiddenCategories: Category[] = [],
+  players?: Player[]
 ): Match[] {
-  const clubOf = new Map<string, string>();
-  teams.forEach((t) => clubOf.set(t.id, t.clubId || t.id));
-  const hidden = new Set(hiddenCategories);
-
-  const byDate = new Map<string, Match[]>();
-  matches.forEach((m) => {
-    const arr = byDate.get(m.date) ?? [];
-    arr.push(m);
-    byDate.set(m.date, arr);
-  });
-
-  const result: Match[] = [];
-  byDate.forEach((dayMatches) => {
-    const visible = dayMatches.filter((m) => !hidden.has(m.category));
-    const hiddenMs = dayMatches.filter((m) => hidden.has(m.category));
-
-    // Programar densamente SOLO los visibles (llenan desde el turno 0).
-    const unsched: UnscheduledMatch[] = visible.map((m) => ({
-      category: m.category,
-      round: m.round,
-      homeTeamId: m.homeTeamId,
-      awayTeamId: m.awayTeamId,
-      isPlayoff: m.isPlayoff,
-      playoffStage: m.playoffStage,
-      bracketSlot: m.bracketSlot,
-    }));
-
-    let maxSlot = -1;
-    if (unsched.length > 0) {
-      const placements = scheduleMatchday(unsched, clubOf, MATCH_TIMES.length, STADIUMS.length);
-      const slotOf = new Map<UnscheduledMatch, { slot: number; time: string; stadium: string }>();
-      placements.forEach((p) => {
-        maxSlot = Math.max(maxSlot, p.slotIndex);
-        slotOf.set(p.match, { slot: p.slotIndex, time: MATCH_TIMES[p.slotIndex], stadium: STADIUMS[p.canchaIndex] });
-      });
-      visible.forEach((m, i) => {
-        const pos = slotOf.get(unsched[i]);
-        result.push(pos ? { ...m, time: pos.time, stadium: pos.stadium } : m);
-      });
-    }
-
-    // Partidos ocultos (p. ej. +50 en "próximamente"): estacionarlos en turnos
-    // posteriores para que no colisionen con los visibles ni dejen huecos.
-    hiddenMs.forEach((m, i) => {
-      const slot = Math.min(maxSlot + 1 + Math.floor(i / STADIUMS.length), MATCH_TIMES.length - 1);
-      const cancha = i % STADIUMS.length;
-      result.push({ ...m, time: MATCH_TIMES[slot], stadium: STADIUMS[cancha] });
-    });
-  });
-
-  return result;
+  return rebalanceFutureDates(matches, teams, players ?? [], hiddenCategories).matches;
 }

@@ -326,6 +326,18 @@ export default function Home() {
     }
   };
 
+  const ensureFullPlayers = async (): Promise<Player[]> => {
+    const hasCedulas = players.some((p) => p.cedula && p.cedula.trim() !== '');
+    if (hasCedulas) return players;
+    try {
+      const full = await getPlayersFull();
+      setPlayers(full);
+      return full;
+    } catch {
+      return players;
+    }
+  };
+
   // Update Team
   const handleUpdateTeam = async (updatedTeam: Team) => {
     const old = teams.find((t) => t.id === updatedTeam.id);
@@ -350,8 +362,9 @@ export default function Home() {
           `Ningún otro partido ni horario se mueve.`
       );
       if (ok) {
+        const currentPlayers = await ensureFullPlayers();
         const moved = recomputePlayoffs(
-          moveTeamCategory(matches, nextTeams, updatedTeam.id, old.category, updatedTeam.category),
+          moveTeamCategory(matches, nextTeams, updatedTeam.id, old.category, updatedTeam.category, currentPlayers),
           nextTeams
         );
         setMatches(moved);
@@ -532,7 +545,8 @@ export default function Home() {
   // Rehacer el calendario de UNA categoría (todos contra todos + play offs),
   // acomodándola alrededor de las demás categorías (que no se mueven).
   const handleRegenerateCategory = async (cat: Category) => {
-    const regen = recomputePlayoffs(regenerateCategories(matches, teams, [cat]), teams);
+    const currentPlayers = await ensureFullPlayers();
+    const regen = recomputePlayoffs(regenerateCategories(matches, teams, [cat], currentPlayers), teams);
     setMatches(regen);
     try {
       await replaceMatches(regen);
@@ -543,12 +557,29 @@ export default function Home() {
 
   // Reacomodar horarios (quitar huecos) sin cambiar los enfrentamientos.
   const handleRepackSchedule = async () => {
-    const repacked = repackSchedule(matches, teams, hiddenCalendarCategories);
-    setMatches(repacked);
+    const currentPlayers = await ensureFullPlayers();
+    const repacked = repackSchedule(matches, teams, hiddenCalendarCategories, currentPlayers);
+    const previousMatches = matches;
+    const reconciled = recomputePlayoffs(repacked, teams);
+    setMatches(reconciled);
     try {
-      await replaceMatches(repacked);
+      await replaceMatches(reconciled);
     } catch (err) {
+      setMatches(previousMatches);
       alert(`No se pudieron reacomodar los horarios: ${errMsg(err)}`);
+    }
+  };
+
+  // Reequilibrar turnos de las fechas futuras no jugadas.
+  const handleRebalanceSchedule = async (rebalancedMatches: Match[]) => {
+    const previousMatches = matches;
+    const reconciled = recomputePlayoffs(rebalancedMatches, teams);
+    setMatches(reconciled);
+    try {
+      await replaceMatches(reconciled);
+    } catch (err) {
+      setMatches(previousMatches);
+      alert(`No se pudo equilibrar el calendario: ${errMsg(err)}`);
     }
   };
 
@@ -867,6 +898,7 @@ export default function Home() {
             closedRegistrationCategories={closedRegistrationCategories}
             onSetCategoryRegistration={handleSetCategoryRegistration}
             onRepackSchedule={handleRepackSchedule}
+            onRebalanceSchedule={handleRebalanceSchedule}
             onRegenerateCategory={handleRegenerateCategory}
             onClearTimes={handleClearTimes}
             onSaveResults={handleSaveResults}

@@ -12,6 +12,7 @@ import { AdminResultsView } from './AdminResultsView';
 import { AdminScorersView } from './AdminScorersView';
 import { AdminSanctionsView } from './AdminSanctionsView';
 import { exportAllData, importAllData, getPlayerVerificationDoc } from '@/lib/store';
+import { AdminScheduleFairness } from './AdminScheduleFairness';
 
 interface AdminModalProps {
   teams: Team[];
@@ -37,6 +38,7 @@ interface AdminModalProps {
   closedRegistrationCategories: Category[];
   onSetCategoryRegistration: (category: Category, open: boolean) => void;
   onRepackSchedule?: () => void;
+  onRebalanceSchedule?: (rebalancedMatches: Match[]) => Promise<void> | void;
   onRegenerateCategory?: (category: Category) => void;
   onClearTimes?: () => void;
   onSaveResults?: (results: { id: string; homeScore: number; awayScore: number }[]) => void;
@@ -67,6 +69,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   closedRegistrationCategories,
   onSetCategoryRegistration,
   onRepackSchedule,
+  onRebalanceSchedule,
   onRegenerateCategory,
   onClearTimes,
   onSaveResults,
@@ -1122,6 +1125,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               </div>
             </div>
           )}
+
+          {/* Card: Equidad de horarios */}
+          <AdminScheduleFairness
+            matches={matches}
+            teams={teams}
+            players={players}
+            hiddenCategories={[...suspendedCategories, ...comingSoonCategories]}
+            onRebalanceSchedule={onRebalanceSchedule}
+          />
 
           {/* Card: Borrar horarios (dejar solo las horas en blanco) */}
           {onClearTimes && (
