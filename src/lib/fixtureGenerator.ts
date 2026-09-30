@@ -42,6 +42,10 @@ export function seasonSaturdays(count: number, startDate: string = SEASON_START)
   return Array.from({ length: count }, (_, i) => addWeeksToSaturday(startDate, i));
 }
 
+export function isDoubleRoundRobin(cat: Category): boolean {
+  return cat === 'Damas' || cat === '+50 Varones';
+}
+
 /**
  * Generates a full fixture for all 4 categories.
  * Damas and +50 Varones: Double round-robin (Ida y Vuelta) + Gran Final.
@@ -80,8 +84,7 @@ export function generateRandomFixture(
     const numRoundsIda = numTeams - 1;
     const matchesPerRound = numTeams / 2;
 
-    const isDoubleRoundRobin = cat === 'Damas' || cat === '+50 Varones';
-    const totalRegularRounds = isDoubleRoundRobin ? numRoundsIda * 2 : numRoundsIda;
+    const totalRegularRounds = isDoubleRoundRobin(cat) ? numRoundsIda * 2 : numRoundsIda;
 
     // 1. Generate Ida (Ronda 1 to numRoundsIda)
     for (let round = 0; round < numRoundsIda; round++) {
@@ -112,7 +115,7 @@ export function generateRandomFixture(
     }
 
     // 2. Generate Vuelta if double round-robin
-    if (isDoubleRoundRobin) {
+    if (isDoubleRoundRobin(cat)) {
       for (let round = 0; round < numRoundsIda; round++) {
         const roundNumber = numRoundsIda + round + 1;
         if (!roundMatchesMap[roundNumber]) roundMatchesMap[roundNumber] = [];

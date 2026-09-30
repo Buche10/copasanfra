@@ -102,14 +102,18 @@ describe('findCategoriesToCreate', () => {
   const nextSat = '2026-10-03';
 
   it('crea categoria activa sin partidos', () => {
-    expect(findCategoriesToCreate(['+50 Varones'], teams, [], nextSat)).toEqual(['+50 Varones']);
+    expect(findCategoriesToCreate(['+50 Varones'], teams, [], nextSat)).toEqual([
+      { category: '+50 Varones', reason: 'sin partidos; se genera desde el 2026-10-03' }
+    ]);
   });
 
   it('regenera categoria con pendientes en fechas pasadas y sin jugados', () => {
     const pastPending = [
       createMatch('m1', '+50 Varones', '2026-09-05', 't1', 't2', { status: 'SCHEDULED' }),
     ];
-    expect(findCategoriesToCreate(['+50 Varones'], teams, pastPending, nextSat)).toEqual(['+50 Varones']);
+    expect(findCategoriesToCreate(['+50 Varones'], teams, pastPending, nextSat)).toEqual([
+      { category: '+50 Varones', reason: 'partidos sin jugar en fechas pasadas; se regenera desde el 2026-10-03' }
+    ]);
   });
 
   it('NO regenera categoria con todos sus pendientes a partir del proximo sabado', () => {

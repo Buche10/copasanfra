@@ -53,6 +53,7 @@ import { isRlsRegistrationError, REGISTRATION_CLOSED_MESSAGE, canChangeCategory 
 import { recomputePlayoffs, changedPlayoffMatches } from '@/lib/playoffs';
 import { ArrangePlan } from '@/lib/scheduling/arrangeCalendar';
 import { diffMatches } from '@/lib/scheduling/matchDiff';
+import { planTeamDeletion } from '@/lib/teamDeletion';
 import { Header, TabType } from '@/components/Header';
 import { CategorySelector } from '@/components/CategorySelector';
 import { StandingsTable } from '@/components/StandingsTable';
@@ -362,19 +363,43 @@ export default function Home() {
 
   // Delete Team (también elimina sus jugadores y partidos, para no dejar datos huérfanos)
   const handleDeleteTeam = async (team: Team) => {
-    const teamPlayers = players.filter((p) => p.teamId === team.id);
-    const remainingMatches = matches.filter((m) => m.homeTeamId !== team.id && m.awayTeamId !== team.id);
-    const hadMatches = remainingMatches.length !== matches.length;
+    const plan = planTeamDeletion(team, matches, players);
+    const matchCount = plan.removedMatches.length;
+    const playedCount = plan.playedRemoved;
+
+    const msg =
+      `Se eliminara el equipo ${team.name}, sus ${plan.removedPlayers.length} jugadores` +
+      ` y sus ${matchCount} partidos` +
+      (playedCount > 0 ? ` (${playedCount} ya jugados; sus resultados dejaran de contar en la tabla)` : '') +
+      `. Luego pulsa Acomodar calendario para rehacer su categoria si aun no empezo.`;
+
+    if (!window.confirm(msg)) return;
 
     setTeams((prev) => prev.filter((t) => t.id !== team.id));
     setPlayers((prev) => prev.filter((p) => p.teamId !== team.id));
-    setMatches(remainingMatches);
+    setMatches(plan.remainingMatches);
+
     try {
       await deleteTeam(team.id);
-      await Promise.all(teamPlayers.map((p) => deletePlayer(p.id).catch(() => {})));
-      if (hadMatches) await replaceMatches(remainingMatches);
+      await Promise.all(plan.removedPlayers.map((p) => deletePlayer(p.id).catch(() => {})));
+      if (matchCount > 0) {
+        const { upserts, deleteIds } = diffMatches(matches, plan.remainingMatches);
+        await applyMatchChanges({ upserts, deleteIds });
+      }
     } catch (err) {
       alert(`No se pudo eliminar el equipo: ${errMsg(err)}`);
+      try {
+        const [freshTeams, freshPlayers, freshMatches] = await Promise.all([
+          getTeams(),
+          getPlayersFull(),
+          getMatches(),
+        ]);
+        setTeams(freshTeams);
+        setPlayers(freshPlayers);
+        setMatches(freshMatches);
+      } catch {
+        // Fallback silencioso
+      }
     }
   };
 

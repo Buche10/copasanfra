@@ -2,7 +2,7 @@ import { Match, Team, Player, Category, CANCHAS, MATCH_TIME_SLOTS } from '@/type
 import { scheduleMatchday, UnscheduledMatch } from './matchday';
 import { buildSharedPlayerPairs } from './sharedPlayers';
 import { buildSlotHistory, addToHistory, SlotHistory } from './fairness';
-import { generateRandomFixture } from '../fixtureGenerator';
+import { generateRandomFixture, isDoubleRoundRobin } from '../fixtureGenerator';
 import { recomputePlayoffs } from '../playoffs';
 
 export interface ArrangeInput {
@@ -19,7 +19,7 @@ export interface ArrangePlan {
   baseMatches: Match[];
   startDate: string;
   categoriesToCreate: Category[];
-  createdCategories: { category: Category; rounds: number; firstDate: string; matches: number }[];
+  createdCategories: { category: Category; rounds: number; firstDate: string; matches: number; reason: string }[];
   removedStaleMatches: number;
   retimedMatches: number;
   clearedMatches: number;
@@ -56,25 +56,70 @@ export function nextSaturday(today: string, matches?: Match[]): string {
   return `${ty}-${tm}-${td}`;
 }
 
+function checkCalendarMismatch(cat: Category, catTeams: Team[], catMatches: Match[]): boolean {
+  if (catMatches.length === 0) return false;
+
+  const regularMatches = catMatches.filter((m) => !m.isPlayoff);
+  const teamIds = new Set(catTeams.map((t) => t.id));
+
+  for (const m of regularMatches) {
+    if (!teamIds.has(m.homeTeamId) || !teamIds.has(m.awayTeamId)) return true;
+  }
+
+  const teamsInMatches = new Set<string>();
+  for (const m of regularMatches) {
+    teamsInMatches.add(m.homeTeamId);
+    teamsInMatches.add(m.awayTeamId);
+  }
+  for (const t of catTeams) {
+    if (!teamsInMatches.has(t.id)) return true;
+  }
+
+  const n = catTeams.length;
+  const isDouble = isDoubleRoundRobin(cat);
+  const expectedMatches = isDouble ? n * (n - 1) : (n * (n - 1)) / 2;
+  if (regularMatches.length !== expectedMatches) return true;
+
+  return false;
+}
+
 export function findCategoriesToCreate(
   activeCategories: Category[],
   teams: Team[],
   matches: Match[],
   nextSat: string
-): Category[] {
-  return activeCategories.filter((cat) => {
+): { category: Category; reason: string }[] {
+  const result: { category: Category; reason: string }[] = [];
+
+  for (const cat of activeCategories) {
     const catTeams = teams.filter((t) => t.category === cat);
-    if (catTeams.length < 2) return false;
+    if (catTeams.length < 2) continue;
 
     const catMatches = matches.filter((m) => m.category === cat);
     const hasPlayed = catMatches.some(
       (m) => m.status === 'FINISHED' || m.status === 'IN_PROGRESS'
     );
-    if (hasPlayed) return false;
+    const isMismatch = checkCalendarMismatch(cat, catTeams, catMatches);
 
-    if (catMatches.length === 0) return true;
-    return catMatches.some((m) => m.date < nextSat);
-  });
+    if (hasPlayed) continue;
+
+    if (catMatches.length === 0) {
+      result.push({ category: cat, reason: `sin partidos; se genera desde el ${nextSat}` });
+      continue;
+    }
+
+    if (catMatches.some((m) => m.date < nextSat)) {
+      result.push({ category: cat, reason: `partidos sin jugar en fechas pasadas; se regenera desde el ${nextSat}` });
+      continue;
+    }
+
+    if (isMismatch) {
+      result.push({ category: cat, reason: `el calendario no coincide con sus ${catTeams.length} equipos actuales; se regenera desde el ${nextSat}` });
+      continue;
+    }
+  }
+
+  return result;
 }
 
 interface GenerateCategoryResult {
@@ -193,6 +238,17 @@ function findWarnings(teams: Team[], matches: Match[], activeSet: Set<Category>)
       warnings.push(`El equipo "${t.name}" (${t.category}) no tiene ningún partido programado.`);
     }
   });
+
+  activeSet.forEach((cat) => {
+    const catTeams = teams.filter((t) => t.category === cat);
+    if (catTeams.length < 2) return;
+    const catMatches = matches.filter((m) => m.category === cat);
+    const hasPlayed = catMatches.some((m) => m.status === 'FINISHED' || m.status === 'IN_PROGRESS');
+    if (hasPlayed && checkCalendarMismatch(cat, catTeams, catMatches)) {
+      warnings.push(`${cat}: el calendario no coincide con sus equipos, pero ya tiene partidos jugados; revisalo a mano`);
+    }
+  });
+
   return warnings;
 }
 
@@ -246,24 +302,30 @@ function processFutureDates(
 }
 
 function replaceCreatedCategories(
-  toCreate: Category[],
+  toCreate: { category: Category; reason: string }[],
   inputMatches: Match[],
   teams: Team[],
   players: Player[],
   nextSat: string,
   rng?: () => number
 ) {
-  const staleToRemove = new Set(toCreate);
+  const staleToRemove = new Set(toCreate.map((c) => c.category));
   const removedStaleMatches = inputMatches.filter((m) => staleToRemove.has(m.category)).length;
   let currentMatches = inputMatches.filter((m) => !staleToRemove.has(m.category));
 
   const existingIds = new Set(currentMatches.map((m) => m.id));
   const createdCategories: ArrangePlan['createdCategories'] = [];
 
-  for (const cat of toCreate) {
+  for (const { category: cat, reason } of toCreate) {
     const catTeams = teams.filter((t) => t.category === cat);
     const gen = generateNewCategoryMatches(cat, catTeams, players, nextSat, existingIds, rng);
-    createdCategories.push({ category: cat, rounds: gen.rounds, firstDate: gen.firstDate, matches: gen.matches.length });
+    createdCategories.push({
+      category: cat,
+      rounds: gen.rounds,
+      firstDate: gen.firstDate,
+      matches: gen.matches.length,
+      reason,
+    });
     currentMatches = [...currentMatches, ...gen.matches];
   }
 

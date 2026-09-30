@@ -2,6 +2,7 @@ import { Category } from '@/types';
 import { SlotHistory, fairnessCost } from './fairness';
 import { sharesPlayers } from './sharedPlayers';
 import { shuffleWith } from './random';
+import { computeScore, computeCanchasLlenas, ScoreContext } from './score';
 
 export interface UnscheduledMatch {
   category: Category;
@@ -31,16 +32,8 @@ interface AttemptResult {
   score: number;
 }
 
-interface MatchdayContext {
-  n: number;
-  slotCount: number;
-  fieldsPerSlot: number;
+interface MatchdayContext extends ScoreContext {
   dayMatches: UnscheduledMatch[];
-  multiClubs: string[];
-  clubMatchIndices: Map<string, number[]>;
-  linkedMatrix: Uint8Array;
-  shareMatrix: Uint8Array;
-  costTable: Float64Array;
   rng: () => number;
 }
 
@@ -58,10 +51,23 @@ function computeMatrices(
 
   for (let i = 0; i < n; i++) {
     const mi = dayMatches[i];
+    const hCounts = history.get(mi.homeTeamId);
+    const aCounts = history.get(mi.awayTeamId);
+    const hEarly = (hCounts?.[0] ?? 0) + (hCounts?.[1] ?? 0);
+    const hTotal = hCounts ? hCounts.reduce((a, b) => a + b, 0) : 0;
+    const aEarly = (aCounts?.[0] ?? 0) + (aCounts?.[1] ?? 0);
+    const aTotal = aCounts ? aCounts.reduce((a, b) => a + b, 0) : 0;
+
     for (let s = 0; s < slotCount; s++) {
+      let earlyPenalty = 0;
+      if (s <= 1) {
+        if (hTotal > 0 && hEarly / hTotal >= 0.28) earlyPenalty += 2;
+        if (aTotal > 0 && aEarly / aTotal >= 0.28) earlyPenalty += 2;
+      }
       costTable[i * slotCount + s] =
         fairnessCost(history, mi.homeTeamId, s, slotCount) +
-        fairnessCost(history, mi.awayTeamId, s, slotCount);
+        fairnessCost(history, mi.awayTeamId, s, slotCount) +
+        earlyPenalty;
     }
     for (let j = 0; j < n; j++) {
       if (i === j) {
@@ -127,66 +133,6 @@ function buildContext(
   return { n, slotCount, fieldsPerSlot, dayMatches, multiClubs, clubMatchIndices, linkedMatrix, shareMatrix, costTable, rng };
 }
 
-function computeSoftPenalties(ctx: MatchdayContext, matchSlot: number[]): number {
-  const { n, multiClubs, clubMatchIndices, shareMatrix } = ctx;
-  let exactRestPenalty = 0;
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      if (shareMatrix[i * n + j]) {
-        const s1 = matchSlot[i];
-        const s2 = matchSlot[j];
-        if (s1 !== -1 && s2 !== -1 && s1 !== s2) {
-          exactRestPenalty += Math.abs(Math.abs(s1 - s2) - 2);
-        }
-      }
-    }
-  }
-
-  let ownerGaps = 0;
-  for (const club of multiClubs) {
-    const ms = (clubMatchIndices.get(club) ?? []).filter((idx) => matchSlot[idx] !== -1);
-    const sorted = ms.map((idx) => ({ idx, s: matchSlot[idx] })).sort((a, b) => a.s - b.s);
-    for (let i = 1; i < sorted.length; i++) {
-      const rawGap = Math.max(0, sorted[i].s - sorted[i - 1].s - 1);
-      const shares = shareMatrix[sorted[i - 1].idx * n + sorted[i].idx] === 1;
-      ownerGaps += shares ? Math.max(0, rawGap - 1) : rawGap;
-    }
-  }
-  return exactRestPenalty + ownerGaps;
-}
-
-function computeScore(ctx: MatchdayContext, matchSlot: number[], slotMatches: number[][], baseHard = 0): number {
-  const { n, slotCount, fieldsPerSlot, linkedMatrix, shareMatrix, costTable } = ctx;
-  let hard = baseHard;
-
-  for (let s = 0; s < slotCount; s++) {
-    const arr = slotMatches[s];
-    if (arr.length > fieldsPerSlot) hard += arr.length - fieldsPerSlot;
-    for (let i = 0; i < arr.length; i++) {
-      for (let j = i + 1; j < arr.length; j++) {
-        if (linkedMatrix[arr[i] * n + arr[j]]) hard += 1;
-      }
-    }
-  }
-
-  for (let s = 0; s < slotCount - 1; s++) {
-    for (const m1 of slotMatches[s]) {
-      for (const m2 of slotMatches[s + 1]) {
-        if (shareMatrix[m1 * n + m2]) hard += 1;
-      }
-    }
-  }
-
-  const soft = computeSoftPenalties(ctx, matchSlot);
-
-  let equity = 0;
-  for (let i = 0; i < n; i++) {
-    const s = matchSlot[i];
-    if (s !== -1) equity += costTable[i * slotCount + s];
-  }
-
-  return hard * 1_000_000 + soft * 1_000 + equity;
-}
 
 function canPlace(ctx: MatchdayContext, slotMatches: number[][], mIdx: number, s: number): boolean {
   if (s < 0 || s >= ctx.slotCount) return false;
@@ -316,6 +262,7 @@ function findWindowPlan(
         for (let s = 0; s < start; s++) {
           if (slotMatches[s].length === 0) gapBefore += 1;
         }
+
         const totalWindowCost = gapBefore + cost;
         if (totalWindowCost < bestCost) {
           bestCost = totalWindowCost;
@@ -331,7 +278,6 @@ function findWindowPlan(
 function attemptOrder(ctx: MatchdayContext, clubOrder: string[]): AttemptResult {
   const slotMatches: number[][] = Array.from({ length: ctx.slotCount }, () => []);
   const matchSlot: number[] = new Array(ctx.n).fill(-1);
-  let hardViolations = 0;
 
   for (const club of clubOrder) {
     const cms = ctx.clubMatchIndices.get(club) ?? [];
@@ -358,19 +304,21 @@ function attemptOrder(ctx: MatchdayContext, clubOrder: string[]): AttemptResult 
       });
     } else {
       unplaced.forEach((idx) => {
-        hardViolations += placeAnywhere(ctx, matchSlot, slotMatches, idx);
+        placeAnywhere(ctx, matchSlot, slotMatches, idx);
       });
     }
   }
 
+  const remainingIndices: number[] = [];
   for (let i = 0; i < ctx.n; i++) {
-    if (matchSlot[i] === -1) {
-      hardViolations += placeAnywhere(ctx, matchSlot, slotMatches, i);
-    }
+    if (matchSlot[i] === -1) remainingIndices.push(i);
+  }
+  const orderedRemaining = shuffleWith(ctx.rng, remainingIndices);
+  for (const i of orderedRemaining) {
+    placeAnywhere(ctx, matchSlot, slotMatches, i);
   }
 
-  const score = computeScore(ctx, matchSlot, slotMatches, hardViolations);
-  return { matchSlot, slotMatches, score };
+  return compactSchedule(ctx, { matchSlot, slotMatches, score: 0 });
 }
 
 function shiftToStart(ctx: MatchdayContext, slotMatches: number[][], matchSlot: number[]): void {
@@ -430,6 +378,56 @@ function tryPullMatchIntoEmptySlot(
   return false;
 }
 
+function scoreWithoutCompact(ctx: MatchdayContext, matchSlot: number[], slotMatches: number[][]): number {
+  const full = computeScore(ctx, matchSlot, slotMatches);
+  return full - computeCanchasLlenas(ctx.n, ctx.fieldsPerSlot, slotMatches) * 100_000;
+}
+
+function tryPullToEarlierSlots(
+  ctx: MatchdayContext,
+  slotMatches: number[][],
+  matchSlot: number[]
+): boolean {
+  let anyMoved = false;
+  let lastUsed = ctx.slotCount - 1 - [...slotMatches].reverse().findIndex((arr) => arr.length > 0);
+
+  for (let s = 0; s < lastUsed; s++) {
+    while (slotMatches[s].length < ctx.fieldsPerSlot && lastUsed > s) {
+      let bestIdx = -1;
+      let bestBase = Infinity;
+      const currentBase = scoreWithoutCompact(ctx, matchSlot, slotMatches);
+
+      for (let i = 0; i < slotMatches[lastUsed].length; i++) {
+        const mIdx = slotMatches[lastUsed][i];
+        if (!canMoveMatch(ctx, slotMatches, mIdx, s, lastUsed)) continue;
+
+        slotMatches[lastUsed].splice(i, 1);
+        slotMatches[s].push(mIdx);
+        matchSlot[mIdx] = s;
+
+        const testBase = scoreWithoutCompact(ctx, matchSlot, slotMatches);
+        if (testBase <= currentBase && testBase < bestBase) {
+          bestBase = testBase;
+          bestIdx = i;
+        }
+
+        slotMatches[s].pop();
+        slotMatches[lastUsed].splice(i, 0, mIdx);
+        matchSlot[mIdx] = lastUsed;
+      }
+
+      if (bestIdx === -1) break;
+
+      const mIdx = slotMatches[lastUsed].splice(bestIdx, 1)[0];
+      slotMatches[s].push(mIdx);
+      matchSlot[mIdx] = s;
+      anyMoved = true;
+      lastUsed = ctx.slotCount - 1 - [...slotMatches].reverse().findIndex((arr) => arr.length > 0);
+    }
+  }
+  return anyMoved;
+}
+
 function compactSchedule(ctx: MatchdayContext, res: AttemptResult): AttemptResult {
   const slotMatches = res.slotMatches.map((arr) => [...arr]);
   const matchSlot = [...res.matchSlot];
@@ -466,6 +464,8 @@ function compactSchedule(ctx: MatchdayContext, res: AttemptResult): AttemptResul
     emptySlot = slotMatches.findIndex((arr, idx) => idx < lastUsed && arr.length === 0);
   }
 
+  tryPullToEarlierSlots(ctx, slotMatches, matchSlot);
+
   return { matchSlot, slotMatches, score: computeScore(ctx, matchSlot, slotMatches) };
 }
 
@@ -484,7 +484,7 @@ function trySingleMoveStep(
       slotMatches[s2].push(i);
       matchSlot[i] = s2;
 
-      const testScore = computeScore(ctx, matchSlot, slotMatches);
+      const testScore = scoreWithoutCompact(ctx, matchSlot, slotMatches);
       const acceptTie = testScore === currentScore && testScore < 1_000_000 && ctx.rng() < 0.15;
       if (testScore < currentScore || acceptTie) {
         return { score: testScore, improved: true };
@@ -514,7 +514,7 @@ function trySwapStep(
       matchSlot[i] = s2;
       matchSlot[j] = s1;
 
-      const testScore = computeScore(ctx, matchSlot, slotMatches);
+      const testScore = scoreWithoutCompact(ctx, matchSlot, slotMatches);
       const acceptTie = testScore === currentScore && testScore < 1_000_000 && ctx.rng() < 0.15;
       if (testScore < currentScore || acceptTie) {
         return { score: testScore, improved: true };
@@ -531,7 +531,7 @@ function trySwapStep(
 function repairSchedule(ctx: MatchdayContext, res: AttemptResult): AttemptResult {
   const slotMatches = res.slotMatches.map((arr) => [...arr]);
   const matchSlot = [...res.matchSlot];
-  let currentScore = res.score;
+  let currentScore = scoreWithoutCompact(ctx, matchSlot, slotMatches);
   let improved = true;
   let guard = 0;
 
@@ -550,7 +550,7 @@ function repairSchedule(ctx: MatchdayContext, res: AttemptResult): AttemptResult
     }
   }
 
-  return { matchSlot, slotMatches, score: currentScore };
+  return { matchSlot, slotMatches, score: computeScore(ctx, matchSlot, slotMatches) };
 }
 
 /**

@@ -62,6 +62,8 @@ describe('scheduleMatchday', () => {
       expect(diff).toBeLessThanOrEqual(1.0);
     });
 
+    const maxEarly = Math.max(...report.map((r) => r.earlyPct));
+    console.log('894b713 MAX EARLY PCT:', maxEarly);
     for (const r of report) {
       expect(r.earlyPct).toBeLessThanOrEqual(35);
     }

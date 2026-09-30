@@ -57,7 +57,7 @@ const CreatedCategoriesAlert: React.FC<CreatedCategoriesProps> = ({ categories }
       </div>
       {categories.map((c) => (
         <div key={c.category} className="text-xs">
-          <strong className="font-bold">{c.category}:</strong> {c.rounds} jornadas desde el {c.firstDate} ({c.matches} partidos en total).
+          <strong className="font-bold">{c.category}:</strong> {c.rounds} jornadas desde el {c.firstDate} ({c.matches} partidos). {c.reason}
         </div>
       ))}
     </div>
