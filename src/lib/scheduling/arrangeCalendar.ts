@@ -56,31 +56,58 @@ export function nextSaturday(today: string, matches?: Match[]): string {
   return `${ty}-${tm}-${td}`;
 }
 
-function checkCalendarMismatch(cat: Category, catTeams: Team[], catMatches: Match[]): boolean {
-  if (catMatches.length === 0) return false;
-
-  const regularMatches = catMatches.filter((m) => !m.isPlayoff);
+function describeTeamMismatch(catTeams: Team[], regularMatches: Match[]): string | null {
   const teamIds = new Set(catTeams.map((t) => t.id));
+  const hasForeignTeam = regularMatches.some(
+    (m) => !teamIds.has(m.homeTeamId) || !teamIds.has(m.awayTeamId)
+  );
+  if (hasForeignTeam) return 'tiene partidos de equipos que ya no están en la categoría';
 
-  for (const m of regularMatches) {
-    if (!teamIds.has(m.homeTeamId) || !teamIds.has(m.awayTeamId)) return true;
+  const teamsInMatches = new Set(regularMatches.flatMap((m) => [m.homeTeamId, m.awayTeamId]));
+  const missing = catTeams.filter((t) => !teamsInMatches.has(t.id));
+  if (missing.length > 0) return `hay equipos sin partidos (${missing.map((t) => t.name).join(', ')})`;
+  return null;
+}
+
+// Estructura esperada de un todos contra todos: con n par, n-1 jornadas; con n
+// impar, n jornadas (un equipo descansa). En ambos casos floor(n/2) partidos por
+// jornada. Doble vuelta duplica las jornadas.
+function describeRoundStructureMismatch(cat: Category, n: number, regularMatches: Match[]): string | null {
+  const roundsPerLeg = n % 2 === 0 ? n - 1 : n;
+  const expectedRounds = isDoubleRoundRobin(cat) ? roundsPerLeg * 2 : roundsPerLeg;
+  const perRound = Math.floor(n / 2);
+  const expected = `con ${n} equipos deben ser ${expectedRounds} jornadas de ${perRound} partido${perRound === 1 ? '' : 's'}`;
+
+  const byRound = new Map<number, Match[]>();
+  regularMatches.forEach((m) => byRound.set(m.round, [...(byRound.get(m.round) ?? []), m]));
+
+  const badRounds = [...byRound.values()].filter((ms) => ms.length !== perRound).length;
+  if (byRound.size !== expectedRounds || badRounds > 0) {
+    return `el calendario tiene ${byRound.size} jornadas (${badRounds} con un número de partidos incorrecto), pero ${expected}`;
   }
 
-  const teamsInMatches = new Set<string>();
-  for (const m of regularMatches) {
-    teamsInMatches.add(m.homeTeamId);
-    teamsInMatches.add(m.awayTeamId);
-  }
-  for (const t of catTeams) {
-    if (!teamsInMatches.has(t.id)) return true;
-  }
+  const repeatsTeam = [...byRound.values()].some((ms) => {
+    const ids = ms.flatMap((m) => [m.homeTeamId, m.awayTeamId]);
+    return new Set(ids).size !== ids.length;
+  });
+  if (repeatsTeam) return 'hay equipos que juegan dos veces en la misma jornada';
+  return null;
+}
+
+function describeCalendarMismatch(cat: Category, catTeams: Team[], catMatches: Match[]): string | null {
+  if (catMatches.length === 0) return null;
+  const regularMatches = catMatches.filter((m) => !m.isPlayoff);
+
+  const teamProblem = describeTeamMismatch(catTeams, regularMatches);
+  if (teamProblem) return teamProblem;
 
   const n = catTeams.length;
-  const isDouble = isDoubleRoundRobin(cat);
-  const expectedMatches = isDouble ? n * (n - 1) : (n * (n - 1)) / 2;
-  if (regularMatches.length !== expectedMatches) return true;
+  const expectedMatches = isDoubleRoundRobin(cat) ? n * (n - 1) : (n * (n - 1)) / 2;
+  if (regularMatches.length !== expectedMatches) {
+    return `tiene ${regularMatches.length} partidos de fase regular y con ${n} equipos deben ser ${expectedMatches}`;
+  }
 
-  return false;
+  return describeRoundStructureMismatch(cat, n, regularMatches);
 }
 
 export function findCategoriesToCreate(
@@ -99,7 +126,7 @@ export function findCategoriesToCreate(
     const hasPlayed = catMatches.some(
       (m) => m.status === 'FINISHED' || m.status === 'IN_PROGRESS'
     );
-    const isMismatch = checkCalendarMismatch(cat, catTeams, catMatches);
+    const mismatch = describeCalendarMismatch(cat, catTeams, catMatches);
 
     if (hasPlayed) continue;
 
@@ -113,8 +140,8 @@ export function findCategoriesToCreate(
       continue;
     }
 
-    if (isMismatch) {
-      result.push({ category: cat, reason: `el calendario no coincide con sus ${catTeams.length} equipos actuales; se regenera desde el ${nextSat}` });
+    if (mismatch) {
+      result.push({ category: cat, reason: `${mismatch}; se regenera desde el ${nextSat}` });
       continue;
     }
   }
@@ -244,8 +271,9 @@ function findWarnings(teams: Team[], matches: Match[], activeSet: Set<Category>)
     if (catTeams.length < 2) return;
     const catMatches = matches.filter((m) => m.category === cat);
     const hasPlayed = catMatches.some((m) => m.status === 'FINISHED' || m.status === 'IN_PROGRESS');
-    if (hasPlayed && checkCalendarMismatch(cat, catTeams, catMatches)) {
-      warnings.push(`${cat}: el calendario no coincide con sus equipos, pero ya tiene partidos jugados; revisalo a mano`);
+    const mismatch = hasPlayed ? describeCalendarMismatch(cat, catTeams, catMatches) : null;
+    if (mismatch) {
+      warnings.push(`${cat}: ${mismatch}, pero ya tiene partidos jugados; revísalo a mano`);
     }
   });
 

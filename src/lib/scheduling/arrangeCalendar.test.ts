@@ -118,8 +118,8 @@ describe('findCategoriesToCreate', () => {
 
   it('NO regenera categoria con todos sus pendientes a partir del proximo sabado', () => {
     const futurePending = [
-      createMatch('m1', '+50 Varones', '2026-10-03', 't1', 't2', { status: 'SCHEDULED' }),
-      createMatch('m2', '+50 Varones', '2026-10-10', 't1', 't2', { status: 'SCHEDULED' }),
+      createMatch('m1', '+50 Varones', '2026-10-03', 't1', 't2', { status: 'SCHEDULED', round: 1 }),
+      createMatch('m2', '+50 Varones', '2026-10-10', 't2', 't1', { status: 'SCHEDULED', round: 2 }),
     ];
     expect(findCategoriesToCreate(['+50 Varones'], teams, futurePending, nextSat)).toEqual([]);
   });
@@ -130,6 +130,127 @@ describe('findCategoriesToCreate', () => {
       createMatch('m2', '+50 Varones', '2026-09-12', 't1', 't2', { status: 'SCHEDULED' }),
     ];
     expect(findCategoriesToCreate(['+50 Varones'], teams, withPlayed, nextSat)).toEqual([]);
+  });
+});
+
+// Todos contra todos por el metodo del circulo: devuelve [jornada, local, visitante].
+function roundRobin(ids: string[], double: boolean): [number, string, string][] {
+  const list: (string | null)[] = ids.length % 2 === 0 ? [...ids] : [...ids, null];
+  const n = list.length;
+  const legs: [number, string, string][] = [];
+  for (let r = 0; r < n - 1; r++) {
+    for (let i = 0; i < n / 2; i++) {
+      const a = list[(r + i) % (n - 1)];
+      const b = i === 0 ? list[n - 1] : list[(n - 1 - i + r) % (n - 1)];
+      if (a && b) legs.push([r + 1, a, b]);
+    }
+  }
+  if (!double) return legs;
+  return [...legs, ...legs.map(([r, a, b]): [number, string, string] => [r + n - 1, b, a])];
+}
+
+function fixtureMatches(cat: Category, rows: [number, string, string][], startDate = '2026-10-03'): Match[] {
+  return rows.map(([round, h, a], i) => {
+    const d = new Date(`${startDate}T12:00:00`);
+    d.setDate(d.getDate() + (round - 1) * 7);
+    const date = d.toISOString().slice(0, 10);
+    return createMatch(`f-${cat}-${i}`, cat, date, h, a, { round });
+  });
+}
+
+describe('findCategoriesToCreate - estructura de jornadas (Brief 14)', () => {
+  const nextSat = '2026-10-03';
+  const ids50 = ['akd50', 'ami', 'iura', 'cefna'];
+  const teams50 = ids50.map((id) => createTeam(id, id.toUpperCase(), '+50 Varones'));
+
+  // Caso real de produccion: calendario de 5 equipos (doble vuelta, 10 jornadas)
+  // al que se le quitaron los partidos del equipo retirado. Quedan 12 partidos
+  // (lo mismo que 4 equipos a doble vuelta) pero repartidos en 10 jornadas.
+  const realCase = fixtureMatches(
+    '+50 Varones',
+    roundRobin([...ids50, 'retirado'], true).filter(([, h, a]) => h !== 'retirado' && a !== 'retirado')
+  );
+
+  it('el caso real tiene 12 partidos en 10 jornadas (precondicion del test)', () => {
+    expect(realCase.length).toBe(12);
+    expect(new Set(realCase.map((m) => m.round)).size).toBe(10);
+  });
+
+  it('detecta el caso real y lo regenera con un motivo claro', () => {
+    const res = findCategoriesToCreate(['+50 Varones'], teams50, realCase, nextSat);
+    expect(res).toHaveLength(1);
+    expect(res[0].category).toBe('+50 Varones');
+    expect(res[0].reason).toContain('10 jornadas');
+    expect(res[0].reason).toContain('6 jornadas de 2 partidos');
+    expect(res[0].reason).toContain('se regenera desde el 2026-10-03');
+  });
+
+  it('NO regenera un calendario correcto de 4 equipos a doble vuelta', () => {
+    const ok = fixtureMatches('+50 Varones', roundRobin(ids50, true));
+    expect(findCategoriesToCreate(['+50 Varones'], teams50, ok, nextSat)).toEqual([]);
+  });
+
+  it('NO regenera un calendario correcto de 5 equipos a doble vuelta', () => {
+    const ids = [...ids50, 'quinto'];
+    const teams = ids.map((id) => createTeam(id, id, '+50 Varones'));
+    const ok = fixtureMatches('+50 Varones', roundRobin(ids, true));
+    expect(new Set(ok.map((m) => m.round)).size).toBe(10);
+    expect(findCategoriesToCreate(['+50 Varones'], teams, ok, nextSat)).toEqual([]);
+  });
+
+  it('NO regenera una categoria de una vuelta con numero impar de equipos', () => {
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+    const teams = ids.map((id) => createTeam(id, id, '+40 Varones'));
+    const ok = fixtureMatches('+40 Varones', roundRobin(ids, false));
+    expect(findCategoriesToCreate(['+40 Varones'], teams, ok, nextSat)).toEqual([]);
+  });
+
+  it('detecta un equipo que juega dos veces en la misma jornada', () => {
+    const ok = fixtureMatches('+50 Varones', roundRobin(ids50, true));
+    // Los dos primeros partidos son de la jornada 1 y no comparten equipos:
+    // se hace que el local del primero juegue tambien el segundo.
+    expect(ok[0].round).toBe(1);
+    expect(ok[1].round).toBe(1);
+    const broken = ok.map((m, i) => (i === 1 ? { ...m, homeTeamId: ok[0].homeTeamId } : m));
+    const res = findCategoriesToCreate(['+50 Varones'], teams50, broken, nextSat);
+    expect(res).toHaveLength(1);
+    expect(res[0].reason).toContain('dos veces en la misma jornada');
+  });
+
+  it('con un partido jugado no regenera y avisa en warnings', () => {
+    const played = realCase.map((m, i) => (i === 0 ? { ...m, date: '2026-09-26', status: 'FINISHED' as const } : m));
+    expect(findCategoriesToCreate(['+50 Varones'], teams50, played, nextSat)).toEqual([]);
+    const plan = planCalendarArrangement({
+      matches: played,
+      teams: teams50,
+      players: [],
+      activeCategories: ['+50 Varones'],
+      today: '2026-09-30',
+    });
+    expect(plan.warnings.some((w) => w.startsWith('+50 Varones:') && w.includes('revísalo a mano'))).toBe(true);
+  });
+
+  it('planCalendarArrangement regenera el caso real en 6 jornadas de 2 partidos desde el proximo sabado', () => {
+    const plan = planCalendarArrangement({
+      matches: realCase,
+      teams: teams50,
+      players: [],
+      activeCategories: ['+50 Varones'],
+      today: '2026-09-30',
+    });
+    const regular = plan.matches.filter((m) => m.category === '+50 Varones' && !m.isPlayoff);
+    const byRound = new Map<number, Match[]>();
+    regular.forEach((m) => byRound.set(m.round, [...(byRound.get(m.round) ?? []), m]));
+
+    expect(plan.createdCategories.map((c) => c.category)).toEqual(['+50 Varones']);
+    expect(regular).toHaveLength(12);
+    expect(byRound.size).toBe(6);
+    byRound.forEach((ms) => {
+      expect(ms).toHaveLength(2);
+      const ids = ms.flatMap((m) => [m.homeTeamId, m.awayTeamId]);
+      expect(new Set(ids).size).toBe(4);
+    });
+    expect(regular.map((m) => m.date).sort()[0]).toBe('2026-10-03');
   });
 });
 
