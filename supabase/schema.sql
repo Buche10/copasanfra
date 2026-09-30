@@ -83,6 +83,29 @@ create policy "teams_write" on public.teams for all to authenticated using (true
 -- Escritura completa (editar/borrar) solo autenticados. Excepción: la
 -- INSCRIPCIÓN pública permite a anónimos INSERTAR un jugador, únicamente en
 -- estado PENDING (el admin luego aprueba/rechaza).
+-- Helper para validar si un equipo pertenece a una categoría habilitada para inscripción
+create or replace function public.registration_allowed(team_id text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.teams t
+    left join public.settings s on s.id = 'app'
+    where t.id = team_id
+      and coalesce((s.data->>'registrationsOpen')::boolean, true) = true
+      and not (coalesce(s.data->'closedRegistrationCategories', '[]'::jsonb) ? (t.data->>'category'))
+      and not (coalesce(s.data->'suspendedCategories', '[]'::jsonb) ? (t.data->>'category'))
+      and not (coalesce(s.data->'pausedCategories', '[]'::jsonb) ? (t.data->>'category'))
+  );
+$$;
+
+revoke all on function public.registration_allowed(text) from public;
+grant execute on function public.registration_allowed(text) to anon, authenticated;
+
 drop policy if exists "players_read"          on public.players;
 drop policy if exists "players_read_auth"     on public.players;
 drop policy if exists "players_write"         on public.players;
@@ -91,7 +114,10 @@ create policy "players_read_auth" on public.players for select to authenticated 
 create policy "players_write"     on public.players for all    to authenticated using (true) with check (true);
 create policy "players_public_insert" on public.players
   for insert to anon
-  with check (coalesce(data->>'approvalStatus', 'PENDING') = 'PENDING');
+  with check (
+    coalesce(data->>'approvalStatus', 'PENDING') = 'PENDING'
+    and public.registration_allowed(data->>'teamId')
+  );
 
 -- Vista pública: mismos jugadores pero SIN cédula ni documento de respaldo.
 -- (Se ejecuta con privilegios del creador, por eso el público la puede leer
@@ -115,8 +141,9 @@ drop policy if exists "player_docs_read"          on public.player_docs;
 drop policy if exists "player_docs_public_insert"  on public.player_docs;
 drop policy if exists "player_docs_write"          on public.player_docs;
 -- Lectura SOLO staff (el respaldo es sensible). INSERT anónimo (inscripción).
+-- La clave foránea player_docs.id -> players.id ya impide documentos sin jugador.
 create policy "player_docs_read"          on public.player_docs for select to authenticated using (true);
-create policy "player_docs_public_insert" on public.player_docs for insert to anon          with check (true);
+create policy "player_docs_public_insert" on public.player_docs for insert to anon with check (true);
 create policy "player_docs_write"         on public.player_docs for all    to authenticated using (true) with check (true);
 
 -- Vista para el STAFF autenticado (admin/árbitros): incluye la cédula pero NO

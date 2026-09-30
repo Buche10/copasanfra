@@ -23,6 +23,7 @@ import {
 import { supabase, TABLES, RECEIPTS_BUCKET, isSupabaseConfigured } from './supabase';
 import { getCurrentSessionEmail } from './auth';
 import { replaceUsers, validateUsersContainAdmin } from './usersSync';
+import { isRlsRegistrationError, RegistrationClosedError } from './registration';
 
 // ----------------------------------------------------
 // DATA ACCESS (Supabase)
@@ -196,7 +197,14 @@ export async function upsertPlayer(player: Player): Promise<void> {
 // (no upsert) para que la inscripción anónima funcione bajo RLS. El respaldo,
 // si viene, se guarda aparte en `player_docs`.
 export async function insertPlayer(player: Player): Promise<void> {
-  await insertRows(TABLES.PLAYERS, [stripDocFields(player)]);
+  try {
+    await insertRows(TABLES.PLAYERS, [stripDocFields(player)]);
+  } catch (err) {
+    if (isRlsRegistrationError(err)) {
+      throw new RegistrationClosedError();
+    }
+    throw err;
+  }
   if (player.verificationDoc) {
     const { error } = await supabase
       .from(TABLES.PLAYER_DOCS)

@@ -12,6 +12,7 @@ export default defineConfig({
         'src/lib/finesReport.ts',
         'src/lib/usersSync.ts',
         'src/lib/matchSheet.ts',
+        'src/lib/registration.ts',
       ],
       thresholds: {
         lines: 80,

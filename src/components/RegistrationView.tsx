@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Category, MAX_PLAYERS_PER_TEAM, Player, PlayerPosition, Team } from '@/types';
 import { applyWatermarkToPhoto } from '@/lib/watermark';
 import { checkCedula } from '@/lib/store';
+import { canRegisterInTeam, isRlsRegistrationError, REGISTRATION_CLOSED_MESSAGE } from '@/lib/registration';
 import { CarnetDigital } from './CarnetDigital';
 import { TeamShield } from './TeamShield';
 import { 
@@ -46,7 +47,7 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
   // Form Fields State
-  const [selectedCategory, setSelectedCategory] = useState<Category>('Abierta Varones');
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(categories[0] ?? null);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [name, setName] = useState('');
   const [dorsal, setDorsal] = useState<string>('');
@@ -106,8 +107,14 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
   // Generated Registered Player state
   const [registeredPlayer, setRegisteredPlayer] = useState<Player | null>(null);
 
+  // Effective category ensures we never filter by a closed category
+  const effectiveCategory =
+    selectedCategory && categories.includes(selectedCategory)
+      ? selectedCategory
+      : (categories[0] ?? null);
+
   // Filter teams by currently selected category
-  const filteredTeams = teams.filter((t) => t.category === selectedCategory);
+  const filteredTeams = effectiveCategory ? teams.filter((t) => t.category === effectiveCategory) : [];
   const selectedTeam = teams.find((t) => t.id === selectedTeamId);
 
   // Roster count per team (to enforce the max players per team).
@@ -156,6 +163,10 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTeam || submitting) return;
+    if (!canRegisterInTeam(selectedTeam, categories, registrationsOpen)) {
+      alert(REGISTRATION_CLOSED_MESSAGE);
+      return;
+    }
     if (teamCount(selectedTeam.id) >= MAX_PLAYERS_PER_TEAM) {
       setStep(1);
       return;
@@ -178,16 +189,30 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
 
     // Guardar en la base (sin foto). Solo avanzar si se guardó correctamente.
     setSubmitting(true);
-    const saved = await onAddPlayer(playerToSave);
+    let saved: boolean | void = false;
+    try {
+      saved = await onAddPlayer(playerToSave);
+      if (saved === false) {
+        setSubmitting(false);
+        return;
+      }
+    } catch (err) {
+      setSubmitting(false);
+      if (isRlsRegistrationError(err)) {
+        alert(REGISTRATION_CLOSED_MESSAGE);
+      } else {
+        alert('No se pudo completar la inscripción. Inténtalo de nuevo.');
+      }
+      return;
+    }
     setSubmitting(false);
-    if (saved === false) return; // el handler ya mostró el error
 
     // Para el carnet que se muestra/imprime ahora sí usamos la foto (solo local)
     setRegisteredPlayer({ ...playerToSave, photo: photoUrl });
     setStep(5);
   };
 
-  if (!registrationsOpen) {
+  if (!registrationsOpen || categories.length === 0) {
     return (
       <div className="max-w-lg mx-auto py-10 px-4 text-center">
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-10">
@@ -276,7 +301,7 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
                       setSelectedTeamId('');
                     }}
                     className={`p-3.5 rounded-2xl border text-center text-xs font-bold transition-all ${
-                      selectedCategory === cat
+                      effectiveCategory === cat
                         ? 'bg-[#00A859] text-white border-[#00A859] shadow-md'
                         : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                     }`}
@@ -294,7 +319,7 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
               </label>
               {filteredTeams.length === 0 ? (
                 <div className="p-6 bg-amber-50 text-amber-700 rounded-2xl border border-amber-200 text-xs font-bold text-center">
-                  No hay equipos registrados aún en la categoría {selectedCategory}.
+                  No hay equipos registrados aún en la categoría {effectiveCategory ?? 'seleccionada'}.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
@@ -591,7 +616,7 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
             </div>
 
             <p className="text-[11px] text-slate-500 text-center px-4">
-              🔒 La foto se usa <strong>solo para generar tu carnet</strong> en este momento; <strong>no se almacena</strong>. Descárgalo o imprímelo al finalizar.
+              La foto se usa <strong>solo para generar tu carnet</strong> en este momento; <strong>no se almacena</strong>. Descárgalo o imprímelo al finalizar.
             </p>
 
             {errorMsg && (
@@ -705,6 +730,8 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
                 type="button"
                 onClick={() => {
                   setStep(1);
+                  setSelectedCategory(categories[0] ?? null);
+                  setSelectedTeamId('');
                   setName('');
                   setDorsal('');
                   setCedula('');

@@ -48,6 +48,7 @@ import {
 } from '@/lib/store';
 import { signIn, signOut, getCurrentSessionEmail } from '@/lib/auth';
 import { asset } from '@/lib/basePath';
+import { isRlsRegistrationError, REGISTRATION_CLOSED_MESSAGE } from '@/lib/registration';
 import { recomputePlayoffs, changedPlayoffMatches } from '@/lib/playoffs';
 import { repackSchedule, moveTeamCategory, regenerateCategories } from '@/lib/fixtureGenerator';
 import { Header, TabType } from '@/components/Header';
@@ -393,7 +394,11 @@ export default function Home() {
     try {
       await insertPlayer(newPlayer);
     } catch (err) {
-      alert(`No se pudo guardar el jugador: ${errMsg(err)}`);
+      if (isRlsRegistrationError(err)) {
+        alert(REGISTRATION_CLOSED_MESSAGE);
+      } else {
+        alert(`No se pudo guardar el jugador: ${errMsg(err)}`);
+      }
       return false;
     }
     setPlayers((prev) => [...prev, newPlayer]);
