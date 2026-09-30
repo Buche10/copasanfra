@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
-import { Match, Team, Player, Category, MATCH_TIME_SLOTS } from '@/types';
+import React, { useMemo } from 'react';
+import { Match, Team, Player, MATCH_TIME_SLOTS } from '@/types';
 import { fairnessReport, TeamFairnessReport } from '@/lib/scheduling/fairness';
 import {
   buildSharedPlayerPairs,
@@ -10,16 +10,13 @@ import {
   SharedPlayerConflict,
   SharedPlayerPairDetail,
 } from '@/lib/scheduling/sharedPlayers';
-import { rebalanceFutureDates } from '@/lib/scheduling/rebalance';
 import { localDateString } from '@/lib/finesReport';
-import { Scale, AlertTriangle, Users, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Scale, AlertTriangle, Users, CheckCircle2 } from 'lucide-react';
 
 interface AdminScheduleFairnessProps {
   matches: Match[];
   teams: Team[];
   players: Player[];
-  hiddenCategories?: Category[];
-  onRebalanceSchedule?: (rebalancedMatches: Match[]) => Promise<void> | void;
 }
 
 interface ConflictsAlertProps {
@@ -165,13 +162,7 @@ const SharedPairsGrid: React.FC<SharedPairsGridProps> = ({ pairDetails }) => {
   );
 };
 
-interface FairnessHeaderProps {
-  isProcessing: boolean;
-  canRebalance: boolean;
-  onRebalance: () => void;
-}
-
-const FairnessHeader: React.FC<FairnessHeaderProps> = ({ isProcessing, canRebalance, onRebalance }) => {
+const FairnessHeader: React.FC = () => {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
       <div>
@@ -182,36 +173,9 @@ const FairnessHeader: React.FC<FairnessHeaderProps> = ({ isProcessing, canRebala
           Distribucion de partidos entre turnos tempranos, medios y tardios a lo largo de la temporada.
         </p>
       </div>
-
-      {canRebalance && (
-        <button
-          type="button"
-          disabled={isProcessing}
-          onClick={onRebalance}
-          className="px-5 py-2.5 bg-[#00A859] hover:bg-emerald-700 disabled:bg-slate-300 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors shrink-0 flex items-center justify-center gap-2"
-        >
-          <RefreshCw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} />
-          <span>{isProcessing ? 'Equilibrando...' : 'Equilibrar fechas no jugadas'}</span>
-        </button>
-      )}
     </div>
   );
 };
-
-function confirmRebalance(result: ReturnType<typeof rebalanceFutureDates>): boolean {
-  if (result.changed === 0) {
-    alert('Todas las fechas futuras ya estan equilibradas. No hay partidos que cambiar.');
-    return false;
-  }
-  const firstDate = result.perDate[0]?.date ?? '';
-  const lastDate = result.perDate[result.perDate.length - 1]?.date ?? '';
-  const dateRange =
-    result.perDate.length === 1 ? `la fecha ${firstDate}` : `de la ${firstDate} a la ${lastDate}`;
-
-  return window.confirm(
-    `Se cambiara la hora de ${result.changed} partidos en ${result.perDate.length} fechas (${dateRange}). Las fechas ya jugadas no se tocan.\n\n¿Deseas continuar?`
-  );
-}
 
 function useFairnessData(matches: Match[], teams: Team[], players: Player[]) {
   const slotCount = MATCH_TIME_SLOTS.length;
@@ -233,32 +197,12 @@ export const AdminScheduleFairness: React.FC<AdminScheduleFairnessProps> = ({
   matches,
   teams,
   players,
-  hiddenCategories = [],
-  onRebalanceSchedule,
 }) => {
-  const [isProcessing, setIsProcessing] = useState(false);
   const { reports, avgEarlyPct, pairDetails, conflicts } = useFairnessData(matches, teams, players);
-
-  const handleRebalanceClick = async () => {
-    if (!onRebalanceSchedule || isProcessing) return;
-    const result = rebalanceFutureDates(matches, teams, players, hiddenCategories, localDateString());
-    if (!confirmRebalance(result)) return;
-
-    try {
-      setIsProcessing(true);
-      await onRebalanceSchedule(result.matches);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   return (
     <div className="glass-card rounded-3xl p-6 border border-slate-200 shadow-md space-y-6">
-      <FairnessHeader
-        isProcessing={isProcessing}
-        canRebalance={Boolean(onRebalanceSchedule)}
-        onRebalance={handleRebalanceClick}
-      />
+      <FairnessHeader />
       <ConflictsAlert conflicts={conflicts} />
       <FairnessTable reports={reports} avgEarlyPct={avgEarlyPct} />
       <SharedPairsGrid pairDetails={pairDetails} />

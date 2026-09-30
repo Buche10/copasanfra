@@ -33,6 +33,7 @@ import {
   deletePlayer,
   upsertMatch,
   replaceMatches,
+  applyMatchChanges,
   getSettings,
   saveSettings,
   getPayments,
@@ -48,9 +49,10 @@ import {
 } from '@/lib/store';
 import { signIn, signOut, getCurrentSessionEmail } from '@/lib/auth';
 import { asset } from '@/lib/basePath';
-import { isRlsRegistrationError, REGISTRATION_CLOSED_MESSAGE } from '@/lib/registration';
+import { isRlsRegistrationError, REGISTRATION_CLOSED_MESSAGE, canChangeCategory } from '@/lib/registration';
 import { recomputePlayoffs, changedPlayoffMatches } from '@/lib/playoffs';
-import { repackSchedule, moveTeamCategory, regenerateCategories } from '@/lib/fixtureGenerator';
+import { ArrangePlan } from '@/lib/scheduling/arrangeCalendar';
+import { diffMatches } from '@/lib/scheduling/matchDiff';
 import { Header, TabType } from '@/components/Header';
 import { CategorySelector } from '@/components/CategorySelector';
 import { StandingsTable } from '@/components/StandingsTable';
@@ -109,6 +111,7 @@ export default function Home() {
   const hiddenCalendarCategories = [
     ...new Set([...suspendedCategories, ...comingSoonCategories, ...pausedCategories]),
   ];
+  const activeCategories = CATEGORIES.filter((c) => !hiddenCalendarCategories.includes(c));
 
   const comingSoonView = (
     <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-10 text-center">
@@ -341,6 +344,12 @@ export default function Home() {
   // Update Team
   const handleUpdateTeam = async (updatedTeam: Team) => {
     const old = teams.find((t) => t.id === updatedTeam.id);
+    if (old && old.category !== updatedTeam.category && !canChangeCategory(updatedTeam.id, matches)) {
+      alert(
+        'No se puede cambiar la categoría de un equipo que ya tiene partidos en el calendario. Para cambiarlo de categoría, elimínalo y créalo de nuevo en la categoría correcta.'
+      );
+      return;
+    }
     const nextTeams = teams.map((t) => (t.id === updatedTeam.id ? updatedTeam : t));
     setTeams(nextTeams);
     try {
@@ -348,32 +357,6 @@ export default function Home() {
     } catch (err) {
       alert(`No se pudo actualizar el equipo: ${errMsg(err)}`);
       return;
-    }
-
-    // Si cambió de categoría, ofrecer acomodar el calendario SIN mover partidos:
-    // el equipo sale de su categoría anterior (su ex-rival descansa) y entra a la
-    // nueva jugando, cada fecha, contra el equipo que descansaba (llena el bye).
-    if (old && old.category !== updatedTeam.category) {
-      const ok = window.confirm(
-        `Cambiaste "${updatedTeam.name}" de ${old.category} a ${updatedTeam.category}.\n\n` +
-          `¿Acomodar el calendario SIN mover los partidos ya programados?\n` +
-          `• En ${updatedTeam.category}: jugará cada fecha contra el equipo que descansaba (se llena el hueco).\n` +
-          `• En ${old.category}: se quitan solo los partidos de "${updatedTeam.name}".\n\n` +
-          `Ningún otro partido ni horario se mueve.`
-      );
-      if (ok) {
-        const currentPlayers = await ensureFullPlayers();
-        const moved = recomputePlayoffs(
-          moveTeamCategory(matches, nextTeams, updatedTeam.id, old.category, updatedTeam.category, currentPlayers),
-          nextTeams
-        );
-        setMatches(moved);
-        try {
-          await replaceMatches(moved);
-        } catch (err) {
-          alert(`No se pudo acomodar el calendario: ${errMsg(err)}`);
-        }
-      }
     }
   };
 
@@ -487,18 +470,6 @@ export default function Home() {
     }
   };
 
-  // Borrar solo las HORAS de los partidos (deja fecha, cancha, enfrentamientos y
-  // resultados). El admin luego asigna las horas que quiera con Editar.
-  const handleClearTimes = async () => {
-    const cleared = matches.map((m) => ({ ...m, time: '' }));
-    setMatches(cleared);
-    try {
-      await replaceMatches(cleared);
-    } catch (err) {
-      alert(`No se pudieron borrar los horarios: ${errMsg(err)}`);
-    }
-  };
-
   // Cargar resultados en lote (varios partidos a la vez) y marcarlos FINALIZADOS.
   // Se hace en una sola actualización de estado para no pisar cambios entre sí.
   const handleSaveResults = async (
@@ -542,44 +513,41 @@ export default function Home() {
     }
   };
 
-  // Rehacer el calendario de UNA categoría (todos contra todos + play offs),
-  // acomodándola alrededor de las demás categorías (que no se mueven).
-  const handleRegenerateCategory = async (cat: Category) => {
-    const currentPlayers = await ensureFullPlayers();
-    const regen = recomputePlayoffs(regenerateCategories(matches, teams, [cat], currentPlayers), teams);
-    setMatches(regen);
+  // Aplicar el plan de acomodar calendario según las categorías activas.
+  const handleApplyCalendarPlan = async (plan: ArrangePlan): Promise<boolean> => {
+    let freshMatches: Match[];
     try {
-      await replaceMatches(regen);
+      freshMatches = await getMatches();
     } catch (err) {
-      alert(`No se pudo rehacer el calendario de ${cat}: ${errMsg(err)}`);
+      alert(`No se pudo verificar el estado actual del calendario: ${errMsg(err)}`);
+      return false;
     }
-  };
 
-  // Reacomodar horarios (quitar huecos) sin cambiar los enfrentamientos.
-  const handleRepackSchedule = async () => {
-    const currentPlayers = await ensureFullPlayers();
-    const repacked = repackSchedule(matches, teams, hiddenCalendarCategories, currentPlayers);
-    const previousMatches = matches;
-    const reconciled = recomputePlayoffs(repacked, teams);
-    setMatches(reconciled);
-    try {
-      await replaceMatches(reconciled);
-    } catch (err) {
-      setMatches(previousMatches);
-      alert(`No se pudieron reacomodar los horarios: ${errMsg(err)}`);
+    const diffWithBase = diffMatches(plan.baseMatches, freshMatches);
+    if (diffWithBase.upserts.length > 0 || diffWithBase.deleteIds.length > 0) {
+      setMatches(freshMatches);
+      alert(
+        'El calendario cambió desde que revisaste (por ejemplo, se cargó un resultado). Pulsa Revisar cambios otra vez.'
+      );
+      return false;
     }
-  };
 
-  // Reequilibrar turnos de las fechas futuras no jugadas.
-  const handleRebalanceSchedule = async (rebalancedMatches: Match[]) => {
-    const previousMatches = matches;
-    const reconciled = recomputePlayoffs(rebalancedMatches, teams);
-    setMatches(reconciled);
+    const reconciled = recomputePlayoffs(plan.matches, teams);
+    const { upserts, deleteIds } = diffMatches(plan.baseMatches, reconciled);
+
     try {
-      await replaceMatches(reconciled);
+      await applyMatchChanges({ upserts, deleteIds });
+      setMatches(reconciled);
+      return true;
     } catch (err) {
-      setMatches(previousMatches);
-      alert(`No se pudo equilibrar el calendario: ${errMsg(err)}`);
+      try {
+        const fallback = await getMatches();
+        setMatches(fallback);
+      } catch {
+        // Fallback silencioso si no se puede leer la base
+      }
+      alert(`No se pudo aplicar el calendario: ${errMsg(err)}`);
+      return false;
     }
   };
 
@@ -897,10 +865,9 @@ export default function Home() {
             onSetRegistrations={handleSetRegistrations}
             closedRegistrationCategories={closedRegistrationCategories}
             onSetCategoryRegistration={handleSetCategoryRegistration}
-            onRepackSchedule={handleRepackSchedule}
-            onRebalanceSchedule={handleRebalanceSchedule}
-            onRegenerateCategory={handleRegenerateCategory}
-            onClearTimes={handleClearTimes}
+            activeCategories={activeCategories}
+            loadPlayers={ensureFullPlayers}
+            onApplyCalendarPlan={handleApplyCalendarPlan}
             onSaveResults={handleSaveResults}
             onUpdateMatch={handleUpdateMatch}
           />

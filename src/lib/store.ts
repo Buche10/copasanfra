@@ -295,6 +295,31 @@ export async function replaceMatches(matches: Match[]): Promise<void> {
   await upsertRows(TABLES.MATCHES, matches);
 }
 
+/**
+ * Aplica cambios al calendario por diferencias: primero upsert en lotes de 200,
+ * y solo si fue exitoso, borra los IDs eliminados en lotes de 200.
+ * Nunca vacia la tabla ni llama a deleteAllRows.
+ */
+export async function applyMatchChanges(changes: {
+  upserts: Match[];
+  deleteIds: string[];
+}): Promise<void> {
+  assertConfigured();
+  const BATCH_SIZE = 200;
+
+  for (let i = 0; i < changes.upserts.length; i += BATCH_SIZE) {
+    const chunk = changes.upserts.slice(i, i + BATCH_SIZE);
+    await upsertRows(TABLES.MATCHES, chunk);
+  }
+
+  for (let i = 0; i < changes.deleteIds.length; i += BATCH_SIZE) {
+    const chunk = changes.deleteIds.slice(i, i + BATCH_SIZE);
+    if (chunk.length === 0) continue;
+    const { error } = await supabase.from(TABLES.MATCHES).delete().in('id', chunk);
+    if (error) throw new Error(`Error al eliminar partidos: ${error.message}`);
+  }
+}
+
 async function replaceUsersInStore(users: User[], currentEmail: string | null): Promise<void> {
   await replaceUsers(users, currentEmail, {
     upsert: (u) => upsertRows(TABLES.USERS, u),

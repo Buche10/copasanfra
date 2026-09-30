@@ -7,6 +7,7 @@ import { X, Save } from 'lucide-react';
 
 interface TeamEditModalProps {
   team: Team;
+  hasMatches?: boolean;
   onSave: (team: Team) => void;
   onClose: () => void;
 }
@@ -24,7 +25,7 @@ const LOGOS: [string, string][] = [
   ['award', 'Medalla'],
 ];
 
-export const TeamEditModal: React.FC<TeamEditModalProps> = ({ team, onSave, onClose }) => {
+export const TeamEditModal: React.FC<TeamEditModalProps> = ({ team, hasMatches = false, onSave, onClose }) => {
   const [name, setName] = useState(team.name);
   const [shortName, setShortName] = useState(team.shortName);
   const [category, setCategory] = useState<Category>(team.category);
@@ -40,7 +41,7 @@ export const TeamEditModal: React.FC<TeamEditModalProps> = ({ team, onSave, onCl
       ...team,
       name: name.trim(),
       shortName: shortName.trim(),
-      category,
+      category: hasMatches ? team.category : category,
       logo,
       primaryColor,
       phone: phone.trim(),
@@ -79,9 +80,19 @@ export const TeamEditModal: React.FC<TeamEditModalProps> = ({ team, onSave, onCl
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1">Categoría</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value as Category)} className={field}>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as Category)}
+                disabled={hasMatches}
+                className={`${field} ${hasMatches ? 'opacity-60 cursor-not-allowed bg-slate-100' : ''}`}
+              >
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
+              {hasMatches && (
+                <p className="text-[11px] text-slate-500 mt-1 leading-tight">
+                  Este equipo ya tiene partidos en el calendario. Para cambiarlo de categoría, elimínalo y créalo de nuevo en la categoría correcta.
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1">Color</label>

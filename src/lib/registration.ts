@@ -1,4 +1,4 @@
-import { Team, Category } from '@/types';
+import { Team, Category, Match } from '@/types';
 
 export const REGISTRATION_CLOSED_MESSAGE = 'La inscripción para esta categoría está cerrada.';
 
@@ -29,6 +29,14 @@ export function canRegisterInTeam(
     return false;
   }
   return categories.includes(team.category);
+}
+
+/**
+ * Determina si un equipo puede cambiar de categoria.
+ * No se permite si el equipo ya tiene partidos en el calendario (jugados o pendientes).
+ */
+export function canChangeCategory(teamId: string, matches: Match[]): boolean {
+  return !matches.some((m) => m.homeTeamId === teamId || m.awayTeamId === teamId);
 }
 
 /**

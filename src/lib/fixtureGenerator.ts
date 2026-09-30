@@ -1,11 +1,10 @@
 import { Team, Match, ACTIVE_CATEGORIES, Category, CANCHAS, MATCH_TIME_SLOTS, Player } from '@/types';
 import { scheduleMatchday, UnscheduledMatch, MatchdayPlacement } from './scheduling/matchday';
-import { buildSharedPlayerPairs, sharesPlayers } from './scheduling/sharedPlayers';
+import { buildSharedPlayerPairs } from './scheduling/sharedPlayers';
 import { addToHistory, SlotHistory } from './scheduling/fairness';
-import { rebalanceFutureDates } from './scheduling/rebalance';
 import { shuffleWith } from './scheduling/random';
 
-export { scheduleMatchday, rebalanceFutureDates };
+export { scheduleMatchday };
 export type { UnscheduledMatch, MatchdayPlacement };
 
 /**
@@ -27,18 +26,20 @@ const STADIUMS: readonly string[] = CANCHAS;
 const MATCH_TIMES: readonly string[] = MATCH_TIME_SLOTS;
 
 // Primer sábado del campeonato. Todas las fechas se cuentan desde aquí.
+// Primer sábado del campeonato. Todas las fechas se cuentan desde aquí.
 export const SEASON_START = '2026-09-05';
+
+function addWeeksToSaturday(startDateStr: string, weeks: number): string {
+  const [y, m, d] = startDateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d + weeks * 7));
+  return date.toISOString().split('T')[0];
+}
 
 // Devuelve las primeras `count` fechas (sábados) de la temporada como
 // 'YYYY-MM-DD'. Lo usa el panel para marcar en qué sábados descansa cada
 // categoría.
-export function seasonSaturdays(count: number): string[] {
-  const start = new Date(SEASON_START);
-  return Array.from({ length: count }, (_, i) => {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i * 7);
-    return d.toISOString().split('T')[0];
-  });
+export function seasonSaturdays(count: number, startDate: string = SEASON_START): string[] {
+  return Array.from({ length: count }, (_, i) => addWeeksToSaturday(startDate, i));
 }
 
 /**
@@ -53,11 +54,11 @@ export function generateRandomFixture(
   teams: Team[],
   blockedByCategory?: Partial<Record<Category, string[]>>,
   players?: Player[],
-  options?: { rng?: () => number }
+  options?: { rng?: () => number; startDate?: string }
 ): Match[] {
   const generatedMatches: Match[] = [];
   let globalMatchCounter = 100;
-  const startDate = new Date(SEASON_START); // First Saturday of Sept 2026
+  const startStr = options?.startDate ?? SEASON_START;
 
   // Store unscheduled matches grouped by round
   const roundMatchesMap: Record<number, UnscheduledMatch[]> = {};
@@ -245,9 +246,7 @@ export function generateRandomFixture(
 
   // N-ésimo sábado (base 0) desde el inicio de temporada.
   const saturdayOf = (index: number) => {
-    const d = new Date(startDate);
-    d.setDate(startDate.getDate() + index * 7);
-    return d.toISOString().split('T')[0];
+    return addWeeksToSaturday(startStr, index);
   };
 
   // Para cada categoría, asigna sus jornadas a los sábados PERMITIDOS, saltando
@@ -336,243 +335,4 @@ export function generateRandomFixture(
     });
 
   return generatedMatches;
-}
-
-// Coloca `newMatches` en los turnos LIBRES alrededor de `fixedMatches` (que NO
-// se mueven), respetando la regla de dueños y jugadores compartidos, llenando desde el turno 0.
-function scheduleAround(
-  newMatches: Match[],
-  fixedMatches: Match[],
-  clubOf: Map<string, string>,
-  slotCount: number,
-  fieldsPerSlot: number,
-  sharedPairs: ReadonlySet<string> = new Set()
-): { match: Match; slotIndex: number; canchaIndex: number }[] {
-  const clubsOf = (m: Match) => [clubOf.get(m.homeTeamId) ?? m.homeTeamId, clubOf.get(m.awayTeamId) ?? m.awayTeamId];
-  const used: boolean[][] = Array.from({ length: slotCount }, () => Array.from({ length: fieldsPerSlot }, () => false));
-  const clubsInSlot: Set<string>[] = Array.from({ length: slotCount }, () => new Set<string>());
-  const teamsInSlot: Set<string>[] = Array.from({ length: slotCount }, () => new Set<string>());
-
-  // Sembrar los partidos fijos en su turno y cancha actuales.
-  fixedMatches.forEach((fm) => {
-    const s = MATCH_TIMES.indexOf(fm.time);
-    if (s < 0) return;
-    let c = STADIUMS.indexOf(fm.stadium);
-    if (c < 0 || c >= fieldsPerSlot || used[s][c]) c = used[s].findIndex((u) => !u);
-    if (c >= 0) used[s][c] = true;
-    clubsOf(fm).forEach((x) => clubsInSlot[s].add(x));
-    teamsInSlot[s].add(fm.homeTeamId);
-    teamsInSlot[s].add(fm.awayTeamId);
-  });
-
-  const placements: { match: Match; slotIndex: number; canchaIndex: number }[] = [];
-  const placeAt = (m: Match, s: number, c: number) => {
-    used[s][c] = true;
-    clubsOf(m).forEach((x) => clubsInSlot[s].add(x));
-    teamsInSlot[s].add(m.homeTeamId);
-    teamsInSlot[s].add(m.awayTeamId);
-    placements.push({ match: m, slotIndex: s, canchaIndex: c });
-  };
-
-  const hasSharedClash = (m: Match, s: number): boolean => {
-    const mTeams = [m.homeTeamId, m.awayTeamId];
-    for (const t of mTeams) {
-      for (const ex of teamsInSlot[s]) {
-        if (sharesPlayers(sharedPairs, t, ex)) return true;
-      }
-    }
-    for (const neighbor of [s - 1, s + 1]) {
-      if (neighbor >= 0 && neighbor < slotCount) {
-        for (const t of mTeams) {
-          for (const ex of teamsInSlot[neighbor]) {
-            if (sharesPlayers(sharedPairs, t, ex)) return true;
-          }
-        }
-      }
-    }
-    return false;
-  };
-
-  // Ordenar por dueño para que los equipos del mismo dueño caigan en turnos seguidos.
-  const ordered = [...newMatches].sort((a, b) => clubsOf(a)[0].localeCompare(clubsOf(b)[0]));
-  ordered.forEach((m) => {
-    let done = false;
-    for (let s = 0; s < slotCount && !done; s++) {
-      if (clubsOf(m).some((x) => clubsInSlot[s].has(x))) continue;
-      if (hasSharedClash(m, s)) continue;
-      const c = used[s].findIndex((u) => !u);
-      if (c === -1) continue;
-      placeAt(m, s, c);
-      done = true;
-    }
-    if (!done) {
-      for (let s = 0; s < slotCount && !done; s++) {
-        if (hasSharedClash(m, s)) continue;
-        const c = used[s].findIndex((u) => !u);
-        if (c !== -1) { placeAt(m, s, c); done = true; }
-      }
-    }
-    if (!done) {
-      // Último recurso: primer turno con cancha libre.
-      for (let s = 0; s < slotCount && !done; s++) {
-        const c = used[s].findIndex((u) => !u);
-        if (c !== -1) { placeAt(m, s, c); done = true; }
-      }
-    }
-  });
-
-  return placements;
-}
-
-/**
- * Rehace el calendario SOLO de `categoriesToRegen`, dejando intactas las demás
- * (mismas fechas/horas/canchas). Genera enfrentamientos nuevos (todos contra
- * todos + play offs) para esas categorías y los acomoda en los turnos libres
- * alrededor de los partidos de las categorías que no se tocan.
- */
-export function regenerateCategories(
-  allMatches: Match[],
-  teams: Team[],
-  categoriesToRegen: Category[],
-  players?: Player[]
-): Match[] {
-  const sharedPairs = buildSharedPlayerPairs(players ?? []);
-  const catSet = new Set(categoriesToRegen);
-  const kept = allMatches.filter((m) => !catSet.has(m.category));
-  const regenTeams = teams.filter((t) => catSet.has(t.category));
-
-  // Reusar el generador con SOLO los equipos de esas categorías: las demás
-  // quedan sin equipos y no producen partidos. Tomamos sus enfrentamientos,
-  // jornadas y fechas; las horas/canchas las reasignamos alrededor de lo fijo.
-  const draft = generateRandomFixture(regenTeams, undefined, players);
-
-  const clubOf = new Map<string, string>();
-  teams.forEach((t) => clubOf.set(t.id, t.clubId || t.id));
-
-  const groupByDate = (arr: Match[]) => {
-    const map = new Map<string, Match[]>();
-    arr.forEach((m) => {
-      const a = map.get(m.date) ?? [];
-      a.push(m);
-      map.set(m.date, a);
-    });
-    return map;
-  };
-  const keptByDate = groupByDate(kept);
-
-  const result: Match[] = [...kept];
-  groupByDate(draft).forEach((dayNew, date) => {
-    const fixed = keptByDate.get(date) ?? [];
-    const placements = scheduleAround(dayNew, fixed, clubOf, MATCH_TIMES.length, STADIUMS.length, sharedPairs);
-    placements.forEach(({ match, slotIndex, canchaIndex }) => {
-      result.push({ ...match, time: MATCH_TIMES[slotIndex], stadium: STADIUMS[canchaIndex] });
-    });
-  });
-
-  return result;
-}
-
-/**
- * Mueve un equipo de una categoría a otra SIN mover los partidos ya programados:
- *  - Quita los partidos del equipo en la categoría de ORIGEN (su ex-rival de esa
- *    fecha simplemente descansa).
- *  - En la categoría DESTINO, hace que el equipo juegue, en cada jornada, contra
- *    el equipo que DESCANSABA esa fecha (llena el bye). El partido nuevo se
- *    coloca en un turno libre de ese día, sin tocar los demás.
- * Sirve para categorías destino con nº impar (que tenían un descanso por fecha).
- */
-export function moveTeamCategory(
-  allMatches: Match[],
-  teams: Team[],
-  teamId: string,
-  oldCat: Category,
-  newCat: Category,
-  players?: Player[]
-): Match[] {
-  const clubOf = new Map<string, string>();
-  teams.forEach((t) => clubOf.set(t.id, t.clubId || t.id));
-  const sharedPairs = buildSharedPlayerPairs(players ?? []);
-
-  // 1) Quitar los partidos del equipo en ambas categorías (origen y cualquier
-  //    residual en destino), para partir de un estado limpio para ese equipo.
-  const base = allMatches.filter(
-    (m) =>
-      !(
-        (m.category === oldCat || m.category === newCat) &&
-        (m.homeTeamId === teamId || m.awayTeamId === teamId)
-      )
-  );
-
-  // 2) Construir, por jornada de la categoría destino, un partido del equipo
-  //    contra el que descansaba esa fecha.
-  const newCatRegular = base.filter((m) => m.category === newCat && !m.isPlayoff);
-  const teamIdsNewCat = new Set(teams.filter((t) => t.category === newCat).map((t) => t.id));
-  const rounds = [...new Set(newCatRegular.map((m) => m.round))].sort((a, b) => a - b);
-
-  const additions: Match[] = [];
-  let counter = 900;
-  rounds.forEach((round) => {
-    const roundMatches = newCatRegular.filter((m) => m.round === round);
-    const date = roundMatches[0]?.date;
-    if (!date) return;
-    const playing = new Set<string>();
-    roundMatches.forEach((m) => {
-      playing.add(m.homeTeamId);
-      playing.add(m.awayTeamId);
-    });
-    if (playing.has(teamId)) return; // ya juega esa jornada
-    const resting = [...teamIdsNewCat].filter((id) => id !== teamId && !playing.has(id));
-    if (resting.length === 0) return; // sin descanso que llenar (categoría par)
-    additions.push({
-      id: `m-move-${counter++}`,
-      category: newCat,
-      round,
-      date,
-      time: '',
-      stadium: '',
-      homeTeamId: teamId,
-      awayTeamId: resting[0],
-      homeScore: 0,
-      awayScore: 0,
-      status: 'SCHEDULED',
-      homeLineup: [],
-      awayLineup: [],
-      events: [],
-      refereeSigned: false,
-    });
-  });
-
-  // 3) Colocar cada partido nuevo en un turno LIBRE de su día (sin mover el resto).
-  const result: Match[] = [...base];
-  const byDate = new Map<string, Match[]>();
-  additions.forEach((m) => {
-    const a = byDate.get(m.date) ?? [];
-    a.push(m);
-    byDate.set(m.date, a);
-  });
-  byDate.forEach((dayNew, date) => {
-    const fixed = base.filter((m) => m.date === date);
-    const placements = scheduleAround(dayNew, fixed, clubOf, MATCH_TIMES.length, STADIUMS.length, sharedPairs);
-    placements.forEach(({ match, slotIndex, canchaIndex }) =>
-      result.push({ ...match, time: MATCH_TIMES[slotIndex], stadium: STADIUMS[canchaIndex] })
-    );
-  });
-
-  return result;
-}
-
-/**
- * Reacomoda SOLO los horarios y canchas del calendario existente para quitar
- * huecos (turnos vacíos), SIN cambiar los enfrentamientos.
- *
- * Solo modifica fechas estrictamente futuras sin partidos jugados/iniciados,
- * respetando el historial acumulado y las reglas de jugadores compartidos.
- */
-export function repackSchedule(
-  matches: Match[],
-  teams: Team[],
-  hiddenCategories: Category[] = [],
-  players?: Player[]
-): Match[] {
-  return rebalanceFutureDates(matches, teams, players ?? [], hiddenCategories).matches;
 }

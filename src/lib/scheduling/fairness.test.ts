@@ -16,7 +16,6 @@ import {
   findSharedPlayerConflicts,
 } from './sharedPlayers';
 import { createRng, shuffleWith } from './random';
-import { rebalanceFutureDates } from './rebalance';
 import { Match, Team, Player } from '@/types';
 
 describe('random module', () => {
@@ -407,105 +406,5 @@ describe('fairness module', () => {
     expect(r1.earlyPct).toBe(50); // 1 de 2 a las 08:00
     expect(r1.latePct).toBe(50);  // 1 de 2 a las 16:45
     expect(r1.avgSlot).toBe(3.5); // (0 + 7) / 2
-  });
-});
-
-describe('rebalanceFutureDates', () => {
-  it('no cambia ninguna fecha pasada ni fechas con partidos que no esten SCHEDULED', () => {
-    const teams: Team[] = [
-      { id: 't1', name: 'Equipo 1', shortName: 'E1', category: 'Abierta Varones', logo: 's', primaryColor: '#0', secondaryColor: '#1', delegate: 'D', phone: '1' },
-      { id: 't2', name: 'Equipo 2', shortName: 'E2', category: 'Abierta Varones', logo: 's', primaryColor: '#0', secondaryColor: '#1', delegate: 'D', phone: '1' },
-      { id: 't3', name: 'Equipo 3', shortName: 'E3', category: 'Abierta Varones', logo: 's', primaryColor: '#0', secondaryColor: '#1', delegate: 'D', phone: '1' },
-      { id: 't4', name: 'Equipo 4', shortName: 'E4', category: 'Abierta Varones', logo: 's', primaryColor: '#0', secondaryColor: '#1', delegate: 'D', phone: '1' },
-    ];
-    const matches: Match[] = [
-      // Pasada (2026-09-05 <= 2026-09-30)
-      {
-        id: 'm1',
-        category: 'Abierta Varones',
-        round: 1,
-        date: '2026-09-05',
-        time: '08:00',
-        stadium: 'Cancha 1',
-        homeTeamId: 't1',
-        awayTeamId: 't2',
-        homeScore: 1,
-        awayScore: 0,
-        status: 'FINISHED',
-        homeLineup: [],
-        awayLineup: [],
-        events: [],
-        refereeSigned: true,
-      },
-      // Futura pero ya en curso
-      {
-        id: 'm2',
-        category: 'Abierta Varones',
-        round: 2,
-        date: '2026-10-03',
-        time: '08:00',
-        stadium: 'Cancha 1',
-        homeTeamId: 't1',
-        awayTeamId: 't3',
-        homeScore: 0,
-        awayScore: 0,
-        status: 'IN_PROGRESS',
-        homeLineup: [],
-        awayLineup: [],
-        events: [],
-        refereeSigned: false,
-      },
-      // Futura totalmente SCHEDULED
-      {
-        id: 'm3',
-        category: 'Abierta Varones',
-        round: 3,
-        date: '2026-10-10',
-        time: '14:15',
-        stadium: 'Cancha 1',
-        homeTeamId: 't1',
-        awayTeamId: 't4',
-        homeScore: 0,
-        awayScore: 0,
-        status: 'SCHEDULED',
-        homeLineup: [],
-        awayLineup: [],
-        events: [],
-        refereeSigned: false,
-      },
-      {
-        id: 'm4',
-        category: 'Abierta Varones',
-        round: 3,
-        date: '2026-10-10',
-        time: '15:30',
-        stadium: 'Cancha 2',
-        homeTeamId: 't2',
-        awayTeamId: 't3',
-        homeScore: 0,
-        awayScore: 0,
-        status: 'SCHEDULED',
-        homeLineup: [],
-        awayLineup: [],
-        events: [],
-        refereeSigned: false,
-      },
-    ];
-
-    const result = rebalanceFutureDates(matches, teams, [], [], '2026-09-30');
-    // Las fechas 2026-09-05 y 2026-10-03 deben quedar exactamente iguales
-    const resM1 = result.matches.find((m) => m.id === 'm1')!;
-    const resM2 = result.matches.find((m) => m.id === 'm2')!;
-    expect(resM1.time).toBe('08:00');
-    expect(resM1.stadium).toBe('Cancha 1');
-    expect(resM2.time).toBe('08:00');
-    expect(resM2.stadium).toBe('Cancha 1');
-
-    // La fecha 2026-10-10 es reequilibrada y llena desde el turno 0 (08:00)
-    const resM3 = result.matches.find((m) => m.id === 'm3')!;
-    const resM4 = result.matches.find((m) => m.id === 'm4')!;
-    const resTimes = [resM3.time, resM4.time].sort();
-    expect(resTimes[0]).toBe('08:00');
-    expect(result.changed).toBe(2);
   });
 });

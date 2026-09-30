@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { Team, Player, Match, Category, CategoryStatus, CATEGORIES, MAX_PLAYERS_PER_TEAM } from '@/types';
 import { TeamShield } from './TeamShield';
-import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Download, Upload, Pencil, Trash2, Search, Clock } from 'lucide-react';
+import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Download, Upload, Pencil, Trash2, Search } from 'lucide-react';
 import { TeamEditModal } from './TeamEditModal';
 import { PlayerEditModal } from './PlayerEditModal';
 import { AdminActasView } from './AdminActasView';
@@ -13,6 +13,9 @@ import { AdminScorersView } from './AdminScorersView';
 import { AdminSanctionsView } from './AdminSanctionsView';
 import { exportAllData, importAllData, getPlayerVerificationDoc } from '@/lib/store';
 import { AdminScheduleFairness } from './AdminScheduleFairness';
+import { AdminArrangeCalendar } from './AdminArrangeCalendar';
+import { ArrangePlan } from '@/lib/scheduling/arrangeCalendar';
+import { canChangeCategory } from '@/lib/registration';
 
 interface AdminModalProps {
   teams: Team[];
@@ -37,10 +40,9 @@ interface AdminModalProps {
   onSetRegistrations: (open: boolean) => void;
   closedRegistrationCategories: Category[];
   onSetCategoryRegistration: (category: Category, open: boolean) => void;
-  onRepackSchedule?: () => void;
-  onRebalanceSchedule?: (rebalancedMatches: Match[]) => Promise<void> | void;
-  onRegenerateCategory?: (category: Category) => void;
-  onClearTimes?: () => void;
+  activeCategories?: Category[];
+  loadPlayers?: () => Promise<Player[]>;
+  onApplyCalendarPlan?: (plan: ArrangePlan) => Promise<boolean>;
   onSaveResults?: (results: { id: string; homeScore: number; awayScore: number }[]) => void;
   onUpdateMatch?: (match: Match) => void;
 }
@@ -68,10 +70,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onSetRegistrations,
   closedRegistrationCategories,
   onSetCategoryRegistration,
-  onRepackSchedule,
-  onRebalanceSchedule,
-  onRegenerateCategory,
-  onClearTimes,
+  activeCategories,
+  loadPlayers,
+  onApplyCalendarPlan,
   onSaveResults,
   onUpdateMatch,
 }) => {
@@ -83,7 +84,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'APPROVED' | 'PENDING'>('ALL');
   const [searchName, setSearchName] = useState('');
   const [docLoading, setDocLoading] = useState(false);
-  const [regenCat, setRegenCat] = useState<Category>(CATEGORIES[0]);
   const [selectedDocPlayer, setSelectedDocPlayer] = useState<Player | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -513,6 +513,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       {editTeam && onUpdateTeam && (
         <TeamEditModal
           team={editTeam}
+          hasMatches={!canChangeCategory(editTeam.id, matches)}
           onSave={onUpdateTeam}
           onClose={() => setEditTeam(null)}
         />
@@ -1055,75 +1056,24 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             </div>
           </div>
 
-          {/* Card: Rehacer calendario de una categoría */}
-          {onRegenerateCategory && (
-            <div className="glass-card rounded-3xl p-6 border border-slate-200 shadow-md space-y-4">
-              <div className="space-y-1 border-b pb-4">
-                <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-[#00A859]" /> Rehacer Calendario de una Categoría
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Genera de nuevo los enfrentamientos (todos contra todos + play offs) de UNA sola
-                  categoría y los acomoda en los turnos libres. <strong>Las demás categorías no se
-                  mueven.</strong> Útil, por ejemplo, si una categoría quedó con equipos descansando de más.
-                </p>
-              </div>
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="text-amber-800 font-semibold">Categoría a rehacer:</span>
-                  <select
-                    value={regenCat}
-                    onChange={(e) => setRegenCat(e.target.value as Category)}
-                    className="bg-white text-slate-900 font-bold text-xs p-2.5 rounded-xl border border-amber-200 focus:outline-none focus:ring-2 focus:ring-[#00A859]"
-                  >
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  onClick={() => {
-                    if (window.confirm(`¿Rehacer el calendario de ${regenCat}? Se reemplazan SUS partidos por unos nuevos (las demás categorías no se tocan). Úsalo solo si esa categoría aún no tiene resultados que conservar.`)) {
-                      onRegenerateCategory(regenCat);
-                    }
-                  }}
-                  className="px-5 py-3 bg-[#00A859] hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors shrink-0 flex items-center justify-center gap-2"
-                >
-                  <RefreshCw className="w-4 h-4" /> Rehacer {regenCat}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Card: Reacomodar horarios */}
-          {onRepackSchedule && (
-            <div className="glass-card rounded-3xl p-6 border border-slate-200 shadow-md space-y-4">
-              <div className="space-y-1 border-b pb-4">
-                <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
-                  <RefreshCw className="w-5 h-5 text-[#00A859]" /> Reacomodar Horarios (quitar huecos)
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Compacta los horarios y canchas de cada fecha para que no queden turnos vacíos.
-                  <strong> No cambia los enfrentamientos</strong>: solo la hora y la cancha, respetando
-                  que dos equipos del mismo dueño no jueguen a la vez.
-                </p>
-              </div>
-              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
-                <span className="text-emerald-800 font-semibold">
-                  Los partidos se corren hacia arriba para llenar los huecos. Los marcadores y datos se conservan.
-                </span>
-                <button
-                  onClick={() => {
-                    if (window.confirm('¿Reacomodar los horarios para quitar huecos? Cambian horas y canchas, NO los enfrentamientos ni los resultados.')) {
-                      onRepackSchedule();
-                    }
-                  }}
-                  className="px-5 py-3 bg-[#00A859] hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors shrink-0 flex items-center justify-center gap-2"
-                >
-                  <RefreshCw className="w-4 h-4" /> Reacomodar
-                </button>
-              </div>
-            </div>
+          {/* Card: Acomodar calendario según categorías activas */}
+          {onApplyCalendarPlan && (
+            <AdminArrangeCalendar
+              matches={matches}
+              teams={teams}
+              players={players}
+              activeCategories={
+                activeCategories ??
+                CATEGORIES.filter(
+                  (c) =>
+                    !suspendedCategories.includes(c) &&
+                    !comingSoonCategories.includes(c) &&
+                    !pausedCategories.includes(c)
+                )
+              }
+              loadPlayers={loadPlayers}
+              onApplyPlan={onApplyCalendarPlan}
+            />
           )}
 
           {/* Card: Equidad de horarios */}
@@ -1131,40 +1081,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             matches={matches}
             teams={teams}
             players={players}
-            hiddenCategories={[...suspendedCategories, ...comingSoonCategories]}
-            onRebalanceSchedule={onRebalanceSchedule}
           />
-
-          {/* Card: Borrar horarios (dejar solo las horas en blanco) */}
-          {onClearTimes && (
-            <div className="glass-card rounded-3xl p-6 border border-slate-200 shadow-md space-y-4">
-              <div className="space-y-1 border-b pb-4">
-                <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-[#00A859]" /> Borrar Horarios Establecidos
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Deja todos los partidos <strong>sin hora</strong> para que tú asignes la que quieras.
-                  <strong> No cambia la fecha, los enfrentamientos ni los resultados</strong>. Luego pones
-                  la hora (y cancha) de cada partido con <strong>Editar</strong> en el Calendario.
-                </p>
-              </div>
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
-                <span className="text-amber-800 font-semibold">
-                  Solo se borran las horas. Todo lo demás queda igual.
-                </span>
-                <button
-                  onClick={() => {
-                    if (window.confirm('¿Borrar las horas de TODOS los partidos? Quedarán sin hora (la fecha, enfrentamientos y resultados NO se tocan). Luego asignas cada hora con Editar.')) {
-                      onClearTimes();
-                    }
-                  }}
-                  className="px-5 py-3 bg-[#00A859] hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors shrink-0 flex items-center justify-center gap-2"
-                >
-                  <Clock className="w-4 h-4" /> Borrar Horarios
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Card: Backup & Restore */}
           <div className="glass-card rounded-3xl p-6 border border-slate-200 shadow-md space-y-4">
