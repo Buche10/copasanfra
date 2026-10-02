@@ -17,8 +17,11 @@ export default defineConfig({
         'src/lib/scheduling/sharedPlayers.ts',
         'src/lib/scheduling/fairness.ts',
         'src/lib/scheduling/matchday.ts',
+        'src/lib/scheduling/compact.ts',
         'src/lib/scheduling/matchDiff.ts',
         'src/lib/scheduling/arrangeCalendar.ts',
+        'src/lib/crossCategory.ts',
+        'src/lib/sanctions.ts',
       ],
       thresholds: {
         lines: 80,

@@ -5,7 +5,6 @@ import {
   User,
   TeamStanding,
   PlayerScorer,
-  PlayerSanction,
   Category,
   GoalkeeperStat,
   ArbitrajePayment,
@@ -647,117 +646,8 @@ export function calculateScorers(players: Player[], teams: Team[], matches: Matc
   });
 }
 
-export function calculateSanctions(players: Player[], teams: Team[], matches: Match[], category?: Category | 'ALL'): PlayerSanction[] {
-  const filteredTeams = !category || category === 'ALL' ? teams : teams.filter(t => t.category === category);
-  const teamIds = new Set(filteredTeams.map(t => t.id));
-  const filteredPlayers = !category || category === 'ALL' ? players : players.filter(p => teamIds.has(p.teamId));
-  const filteredMatches = !category || category === 'ALL' ? matches : matches.filter(m => m.category === category);
+export { calculateSanctions } from './sanctions';
 
-  const teamMap = new Map(filteredTeams.map((t) => [t.id, t]));
-
-  const playerStats: Record<
-    string,
-    {
-      yellowCards: number;
-      doubleYellows: number;
-      directReds: number;
-      lastRedReason?: string;
-    }
-  > = {};
-
-  filteredMatches.forEach((m) => {
-    if (m.status === 'FINISHED' || m.status === 'IN_PROGRESS') {
-      const matchPlayerYellows: Record<string, number> = {};
-
-      m.events.forEach((ev) => {
-        if (!playerStats[ev.playerId]) {
-          playerStats[ev.playerId] = {
-            yellowCards: 0,
-            doubleYellows: 0,
-            directReds: 0,
-          };
-        }
-
-        if (ev.type === 'YELLOW_CARD') {
-          playerStats[ev.playerId].yellowCards += 1;
-          matchPlayerYellows[ev.playerId] = (matchPlayerYellows[ev.playerId] || 0) + 1;
-
-          if (matchPlayerYellows[ev.playerId] === 2) {
-            playerStats[ev.playerId].doubleYellows += 1;
-          }
-        }
-
-        if (ev.type === 'RED_CARD') {
-          if (!ev.isDoubleYellow) {
-            playerStats[ev.playerId].directReds += 1;
-            playerStats[ev.playerId].lastRedReason = ev.cardReason || 'Falta grave';
-          }
-        }
-      });
-    }
-  });
-
-  const sanctions: PlayerSanction[] = [];
-
-  filteredPlayers.forEach((p) => {
-    const stat = playerStats[p.id] || { yellowCards: 0, doubleYellows: 0, directReds: 0 };
-    const team = teamMap.get(p.teamId);
-
-    const yellowAccumulationMatches = Math.floor(stat.yellowCards / 5);
-    const doubleYellowMatches = stat.doubleYellows * 1;
-    const directRedMatches = stat.directReds * 2;
-
-    // Suspensión MANUAL fijada por el Admin (fechas concretas).
-    const manualRounds = (p.suspendedRounds || []).slice().sort((a, b) => a - b);
-
-    const cardMatchesRemaining = yellowAccumulationMatches + doubleYellowMatches + directRedMatches;
-    const cardSuspended = cardMatchesRemaining > 0;
-    const totalMatchesRemaining = cardMatchesRemaining + manualRounds.length;
-    const isSuspended = totalMatchesRemaining > 0;
-
-    const reasons: string[] = [];
-    if (directRedMatches > 0) {
-      reasons.push(`Roja Directa (${directRedMatches} partido${directRedMatches > 1 ? 's' : ''})`);
-    }
-    if (doubleYellowMatches > 0) {
-      reasons.push(`Doble Amarilla (${doubleYellowMatches} partido)`);
-    }
-    if (yellowAccumulationMatches > 0) {
-      reasons.push(`5 Amarillas (${yellowAccumulationMatches} partido)`);
-    }
-    if (manualRounds.length > 0) {
-      reasons.push(`Suspensión (fecha ${manualRounds.join(', ')})`);
-    }
-
-    const reasonStr = reasons.length > 0 ? reasons.join(' • ') : '';
-    const totalRedCards = stat.directReds + stat.doubleYellows;
-
-    if (stat.yellowCards > 0 || totalRedCards > 0 || isSuspended) {
-      sanctions.push({
-        playerId: p.id,
-        playerName: p.name,
-        dorsal: p.dorsal,
-        teamId: p.teamId,
-        teamName: team?.name || 'Equipo',
-        teamLogo: team?.logo || '⚽',
-        yellowCards: stat.yellowCards,
-        redCards: totalRedCards,
-        isSuspended,
-        cardSuspended,
-        suspendedRounds: manualRounds,
-        suspensionReason: reasonStr,
-        matchesRemaining: totalMatchesRemaining,
-      });
-    }
-  });
-
-  return sanctions.sort((a, b) => {
-    if (a.isSuspended !== b.isSuspended) return a.isSuspended ? -1 : 1;
-    if (b.matchesRemaining !== a.matchesRemaining) return b.matchesRemaining - a.matchesRemaining;
-    if (b.redCards !== a.redCards) return b.redCards - a.redCards;
-    return b.yellowCards - a.yellowCards;
-  });
-}
 
 export function calculateGoalkeepers(
   players: Player[],

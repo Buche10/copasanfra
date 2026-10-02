@@ -1,5 +1,5 @@
 import { Match, Team, Player, Category, CANCHAS, MATCH_TIME_SLOTS } from '@/types';
-import { scheduleMatchday, UnscheduledMatch } from './matchday';
+import { scheduleMatchday, UnscheduledMatch, MAX_OWNER_FREE_SLOTS } from './matchday';
 import { buildSharedPlayerPairs } from './sharedPlayers';
 import { buildSlotHistory, addToHistory, SlotHistory } from './fairness';
 import { generateRandomFixture, isDoubleRoundRobin } from '../fixtureGenerator';
@@ -280,6 +280,72 @@ function findWarnings(teams: Team[], matches: Match[], activeSet: Set<Category>)
   return warnings;
 }
 
+export interface OwnerGapViolation {
+  date: string;
+  club: string;
+  fromTime: string;
+  toTime: string;
+  freeSlots: number;
+}
+
+export function findOwnerGapViolations(
+  matches: Match[],
+  teams: Team[],
+  maxFree = MAX_OWNER_FREE_SLOTS
+): OwnerGapViolation[] {
+  const clubOf = new Map<string, string>();
+  teams.forEach((t) => clubOf.set(t.id, t.clubId || t.id));
+
+  const byDate = new Map<string, Match[]>();
+  for (const m of matches) {
+    if (!m.date || !m.time) continue;
+    const arr = byDate.get(m.date) ?? [];
+    arr.push(m);
+    byDate.set(m.date, arr);
+  }
+
+  const violations: OwnerGapViolation[] = [];
+
+  for (const [date, dayMatches] of byDate.entries()) {
+    const clubMatches = new Map<string, Match[]>();
+    for (const m of dayMatches) {
+      const c1 = clubOf.get(m.homeTeamId) ?? m.homeTeamId;
+      const c2 = clubOf.get(m.awayTeamId) ?? m.awayTeamId;
+      const uniqueClubs = new Set([c1, c2]);
+      for (const club of uniqueClubs) {
+        const list = clubMatches.get(club) ?? [];
+        list.push(m);
+        clubMatches.set(club, list);
+      }
+    }
+
+    for (const [club, ms] of clubMatches.entries()) {
+      if (ms.length <= 1) continue;
+      const withSlot = ms
+        .map((m) => ({ match: m, slotIndex: MATCH_TIME_SLOTS.indexOf(m.time as (typeof MATCH_TIME_SLOTS)[number]) }))
+        .filter((item) => item.slotIndex !== -1)
+        .sort((a, b) => a.slotIndex - b.slotIndex);
+
+      for (let i = 1; i < withSlot.length; i++) {
+        const prev = withSlot[i - 1];
+        const curr = withSlot[i];
+        const freeSlots = curr.slotIndex - prev.slotIndex - 1;
+        if (freeSlots > maxFree) {
+          violations.push({
+            date,
+            club,
+            fromTime: prev.match.time,
+            toTime: curr.match.time,
+            freeSlots,
+          });
+        }
+      }
+    }
+  }
+
+  return violations;
+}
+
 function processFutureDates(
   allDates: string[],
   byDate: Map<string, Match[]>,
@@ -408,6 +474,17 @@ export function planCalendarArrangement(input: ArrangeInput): ArrangePlan {
 
   const finalMatches = recomputePlayoffs(futureRes.processedMatches, input.teams);
   const warnings = findWarnings(input.teams, finalMatches, activeSet);
+
+  const ownerViolations = findOwnerGapViolations(
+    finalMatches.filter((m) => m.date >= nextSat && m.status === 'SCHEDULED'),
+    input.teams,
+    MAX_OWNER_FREE_SLOTS
+  );
+  ownerViolations.forEach((v) => {
+    warnings.push(
+      `${v.date}: el dueño ${v.club} tiene ${v.freeSlots} turnos libres entre ${v.fromTime} y ${v.toTime} (no se pudo dejar en máximo ${MAX_OWNER_FREE_SLOTS})`
+    );
+  });
 
   return {
     matches: finalMatches,

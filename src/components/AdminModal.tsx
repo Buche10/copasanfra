@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
-import { Team, Player, Match, Category, CategoryStatus, CATEGORIES, MAX_PLAYERS_PER_TEAM } from '@/types';
+import React, { useState, useRef, useMemo } from 'react';
+import { Team, Player, Match, Category, CategoryStatus, CATEGORIES, maxPlayersForCategory } from '@/types';
 import { TeamShield } from './TeamShield';
-import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Download, Upload, Pencil, Trash2, Search } from 'lucide-react';
+import { Settings, Plus, RefreshCw, Shield, Users, Trophy, Eye, FileText, X, Download, Upload, Pencil, Trash2, Search, CopyPlus } from 'lucide-react';
 import { TeamEditModal } from './TeamEditModal';
 import { PlayerEditModal } from './PlayerEditModal';
+import { CrossCategoryModal } from './CrossCategoryModal';
+import { buildEligiblePlayerIds, findSameCategoryConflict, isValidCedula } from '@/lib/crossCategory';
+import { normalizeCedula } from '@/lib/scheduling/sharedPlayers';
 import { AdminActasView } from './AdminActasView';
 import { AdminFinesReportView } from './AdminFinesReportView';
 import { AdminResultsView } from './AdminResultsView';
@@ -25,7 +28,7 @@ interface AdminModalProps {
   onAddTeam: (team: Team) => void;
   onUpdateTeam?: (team: Team) => void;
   onDeleteTeam?: (team: Team) => void;
-  onAddPlayer: (player: Player) => void;
+  onAddPlayer: (player: Player) => Promise<boolean> | void;
   onUpdatePlayer?: (player: Player) => void;
   onApprovePlayer?: (player: Player) => void;
   onApproveAllPending?: () => void;
@@ -78,6 +81,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 }) => {
   const [editTeam, setEditTeam] = useState<Team | null>(null);
   const [editPlayer, setEditPlayer] = useState<Player | null>(null);
+  const [crossCategoryPlayer, setCrossCategoryPlayer] = useState<Player | null>(null);
   const [activeTab, setActiveTab] = useState<'teams' | 'players' | 'resultados' | 'goleadores' | 'sanciones' | 'actas' | 'multas' | 'settings'>('teams');
   const [filterCategory, setFilterCategory] = useState<Category | 'ALL'>('ALL');
   const [filterTeamId, setFilterTeamId] = useState<string>('ALL');
@@ -92,7 +96,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     try {
       data = await exportAllData();
     } catch (err) {
-      alert(`❌ No se pudo generar el respaldo:\n\n${err instanceof Error ? err.message : 'Error inesperado.'}`);
+      alert(`No se pudo generar el respaldo:\n\n${err instanceof Error ? err.message : 'Error inesperado.'}`);
       return;
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -117,13 +121,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         const parsed = JSON.parse(String(reader.result));
         const error = await importAllData(parsed);
         if (error) {
-          alert(`❌ No se pudo restaurar el respaldo:\n\n${error}`);
+          alert(`No se pudo restaurar el respaldo:\n\n${error}`);
           return;
         }
-        alert('✅ Respaldo restaurado correctamente. La aplicación se recargará para aplicar los datos.');
+        alert('Respaldo restaurado correctamente. La aplicación se recargará para aplicar los datos.');
         window.location.reload();
       } catch (err) {
-        alert(`❌ No se pudo restaurar el respaldo:\n\n${err instanceof Error ? err.message : 'El archivo no es un JSON válido.'}`);
+        alert(`No se pudo restaurar el respaldo:\n\n${err instanceof Error ? err.message : 'El archivo no es un JSON válido.'}`);
       } finally {
         if (importInputRef.current) importInputRef.current.value = '';
       }
@@ -219,8 +223,20 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     e.preventDefault();
     if (!playerName || !playerTeamId) return;
 
-    if (players.filter((p) => p.teamId === playerTeamId).length >= MAX_PLAYERS_PER_TEAM) {
-      alert(`Este equipo ya tiene ${MAX_PLAYERS_PER_TEAM} jugadores (máximo permitido).`);
+    if (!isValidCedula(playerCedula)) {
+      alert('La cédula es obligatoria y debe tener 10 dígitos.');
+      return;
+    }
+
+    if (findSameCategoryConflict(playerCedula, playerTeamId, players, teams)) {
+      alert('Esta cédula ya está registrada en otro equipo de esta categoría.');
+      return;
+    }
+
+    const targetTeam = teams.find((t) => t.id === playerTeamId);
+    const maxLimit = maxPlayersForCategory(targetTeam?.category);
+    if (players.filter((p) => p.teamId === playerTeamId).length >= maxLimit) {
+      alert(`Este equipo ya tiene ${maxLimit} jugadores (máximo permitido).`);
       return;
     }
 
@@ -233,7 +249,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       id: `p-${crypto.randomUUID()}`,
       teamId: playerTeamId,
       name: playerName,
-      cedula: playerCedula || '1800000000',
+      cedula: normalizeCedula(playerCedula),
       dorsal: playerDorsal,
       position: playerPosition,
     };
@@ -244,7 +260,26 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   };
 
   // ---- Filtros de la lista de jugadores (categoría -> equipo) ----
-  const teamById = new Map(teams.map((t) => [t.id, t]));
+  const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
+  const eligiblePlayerIds = useMemo(() => buildEligiblePlayerIds(players, teams), [players, teams]);
+  const cedulaCategoriesMap = useMemo(() => {
+    const map = new Map<string, Set<Category>>();
+    for (const p of players) {
+      if (p.approvalStatus === 'REJECTED') continue;
+      const norm = normalizeCedula(p.cedula);
+      if (!norm) continue;
+      const cat = teamById.get(p.teamId)?.category;
+      if (!cat) continue;
+      let set = map.get(norm);
+      if (!set) {
+        set = new Set<Category>();
+        map.set(norm, set);
+      }
+      set.add(cat);
+    }
+    return map;
+  }, [players, teamById]);
+
   const teamsForFilter = teams
     .filter((t) => filterCategory === 'ALL' || t.category === filterCategory)
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -530,6 +565,21 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         />
       )}
 
+      {/* Modal de segundo carnet / habilitacion en otra categoria */}
+      {crossCategoryPlayer && (
+        <CrossCategoryModal
+          player={crossCategoryPlayer}
+          players={players}
+          teams={teams}
+          suspendedCategories={suspendedCategories}
+          onConfirm={async (p) => {
+            const res = await onAddPlayer(p);
+            return res !== false;
+          }}
+          onClose={() => setCrossCategoryPlayer(null)}
+        />
+      )}
+
       {/* Tab 2: Players Management */}
       {activeTab === 'players' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -602,6 +652,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   onChange={(e) => setPlayerCedula(e.target.value)}
                   placeholder="1801234567"
                   className="w-full bg-slate-50 text-slate-900 font-semibold text-xs p-3 rounded-xl border border-slate-200"
+                  required
                 />
               </div>
 
@@ -633,7 +684,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       }}
                       className="px-4 py-2.5 bg-[#00A859] hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-sm transition-colors whitespace-nowrap"
                     >
-                      ✓ Aprobar todos ({pendingCount})
+                      Aprobar todos ({pendingCount})
                     </button>
                   );
                 })()}
@@ -731,12 +782,34 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     </tr>
                   )}
                   {visiblePlayers.map((p) => {
-                    const team = teams.find((t) => t.id === p.teamId);
+                    const team = teamById.get(p.teamId);
                     const status = p.approvalStatus || 'APPROVED';
+                    const normCed = normalizeCedula(p.cedula);
+                    const otherCats = normCed
+                      ? Array.from(cedulaCategoriesMap.get(normCed) || []).filter(
+                          (c) => c !== team?.category
+                        )
+                      : [];
+                    const canCrossCategory =
+                      status === 'APPROVED' &&
+                      eligiblePlayerIds.has(p.id);
+
                     return (
                       <tr key={p.id} className="hover:bg-slate-50">
                         <td className="p-3 font-black text-slate-900">#{p.dorsal}</td>
-                        <td className="p-3 font-bold text-slate-800">{p.name}</td>
+                        <td className="p-3 font-bold text-slate-800">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span>{p.name}</span>
+                            {otherCats.map((cat) => (
+                              <span
+                                key={cat}
+                                className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200"
+                              >
+                                También en {cat}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
                         <td className="p-3 text-slate-600 hidden sm:table-cell">{team?.name || p.teamId}</td>
                         <td className="p-3 font-bold text-emerald-700 hidden md:table-cell">{p.position}</td>
                         <td className="p-3 text-slate-700 font-semibold hidden md:table-cell">
@@ -761,6 +834,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         </td>
                         <td className="p-3">
                           <div className="flex flex-wrap items-center gap-1.5">
+                            {canCrossCategory && (
+                              <button
+                                onClick={() => setCrossCategoryPlayer(p)}
+                                className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold inline-flex items-center gap-1 transition-colors"
+                              >
+                                <CopyPlus className="w-3 h-3 text-[#00A859]" /> Habilitar en otra categoría
+                              </button>
+                            )}
                             {onUpdatePlayer && (
                               <button
                                 onClick={() => setEditPlayer(p)}
@@ -866,13 +947,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   onClick={() => handleApprove(selectedDocPlayer)}
                   className="px-4 py-2 bg-[#00A859] hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-colors"
                 >
-                  ✓ Aprobar Jugador
+                  Aprobar Jugador
                 </button>
                 <button
                   onClick={() => handleReject(selectedDocPlayer)}
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl transition-colors"
                 >
-                  ✕ Rechazar
+                  Rechazar
                 </button>
               </div>
 
@@ -1116,7 +1197,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               />
             </div>
             <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 p-3 rounded-xl">
-              ⚠️ Restaurar un respaldo reemplaza todos los datos actuales (equipos, jugadores y partidos) por los del archivo.
+              Restaurar un respaldo reemplaza todos los datos actuales (equipos, jugadores y partidos) por los del archivo.
             </p>
           </div>
 
@@ -1133,7 +1214,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
             <div className="bg-rose-50 border border-rose-200 p-4 rounded-2xl flex items-center justify-between text-xs gap-4">
               <div>
-                <span className="font-bold text-rose-900 block">⚠️ Acción destructiva</span>
+                <span className="font-bold text-rose-900 block">Acción destructiva</span>
                 <span className="text-rose-700">Elimina TODOS los jugadores y el calendario actuales. Esta acción no se puede deshacer.</span>
               </div>
               <button

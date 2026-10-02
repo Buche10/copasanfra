@@ -121,6 +121,7 @@ export function applyCorrection(
     status: original.status,
     refereeSigned: original.refereeSigned,
     signedAt: original.signedAt,
+    signedBy: original.signedBy,
     corrections: [...(original.corrections ?? []), { ...correction }],
   };
 }

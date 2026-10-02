@@ -130,6 +130,15 @@ export interface LineupPlayer {
 // Máximo de jugadores permitidos por equipo (nómina).
 export const MAX_PLAYERS_PER_TEAM = 20;
 
+export const MAX_PLAYERS_BY_CATEGORY: Readonly<Partial<Record<Category, number>>> = {
+  '+50 Varones': 35,
+};
+
+export function maxPlayersForCategory(category: Category | undefined): number {
+  if (!category) return MAX_PLAYERS_PER_TEAM;
+  return MAX_PLAYERS_BY_CATEGORY[category] ?? MAX_PLAYERS_PER_TEAM;
+}
+
 export const CANCHAS = ['Cancha 1', 'Cancha 2'] as const;
 export const STADIUMS = CANCHAS;
 export const MATCH_TIME_SLOTS = ['08:00', '09:15', '10:30', '11:45', '13:00', '14:15', '15:30', '16:45'] as const;
@@ -171,6 +180,7 @@ export interface Match {
   refereeNotes?: string;
   refereeSigned?: boolean;
   signedAt?: string;
+  signedBy?: string;
   financials?: MatchFinancials;
   // Play offs
   isPlayoff?: boolean;
@@ -179,13 +189,14 @@ export interface Match {
   bracketSlot?: 'C1' | 'C2' | 'C3' | 'C4' | 'S1' | 'S2' | 'F';
   // Ganador definido a mano cuando el partido de play off termina empatado.
   winnerTeamId?: string;
-  // Historial de correcciones de planilla realizadas por administradores.
+  // Historial de correcciones de planilla realizadas por administradores o árbitros.
   corrections?: SheetCorrection[];
 }
 
 export interface SheetCorrection {
   at: string; // ISO
-  by: string; // nombre del admin
+  by: string; // nombre de quien corrige
+  role?: 'ADMIN' | 'REFEREE';
   reason: string; // 5 a 300 caracteres
 }
 
@@ -272,6 +283,7 @@ export interface PlayerSanction {
   suspendedRounds: number[];
   suspensionReason?: string;
   matchesRemaining: number;
+  yellowsTowardNext?: number;
 }
 
 export interface GoalkeeperStat {

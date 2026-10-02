@@ -408,6 +408,7 @@ describe('applyCorrection', () => {
         status: 'FINISHED',
         refereeSigned: true,
         signedAt: '2026-05-10T12:00:00Z',
+        signedBy: 'Arbitro Central',
         corrections: [
           {
             at: '2026-05-11T10:00:00Z',
@@ -440,6 +441,7 @@ describe('applyCorrection', () => {
     expect(result.status).toBe('FINISHED');
     expect(result.refereeSigned).toBe(true);
     expect(result.signedAt).toBe('2026-05-10T12:00:00Z');
+    expect(result.signedBy).toBe('Arbitro Central');
 
     // Scores and events from draft are kept
     expect(result.homeScore).toBe(3);

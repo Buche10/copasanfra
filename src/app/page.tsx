@@ -17,7 +17,7 @@ import {
   CategoryStatus,
   ArbitrajePayment,
   ARBITRAJE_FEE,
-  MAX_PLAYERS_PER_TEAM
+  maxPlayersForCategory
 } from '@/types';
 import {
   getTeams,
@@ -407,9 +407,11 @@ export default function Home() {
   // returns whether it saved (so the registration UI doesn't show a false
   // "success"). Enforces the 20-per-team cap as a safety net.
   const handleAddPlayer = async (newPlayer: Player): Promise<boolean> => {
+    const targetTeam = teams.find((t) => t.id === newPlayer.teamId);
+    const maxLimit = maxPlayersForCategory(targetTeam?.category);
     const teamCount = players.filter((p) => p.teamId === newPlayer.teamId).length;
-    if (teamCount >= MAX_PLAYERS_PER_TEAM) {
-      alert(`Este equipo ya alcanzó el máximo de ${MAX_PLAYERS_PER_TEAM} jugadores. No se puede agregar más.`);
+    if (teamCount >= maxLimit) {
+      alert(`Este equipo ya alcanzó el máximo de ${maxLimit} jugadores. No se puede agregar más.`);
       return false;
     }
     try {
@@ -863,7 +865,9 @@ export default function Home() {
             players={players}
             onUpdateMatch={handleUpdateMatch}
             isAdmin={currentUser?.role === 'ADMIN'}
+            canCorrect={currentUser?.role === 'ADMIN' || currentUser?.role === 'REFEREE'}
             editorName={currentUser?.name}
+            editorRole={currentUser?.role}
           />
         ))}
         {activeTab === 'admin' && (

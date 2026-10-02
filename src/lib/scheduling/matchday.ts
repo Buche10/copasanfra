@@ -2,7 +2,20 @@ import { Category } from '@/types';
 import { SlotHistory, fairnessCost } from './fairness';
 import { sharesPlayers } from './sharedPlayers';
 import { shuffleWith } from './random';
-import { computeScore, computeCanchasLlenas, ScoreContext } from './score';
+import { computeScore, ScoreContext } from './score';
+import { compactSchedule, scoreWithoutCompact } from './compact';
+
+export const MAX_OWNER_FREE_SLOTS = 1;
+
+export function ownerGapsWithinLimit(slots: readonly number[], maxFree = MAX_OWNER_FREE_SLOTS): boolean {
+  if (slots.length <= 1) return true;
+  const sorted = [...slots].sort((a, b) => a - b);
+  for (let i = 1; i < sorted.length; i++) {
+    const freeSlots = sorted[i] - sorted[i - 1] - 1;
+    if (freeSlots > maxFree) return false;
+  }
+  return true;
+}
 
 export interface UnscheduledMatch {
   category: Category;
@@ -37,6 +50,33 @@ interface MatchdayContext extends ScoreContext {
   rng: () => number;
 }
 
+function fillCostRow(
+  costTable: Float64Array,
+  i: number,
+  mi: UnscheduledMatch,
+  slotCount: number,
+  history: SlotHistory
+): void {
+  const hCounts = history.get(mi.homeTeamId);
+  const aCounts = history.get(mi.awayTeamId);
+  const hEarly = (hCounts?.[0] ?? 0) + (hCounts?.[1] ?? 0);
+  const hTotal = hCounts ? hCounts.reduce((a, b) => a + b, 0) : 0;
+  const aEarly = (aCounts?.[0] ?? 0) + (aCounts?.[1] ?? 0);
+  const aTotal = aCounts ? aCounts.reduce((a, b) => a + b, 0) : 0;
+
+  for (let s = 0; s < slotCount; s++) {
+    let earlyPenalty = 0;
+    if (s <= 1) {
+      if (hTotal > 0 && hEarly / hTotal >= 0.28) earlyPenalty += 2;
+      if (aTotal > 0 && aEarly / aTotal >= 0.28) earlyPenalty += 2;
+    }
+    costTable[i * slotCount + s] =
+      fairnessCost(history, mi.homeTeamId, s, slotCount) +
+      fairnessCost(history, mi.awayTeamId, s, slotCount) +
+      earlyPenalty;
+  }
+}
+
 function computeMatrices(
   dayMatches: UnscheduledMatch[],
   clubOf: Map<string, string>,
@@ -51,24 +91,7 @@ function computeMatrices(
 
   for (let i = 0; i < n; i++) {
     const mi = dayMatches[i];
-    const hCounts = history.get(mi.homeTeamId);
-    const aCounts = history.get(mi.awayTeamId);
-    const hEarly = (hCounts?.[0] ?? 0) + (hCounts?.[1] ?? 0);
-    const hTotal = hCounts ? hCounts.reduce((a, b) => a + b, 0) : 0;
-    const aEarly = (aCounts?.[0] ?? 0) + (aCounts?.[1] ?? 0);
-    const aTotal = aCounts ? aCounts.reduce((a, b) => a + b, 0) : 0;
-
-    for (let s = 0; s < slotCount; s++) {
-      let earlyPenalty = 0;
-      if (s <= 1) {
-        if (hTotal > 0 && hEarly / hTotal >= 0.28) earlyPenalty += 2;
-        if (aTotal > 0 && aEarly / aTotal >= 0.28) earlyPenalty += 2;
-      }
-      costTable[i * slotCount + s] =
-        fairnessCost(history, mi.homeTeamId, s, slotCount) +
-        fairnessCost(history, mi.awayTeamId, s, slotCount) +
-        earlyPenalty;
-    }
+    fillCostRow(costTable, i, mi, slotCount, history);
     for (let j = 0; j < n; j++) {
       if (i === j) {
         linkedMatrix[i * n + j] = 1;
@@ -130,7 +153,19 @@ function buildContext(
     .filter(([, list]) => list.length >= 2)
     .map(([c]) => c);
 
-  return { n, slotCount, fieldsPerSlot, dayMatches, multiClubs, clubMatchIndices, linkedMatrix, shareMatrix, costTable, rng };
+  return {
+    n,
+    slotCount,
+    fieldsPerSlot,
+    dayMatches,
+    multiClubs,
+    clubMatchIndices,
+    linkedMatrix,
+    shareMatrix,
+    costTable,
+    maxOwnerFreeSlots: MAX_OWNER_FREE_SLOTS,
+    rng,
+  };
 }
 
 
@@ -155,30 +190,85 @@ function canPlace(ctx: MatchdayContext, slotMatches: number[][], mIdx: number, s
   return true;
 }
 
-function placeAnywhere(ctx: MatchdayContext, matchSlot: number[], slotMatches: number[][], mIdx: number): number {
-  let bestSlot = -1;
-  let minCost = Infinity;
+function computePlacementGapCost(
+  ctx: MatchdayContext,
+  mIdx: number,
+  s: number,
+  placedMatches: { otherIdx: number; slot: number }[]
+): number {
+  if (placedMatches.length === 0) return 0;
+  const items = [...placedMatches, { otherIdx: mIdx, slot: s }].sort((a, b) => a.slot - b.slot);
+  let cost = 0;
+  for (let i = 1; i < items.length; i++) {
+    const rawGap = Math.max(0, items[i].slot - items[i - 1].slot - 1);
+    const shares = ctx.shareMatrix[items[i - 1].otherIdx * ctx.n + items[i].otherIdx] === 1;
+    const softGap = shares ? Math.max(0, rawGap - 1) : rawGap;
+    cost += softGap * 1000;
+    const allowedMax = shares ? MAX_OWNER_FREE_SLOTS : 0;
+    if (rawGap > allowedMax) {
+      cost += (rawGap - allowedMax) * 1_000_000;
+    }
+  }
+  return cost;
+}
 
-  const otherOwnerSlots: number[] = [];
+function collectPlacedRelatedMatches(
+  ctx: MatchdayContext,
+  matchSlot: readonly number[],
+  mIdx: number
+): { ownerMatches: { otherIdx: number; slot: number }[]; sharedMatches: { otherIdx: number; slot: number }[] } {
+  const ownerMatches: { otherIdx: number; slot: number }[] = [];
   for (const [, list] of ctx.clubMatchIndices.entries()) {
     if (list.includes(mIdx)) {
       for (const otherIdx of list) {
         if (otherIdx !== mIdx && matchSlot[otherIdx] !== -1) {
-          otherOwnerSlots.push(matchSlot[otherIdx]);
+          ownerMatches.push({ otherIdx, slot: matchSlot[otherIdx] });
         }
       }
     }
   }
 
+  const sharedMatches: { otherIdx: number; slot: number }[] = [];
+  for (let otherIdx = 0; otherIdx < ctx.n; otherIdx++) {
+    if (otherIdx !== mIdx && ctx.shareMatrix[mIdx * ctx.n + otherIdx] && matchSlot[otherIdx] !== -1) {
+      sharedMatches.push({ otherIdx, slot: matchSlot[otherIdx] });
+    }
+  }
+  return { ownerMatches, sharedMatches };
+}
+
+function hasUnplacedExactRestSlot(ctx: MatchdayContext, slotMatches: number[][], s: number): boolean {
+  const sBefore = s - 2;
+  const sAfter = s + 2;
+  const canBefore = sBefore >= 0 && slotMatches[sBefore].length < ctx.fieldsPerSlot;
+  const canAfter = sAfter < ctx.slotCount && slotMatches[sAfter].length < ctx.fieldsPerSlot;
+  return canBefore || canAfter;
+}
+
+function placeAnywhere(ctx: MatchdayContext, matchSlot: number[], slotMatches: number[][], mIdx: number): number {
+  let bestSlot = -1;
+  let minCost = Infinity;
+  const { ownerMatches, sharedMatches } = collectPlacedRelatedMatches(ctx, matchSlot, mIdx);
+
+  let hasUnplacedShared = false;
+  for (let other = 0; other < ctx.n; other++) {
+    if (other !== mIdx && ctx.shareMatrix[mIdx * ctx.n + other] && matchSlot[other] === -1) {
+      hasUnplacedShared = true;
+      break;
+    }
+  }
+
   for (let s = 0; s < ctx.slotCount; s++) {
     if (canPlace(ctx, slotMatches, mIdx, s)) {
-      let gapPenalty = 0;
-      for (const os of otherOwnerSlots) {
-        const rawGap = Math.max(0, Math.abs(s - os) - 1);
-        const shares = ctx.shareMatrix[mIdx * ctx.n + os] === 1;
-        gapPenalty += shares ? Math.max(0, rawGap - 1) : rawGap;
+      const gapPenalty = computePlacementGapCost(ctx, mIdx, s, ownerMatches);
+      let sharedRestCost = 0;
+      for (let si = 0; si < sharedMatches.length; si++) {
+        sharedRestCost += Math.abs(Math.abs(s - sharedMatches[si].slot) - 2) * 1000;
       }
-      const cost = ctx.costTable[mIdx * ctx.slotCount + s] + gapPenalty * 1000;
+      if (hasUnplacedShared && !hasUnplacedExactRestSlot(ctx, slotMatches, s)) {
+        sharedRestCost += 1000;
+      }
+      const cost = ctx.costTable[mIdx * ctx.slotCount + s] + gapPenalty + sharedRestCost;
       if (cost < minCost) {
         minCost = cost;
         bestSlot = s;
@@ -200,6 +290,34 @@ function placeAnywhere(ctx: MatchdayContext, matchSlot: number[], slotMatches: n
   return hardAdded;
 }
 
+function cannotBridgeGaps(
+  decidedSlots: readonly number[],
+  candidateSlots: readonly number[],
+  usedSlots: ReadonlySet<number>,
+  remainingCount: number,
+  maxFree: number
+): boolean {
+  if (decidedSlots.length <= 1) return false;
+  let totalNeeded = 0;
+  for (let i = 1; i < decidedSlots.length; i++) {
+    const gap = decidedSlots[i] - decidedSlots[i - 1] - 1;
+    if (gap > maxFree) {
+      const minNeeded = Math.floor(gap / (maxFree + 1));
+      let availableBetween = 0;
+      for (let c = 0; c < candidateSlots.length; c++) {
+        const s = candidateSlots[c];
+        if (!usedSlots.has(s) && s > decidedSlots[i - 1] && s < decidedSlots[i]) {
+          availableBetween++;
+        }
+      }
+      if (availableBetween < minNeeded) return true;
+      totalNeeded += minNeeded;
+      if (totalNeeded > remainingCount) return true;
+    }
+  }
+  return false;
+}
+
 function searchWindowSlots(
   ctx: MatchdayContext,
   slotMatches: number[][],
@@ -207,14 +325,18 @@ function searchWindowSlots(
   candidateSlots: number[],
   usedSlots: Set<number>,
   plan: number[],
-  idx: number
+  idx: number,
+  placed: { idx: number; slot: number }[],
+  placedSlots: number[]
 ): boolean {
-  if (idx >= unplaced.length) return true;
+  if (idx >= unplaced.length) {
+    const allSlots = [...placedSlots, ...plan];
+    return ownerGapsWithinLimit(allSlots, MAX_OWNER_FREE_SLOTS);
+  }
   const target = unplaced[idx];
   for (const s of candidateSlots) {
     if (usedSlots.has(s) || !canPlace(ctx, slotMatches, target, s)) continue;
-    usedSlots.add(s);
-    plan[idx] = s;
+
     let valid = true;
     for (let p = 0; p < idx; p++) {
       if (ctx.shareMatrix[target * ctx.n + unplaced[p]] && Math.abs(s - plan[p]) < 2) {
@@ -222,9 +344,27 @@ function searchWindowSlots(
         break;
       }
     }
-    if (valid && searchWindowSlots(ctx, slotMatches, unplaced, candidateSlots, usedSlots, plan, idx + 1)) {
-      return true;
+    if (valid) {
+      for (const pm of placed) {
+        if (ctx.shareMatrix[target * ctx.n + pm.idx] && Math.abs(s - pm.slot) < 2) {
+          valid = false;
+          break;
+        }
+      }
     }
+    if (!valid) continue;
+
+    usedSlots.add(s);
+    plan[idx] = s;
+
+    const remainingCount = unplaced.length - 1 - idx;
+    const currentDecided = [...placedSlots, ...plan.slice(0, idx + 1)].sort((a, b) => a - b);
+    if (!cannotBridgeGaps(currentDecided, candidateSlots, usedSlots, remainingCount, MAX_OWNER_FREE_SLOTS)) {
+      if (searchWindowSlots(ctx, slotMatches, unplaced, candidateSlots, usedSlots, plan, idx + 1, placed, placedSlots)) {
+        return true;
+      }
+    }
+
     usedSlots.delete(s);
     plan[idx] = -1;
   }
@@ -236,13 +376,21 @@ function findWindowPlan(
   matchSlot: number[],
   slotMatches: number[][],
   unplaced: number[],
-  placedSlots: number[],
-  minSpan: number
+  placed: { idx: number; slot: number }[],
+  minSpan: number,
+  maxSpan: number
 ): { idx: number; slot: number }[] | null {
   let bestPlan: { idx: number; slot: number }[] | null = null;
   let bestCost = Infinity;
 
-  for (let w = minSpan; w <= Math.min(ctx.slotCount, minSpan + 2); w++) {
+  const placedSlots = placed.map((p) => p.slot);
+  const actualMinSpan = Math.max(
+    minSpan,
+    placedSlots.length > 0 ? Math.max(...placedSlots) - Math.min(...placedSlots) + 1 : minSpan
+  );
+  const effectiveMaxSpan = Math.min(ctx.slotCount, Math.max(actualMinSpan, maxSpan));
+
+  for (let w = actualMinSpan; w <= effectiveMaxSpan; w++) {
     for (let start = 0; start + w <= ctx.slotCount; start++) {
       const end = start + w - 1;
       if (!placedSlots.every((s) => s >= start && s <= end)) continue;
@@ -253,7 +401,7 @@ function findWindowPlan(
       const plan: number[] = new Array(unplaced.length).fill(-1);
       const usedSlots = new Set<number>();
 
-      if (searchWindowSlots(ctx, slotMatches, unplaced, candidateSlots, usedSlots, plan, 0)) {
+      if (searchWindowSlots(ctx, slotMatches, unplaced, candidateSlots, usedSlots, plan, 0, placed, placedSlots)) {
         let cost = 0;
         for (let i = 0; i < unplaced.length; i++) {
           cost += ctx.costTable[unplaced[i] * ctx.slotCount + plan[i]];
@@ -263,16 +411,65 @@ function findWindowPlan(
           if (slotMatches[s].length === 0) gapBefore += 1;
         }
 
-        const totalWindowCost = gapBefore + cost;
+        let restPenalty = 0;
+        for (let i = 0; i < unplaced.length; i++) {
+          const m = unplaced[i];
+          const s = plan[i];
+          for (let j = i + 1; j < unplaced.length; j++) {
+            if (ctx.shareMatrix[m * ctx.n + unplaced[j]]) {
+              restPenalty += Math.abs(Math.abs(s - plan[j]) - 2) * 1000;
+            }
+          }
+          for (let ex = 0; ex < ctx.n; ex++) {
+            if (ctx.shareMatrix[m * ctx.n + ex]) {
+              const exSlot = matchSlot[ex];
+              if (exSlot !== -1) {
+                restPenalty += Math.abs(Math.abs(s - exSlot) - 2) * 1000;
+              }
+            }
+          }
+        }
+
+        const totalWindowCost = gapBefore + cost + restPenalty;
         if (totalWindowCost < bestCost) {
           bestCost = totalWindowCost;
           bestPlan = unplaced.map((idx, i) => ({ idx, slot: plan[i] }));
+          if (bestCost === 0) return bestPlan;
         }
       }
     }
     if (bestPlan) break;
   }
   return bestPlan;
+}
+
+function hasInternalClubShares(ctx: MatchdayContext, cms: readonly number[]): boolean {
+  for (let i = 0; i < cms.length; i++) {
+    for (let j = i + 1; j < cms.length; j++) {
+      if (ctx.shareMatrix[cms[i] * ctx.n + cms[j]]) return true;
+    }
+  }
+  return false;
+}
+
+function placeRemainingMatches(ctx: MatchdayContext, matchSlot: number[], slotMatches: number[][]): void {
+  const remainingIndices: number[] = [];
+  for (let i = 0; i < ctx.n; i++) {
+    if (matchSlot[i] === -1) remainingIndices.push(i);
+  }
+  const orderedRemaining = shuffleWith(ctx.rng, remainingIndices);
+  orderedRemaining.sort((a, b) => {
+    let aShares = 0;
+    let bShares = 0;
+    for (let j = 0; j < ctx.n; j++) {
+      if (ctx.shareMatrix[a * ctx.n + j]) aShares++;
+      if (ctx.shareMatrix[b * ctx.n + j]) bShares++;
+    }
+    return bShares - aShares;
+  });
+  for (const i of orderedRemaining) {
+    placeAnywhere(ctx, matchSlot, slotMatches, i);
+  }
 }
 
 function attemptOrder(ctx: MatchdayContext, clubOrder: string[]): AttemptResult {
@@ -284,18 +481,17 @@ function attemptOrder(ctx: MatchdayContext, clubOrder: string[]): AttemptResult 
     const unplaced = cms.filter((idx) => matchSlot[idx] === -1);
     if (unplaced.length === 0) continue;
 
-    const placed = cms.filter((idx) => matchSlot[idx] !== -1);
-    const placedSlots = placed.map((idx) => matchSlot[idx]);
+    const placed = cms
+      .filter((idx) => matchSlot[idx] !== -1)
+      .map((idx) => ({ idx, slot: matchSlot[idx] }));
 
-    let mandatoryRests = 0;
-    for (let i = 0; i < cms.length; i++) {
-      for (let j = i + 1; j < cms.length; j++) {
-        if (ctx.shareMatrix[cms[i] * ctx.n + cms[j]]) mandatoryRests += 1;
-      }
-    }
-
-    const minSpan = cms.length + mandatoryRests;
-    const plan = findWindowPlan(ctx, matchSlot, slotMatches, unplaced, placedSlots, minSpan);
+    const hasInternalShares = hasInternalClubShares(ctx, cms);
+    const k = cms.length;
+    const minSpan = k;
+    const maxSpan = hasInternalShares
+      ? Math.min(ctx.slotCount, k + (k - 1) * MAX_OWNER_FREE_SLOTS)
+      : k;
+    const plan = findWindowPlan(ctx, matchSlot, slotMatches, unplaced, placed, minSpan, maxSpan);
 
     if (plan) {
       plan.forEach(({ idx, slot }) => {
@@ -309,165 +505,12 @@ function attemptOrder(ctx: MatchdayContext, clubOrder: string[]): AttemptResult 
     }
   }
 
-  const remainingIndices: number[] = [];
-  for (let i = 0; i < ctx.n; i++) {
-    if (matchSlot[i] === -1) remainingIndices.push(i);
-  }
-  const orderedRemaining = shuffleWith(ctx.rng, remainingIndices);
-  for (const i of orderedRemaining) {
-    placeAnywhere(ctx, matchSlot, slotMatches, i);
-  }
+  placeRemainingMatches(ctx, matchSlot, slotMatches);
 
   return compactSchedule(ctx, { matchSlot, slotMatches, score: 0 });
 }
 
-function shiftToStart(ctx: MatchdayContext, slotMatches: number[][], matchSlot: number[]): void {
-  const firstUsed = slotMatches.findIndex((arr) => arr.length > 0);
-  if (firstUsed > 0) {
-    const shifted: number[][] = Array.from({ length: ctx.slotCount }, () => []);
-    matchSlot.fill(-1);
-    for (let s = firstUsed; s < ctx.slotCount; s++) {
-      const targetSlot = s - firstUsed;
-      shifted[targetSlot] = slotMatches[s];
-      slotMatches[s].forEach((mIdx) => (matchSlot[mIdx] = targetSlot));
-    }
-    for (let s = 0; s < ctx.slotCount; s++) {
-      slotMatches[s] = shifted[s];
-    }
-  }
-}
 
-function canMoveMatch(ctx: MatchdayContext, slotMatches: number[][], mIdx: number, s: number, nextS: number): boolean {
-  if (slotMatches[s].length >= ctx.fieldsPerSlot) return false;
-  const n = ctx.n;
-  for (const ex of slotMatches[s]) {
-    if (ctx.linkedMatrix[mIdx * n + ex]) return false;
-  }
-  if (s > 0) {
-    for (const prev of slotMatches[s - 1]) {
-      if (ctx.shareMatrix[mIdx * n + prev]) return false;
-    }
-  }
-  if (s + 1 < ctx.slotCount && s + 1 !== nextS) {
-    for (const nxt of slotMatches[s + 1]) {
-      if (ctx.shareMatrix[mIdx * n + nxt]) return false;
-    }
-  }
-  return true;
-}
-
-function tryPullMatchIntoEmptySlot(
-  ctx: MatchdayContext,
-  slotMatches: number[][],
-  matchSlot: number[],
-  emptySlot: number,
-  lastUsed: number
-): boolean {
-  for (let nextS = emptySlot + 1; nextS <= lastUsed; nextS++) {
-    if (slotMatches[nextS].length <= 1 && nextS < lastUsed) continue;
-    for (let i = 0; i < slotMatches[nextS].length; i++) {
-      const mIdx = slotMatches[nextS][i];
-      if (canMoveMatch(ctx, slotMatches, mIdx, emptySlot, nextS)) {
-        slotMatches[nextS].splice(i, 1);
-        slotMatches[emptySlot].push(mIdx);
-        matchSlot[mIdx] = emptySlot;
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-function scoreWithoutCompact(ctx: MatchdayContext, matchSlot: number[], slotMatches: number[][]): number {
-  const full = computeScore(ctx, matchSlot, slotMatches);
-  return full - computeCanchasLlenas(ctx.n, ctx.fieldsPerSlot, slotMatches) * 100_000;
-}
-
-function tryPullToEarlierSlots(
-  ctx: MatchdayContext,
-  slotMatches: number[][],
-  matchSlot: number[]
-): boolean {
-  let anyMoved = false;
-  let lastUsed = ctx.slotCount - 1 - [...slotMatches].reverse().findIndex((arr) => arr.length > 0);
-
-  for (let s = 0; s < lastUsed; s++) {
-    while (slotMatches[s].length < ctx.fieldsPerSlot && lastUsed > s) {
-      let bestIdx = -1;
-      let bestBase = Infinity;
-      const currentBase = scoreWithoutCompact(ctx, matchSlot, slotMatches);
-
-      for (let i = 0; i < slotMatches[lastUsed].length; i++) {
-        const mIdx = slotMatches[lastUsed][i];
-        if (!canMoveMatch(ctx, slotMatches, mIdx, s, lastUsed)) continue;
-
-        slotMatches[lastUsed].splice(i, 1);
-        slotMatches[s].push(mIdx);
-        matchSlot[mIdx] = s;
-
-        const testBase = scoreWithoutCompact(ctx, matchSlot, slotMatches);
-        if (testBase <= currentBase && testBase < bestBase) {
-          bestBase = testBase;
-          bestIdx = i;
-        }
-
-        slotMatches[s].pop();
-        slotMatches[lastUsed].splice(i, 0, mIdx);
-        matchSlot[mIdx] = lastUsed;
-      }
-
-      if (bestIdx === -1) break;
-
-      const mIdx = slotMatches[lastUsed].splice(bestIdx, 1)[0];
-      slotMatches[s].push(mIdx);
-      matchSlot[mIdx] = s;
-      anyMoved = true;
-      lastUsed = ctx.slotCount - 1 - [...slotMatches].reverse().findIndex((arr) => arr.length > 0);
-    }
-  }
-  return anyMoved;
-}
-
-function compactSchedule(ctx: MatchdayContext, res: AttemptResult): AttemptResult {
-  const slotMatches = res.slotMatches.map((arr) => [...arr]);
-  const matchSlot = [...res.matchSlot];
-
-  shiftToStart(ctx, slotMatches, matchSlot);
-
-  let lastUsed = ctx.slotCount - 1 - [...slotMatches].reverse().findIndex((arr) => arr.length > 0);
-  let emptySlot = slotMatches.findIndex((arr, idx) => idx < lastUsed && arr.length === 0);
-
-  while (emptySlot !== -1 && emptySlot < lastUsed) {
-    let canShift = true;
-    if (emptySlot > 0) {
-      for (const m1 of slotMatches[emptySlot - 1]) {
-        for (const m2 of slotMatches[emptySlot + 1]) {
-          if (ctx.shareMatrix[m1 * ctx.n + m2]) {
-            canShift = false;
-            break;
-          }
-        }
-        if (!canShift) break;
-      }
-    }
-    if (canShift) {
-      for (let sl = emptySlot; sl < lastUsed; sl++) {
-        slotMatches[sl] = slotMatches[sl + 1];
-        slotMatches[sl].forEach((mIdx) => (matchSlot[mIdx] = sl));
-      }
-      slotMatches[lastUsed] = [];
-      lastUsed--;
-    } else {
-      const moved = tryPullMatchIntoEmptySlot(ctx, slotMatches, matchSlot, emptySlot, lastUsed);
-      if (!moved) break;
-    }
-    emptySlot = slotMatches.findIndex((arr, idx) => idx < lastUsed && arr.length === 0);
-  }
-
-  tryPullToEarlierSlots(ctx, slotMatches, matchSlot);
-
-  return { matchSlot, slotMatches, score: computeScore(ctx, matchSlot, slotMatches) };
-}
 
 function trySingleMoveStep(
   ctx: MatchdayContext,
@@ -534,23 +577,64 @@ function repairSchedule(ctx: MatchdayContext, res: AttemptResult): AttemptResult
   let currentScore = scoreWithoutCompact(ctx, matchSlot, slotMatches);
   let improved = true;
   let guard = 0;
+  let plateauSteps = 0;
 
   while (improved && guard++ < 300) {
     improved = false;
     const moveRes = trySingleMoveStep(ctx, slotMatches, matchSlot, currentScore);
     if (moveRes.improved) {
+      if (moveRes.score < currentScore) {
+        plateauSteps = 0;
+      } else {
+        plateauSteps++;
+      }
       currentScore = moveRes.score;
-      improved = true;
+      improved = plateauSteps < 15;
       continue;
     }
     const swapRes = trySwapStep(ctx, slotMatches, matchSlot, currentScore);
     if (swapRes.improved) {
+      if (swapRes.score < currentScore) {
+        plateauSteps = 0;
+      } else {
+        plateauSteps++;
+      }
       currentScore = swapRes.score;
-      improved = true;
+      improved = plateauSteps < 15;
     }
   }
 
   return { matchSlot, slotMatches, score: computeScore(ctx, matchSlot, slotMatches) };
+}
+
+function searchBestSchedule(
+  ctx: MatchdayContext,
+  baseOrder: string[],
+  rng: () => number
+): AttemptResult {
+  let best = repairSchedule(ctx, attemptOrder(ctx, baseOrder));
+  let unimprovedCount = 0;
+
+  for (let k = 0; k < 60; k++) {
+    if (best.score === 0) break;
+    const raw = attemptOrder(ctx, shuffleWith(rng, ctx.multiClubs));
+    const hasViolations = best.score >= 1_000_000 || (best.score % 100_000) >= 1000;
+    if (raw.score < best.score || hasViolations) {
+      const candidate = repairSchedule(ctx, raw);
+      if (candidate.score < best.score) {
+        best = candidate;
+        unimprovedCount = 0;
+      } else {
+        unimprovedCount++;
+      }
+    } else {
+      unimprovedCount++;
+    }
+    if (best.score < 1_000_000 && unimprovedCount >= 15) {
+      break;
+    }
+  }
+  return best;
 }
 
 /**
@@ -580,22 +664,8 @@ export function scheduleMatchday(
     (a, b) => (ctx.clubMatchIndices.get(b)?.length ?? 0) - (ctx.clubMatchIndices.get(a)?.length ?? 0)
   );
 
-  let best = repairSchedule(ctx, attemptOrder(ctx, baseOrder));
-
-  for (let k = 0; k < 300; k++) {
-    const raw = attemptOrder(ctx, shuffleWith(rng, ctx.multiClubs));
-    if (raw.score < best.score || best.score >= 1000) {
-      const candidate = repairSchedule(ctx, raw);
-      if (candidate.score < best.score) {
-        best = candidate;
-      }
-    }
-  }
-
-  // 1) Reparacion final
+  const best = searchBestSchedule(ctx, baseOrder, rng);
   const repaired = repairSchedule(ctx, best);
-
-  // 2) Ultimo paso de compactar: cerrar huecos y empezar en turno 0
   const compacted = compactSchedule(ctx, repaired);
 
   const out: MatchdayPlacement[] = [];

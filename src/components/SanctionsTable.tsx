@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { PlayerSanction, Player, Team } from '@/types';
+import { YELLOWS_FOR_SUSPENSION } from '@/lib/sanctions';
 import { TeamShield } from './TeamShield';
 import { ShieldAlert, AlertTriangle, CheckCircle, ChevronRight } from 'lucide-react';
 
@@ -97,7 +98,7 @@ export const SanctionsTable: React.FC<SanctionsTableProps> = ({
           <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">
             Registro Histórico de Amonestaciones
           </h4>
-          <span className="text-xs text-slate-500 font-medium">5 Amarillas = 1 Partido Suspensión</span>
+          <span className="text-xs text-slate-500 font-medium">5 Amarillas = 1 partido · Doble amarilla = 1 · Roja directa = 2</span>
         </div>
 
         <div className="overflow-x-auto scrollbar-thin">
@@ -141,7 +142,12 @@ export const SanctionsTable: React.FC<SanctionsTableProps> = ({
                     <td className="py-4 px-2 sm:px-3 text-center font-bold text-amber-700">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-lg border border-amber-200">
                         <span className="w-2.5 h-3.5 bg-amber-400 rounded-sm inline-block shadow-sm"></span>
-                        {sc.yellowCards}
+                        <span>{sc.yellowCards}</span>
+                        {!sc.isSuspended && sc.yellowCards > 0 && sc.yellowsTowardNext !== undefined && (
+                          <span className="text-[10px] text-amber-600 font-extrabold ml-0.5">
+                            ({sc.yellowsTowardNext}/{YELLOWS_FOR_SUSPENSION})
+                          </span>
+                        )}
                       </span>
                     </td>
                     <td className="py-4 px-2 sm:px-3 text-center font-bold text-rose-700">

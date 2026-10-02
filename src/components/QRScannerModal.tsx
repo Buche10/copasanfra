@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Player, Team, Match } from '@/types';
 import { calculateSanctions } from '@/lib/store';
+import { normalizeCedula } from '@/lib/scheduling/sharedPlayers';
 import { TeamShield } from './TeamShield';
 import { CameraQrScanner } from './CameraQrScanner';
 import { QrCode, Search, CheckCircle2, ShieldAlert, X, User, Sparkles, Camera } from 'lucide-react';
@@ -22,6 +23,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 }) => {
   const [searchInput, setSearchInput] = useState('');
   const [scannedPlayer, setScannedPlayer] = useState<Player | null>(null);
+  const [multipleMatches, setMultipleMatches] = useState<Player[]>([]);
   const [showCamera, setShowCamera] = useState(false);
 
   const teamMap = new Map(teams.map((t) => [t.id, t]));
@@ -35,6 +37,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     setSearchInput(query);
     if (!query.trim()) {
       setScannedPlayer(null);
+      setMultipleMatches([]);
       return;
     }
 
@@ -50,15 +53,33 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       // Not JSON, continue text search
     }
 
-    const matched = players.find(
+    // Coincidencia exacta por ID (caso QR directo)
+    const exactMatch = players.find((p) => p.id === searchId);
+    if (exactMatch) {
+      setScannedPlayer(exactMatch);
+      setMultipleMatches([]);
+      return;
+    }
+
+    const lower = searchId.toLowerCase();
+    const normSearch = normalizeCedula(searchId);
+    const matched = players.filter(
       (p) =>
-        p.id === searchId ||
-        p.cedula === searchId ||
-        p.name.toLowerCase().includes(searchId.toLowerCase()) ||
+        (normSearch !== '' && normalizeCedula(p.cedula) === normSearch) ||
+        p.name.toLowerCase().includes(lower) ||
         `#${p.dorsal}` === searchId
     );
 
-    setScannedPlayer(matched || null);
+    if (matched.length === 1) {
+      setScannedPlayer(matched[0]);
+      setMultipleMatches([]);
+    } else if (matched.length > 1) {
+      setScannedPlayer(null);
+      setMultipleMatches(matched);
+    } else {
+      setScannedPlayer(null);
+      setMultipleMatches([]);
+    }
   };
 
   const selectedTeam = scannedPlayer ? teamMap.get(scannedPlayer.teamId) : null;
@@ -126,8 +147,47 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
             </p>
           </div>
 
+          {/* Multiple matches list */}
+          {multipleMatches.length > 1 && (
+            <div className="space-y-2">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                Se encontraron {multipleMatches.length} coincidencias. Elige una:
+              </span>
+              <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                {multipleMatches.map((p) => {
+                  const t = teamMap.get(p.teamId);
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => {
+                        setScannedPlayer(p);
+                        setMultipleMatches([]);
+                      }}
+                      className="p-3 bg-slate-50 hover:bg-[#00A859]/10 rounded-2xl border border-slate-200 cursor-pointer flex items-center justify-between transition-colors text-xs"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <span className="font-black text-slate-900 bg-slate-200 px-2.5 py-1 rounded-lg">
+                          #{p.dorsal}
+                        </span>
+                        <div>
+                          <p className="font-extrabold text-slate-900">{p.name}</p>
+                          <p className="text-[10px] text-slate-500 font-semibold">
+                            {t?.name || p.teamId} · {t?.category || 'Sin categoría'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-extrabold text-[#00A859] bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                        Seleccionar
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Quick Select Player List if no exact match yet */}
-          {!scannedPlayer && (
+          {!scannedPlayer && multipleMatches.length === 0 && (
             <div className="space-y-2">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 O seleccione un jugador para validar:

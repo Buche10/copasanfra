@@ -5,6 +5,7 @@ import { Player, Team, Match, User } from '@/types';
 import { TeamShield } from './TeamShield';
 import { CarnetDigital } from './CarnetDigital';
 import { X, Trophy, ShieldAlert, Award, Calendar, UserCheck, Activity, QrCode } from 'lucide-react';
+import { calculateSanctions } from '@/lib/sanctions';
 
 interface PlayerProfileModalProps {
   player: Player | null;
@@ -32,7 +33,6 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
   let penaltyGoals = 0;
   let yellowCards = 0;
   let redCards = 0;
-  let lastRedReason = '';
   const matchesSet = new Set<string>();
 
   matches.forEach((m) => {
@@ -55,7 +55,6 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
           if (ev.type === 'YELLOW_CARD') yellowCards += 1;
           if (ev.type === 'RED_CARD') {
             redCards += 1;
-            lastRedReason = ev.cardReason || 'Tarjeta roja directa';
           }
         }
       });
@@ -69,10 +68,10 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
   const matchesPlayed = matchesSet.size;
   const goalAverage = matchesPlayed > 0 ? (totalGoals / matchesPlayed).toFixed(2) : '0.00';
 
-  const isSuspended = redCards > 0 || yellowCards >= 3;
-  let suspensionReason = '';
-  if (redCards > 0) suspensionReason = `Expulsado (${lastRedReason})`;
-  else if (yellowCards >= 3) suspensionReason = `Acumulación de ${yellowCards} Tarjetas Amarillas`;
+  const sanctions = calculateSanctions([player], teams, matches);
+  const playerSanction = sanctions.find((s) => s.playerId === player.id);
+  const isSuspended = Boolean(playerSanction?.isSuspended);
+  const suspensionReason = playerSanction?.suspensionReason || '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn overflow-y-auto">

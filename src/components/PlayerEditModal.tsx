@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Player, Team, PlayerPosition } from '@/types';
 import { X, Save, UserCog } from 'lucide-react';
+import { findSameCategoryConflict } from '@/lib/crossCategory';
 
 interface PlayerEditModalProps {
   player: Player;
@@ -34,6 +35,15 @@ export const PlayerEditModal: React.FC<PlayerEditModalProps> = ({ player, teams,
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !teamId) return;
+
+    if (
+      (teamId !== player.teamId || cedula.trim() !== (player.cedula || '').trim()) &&
+      findSameCategoryConflict(cedula, teamId, players, teams, player.id)
+    ) {
+      setError('Esta cédula ya está registrada en otro equipo de esta categoría.');
+      return;
+    }
+
     // Dorsal único por equipo (excluye al propio jugador que se edita).
     if (players.some((p) => p.id !== player.id && p.teamId === teamId && p.dorsal === dorsal)) {
       setError(`El dorsal ${dorsal} ya está en uso en ese equipo. Elige otro número.`);

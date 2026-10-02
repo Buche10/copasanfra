@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Match, Team, Player, LineupPlayer, MatchEvent, SheetCorrection } from '@/types';
+import { Match, Team, Player, LineupPlayer, MatchEvent, SheetCorrection, Role } from '@/types';
 import { calculateSanctions } from '@/lib/store';
 import {
   addEvent,
@@ -37,7 +37,9 @@ interface MatchSheetModalProps {
   players: Player[];
   onUpdateMatch: (updatedMatch: Match) => void | boolean | Promise<void | boolean>;
   isAdmin?: boolean;
+  canCorrect?: boolean;
   editorName?: string;
+  editorRole?: Role;
 }
 
 const formatCorrectionTrace = (corrections: SheetCorrection[]): string => {
@@ -45,7 +47,8 @@ const formatCorrectionTrace = (corrections: SheetCorrection[]): string => {
   const count = corrections.length;
   const times = count === 1 ? '1 vez' : `${count} veces`;
   const localDate = new Date(last.at).toLocaleString();
-  return `Corregida ${times}. Última: ${last.by}, ${localDate}: ${last.reason}`;
+  const roleLabel = last.role ? ` (${last.role === 'REFEREE' ? 'Árbitro' : 'Administrador'})` : '';
+  return `Corregida ${times}. Última: ${last.by}${roleLabel}, ${localDate}: ${last.reason}`;
 };
 
 export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
@@ -54,7 +57,9 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
   players,
   onUpdateMatch,
   isAdmin = false,
+  canCorrect = isAdmin,
   editorName = '',
+  editorRole,
 }) => {
   const [selectedRound, setSelectedRound] = useState<number | null>(matches[0]?.round ?? null);
   const [selectedMatchId, setSelectedMatchId] = useState<string>(matches[0]?.id || '');
@@ -213,9 +218,13 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
       return;
     }
 
+    const correctionRole: 'ADMIN' | 'REFEREE' | undefined =
+      editorRole === 'REFEREE' ? 'REFEREE' : editorRole === 'ADMIN' ? 'ADMIN' : (isAdmin ? 'ADMIN' : undefined);
+    const defaultBy = correctionRole === 'REFEREE' ? 'Árbitro' : 'Administrador';
     const correction: SheetCorrection = {
       at: new Date().toISOString(),
-      by: editorName || 'Administrador',
+      by: editorName || defaultBy,
+      role: correctionRole,
       reason: correctionReason.trim(),
     };
 
@@ -290,7 +299,7 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
     if (isSusp(player)) {
       if (isCorrectionMode) {
         const ok = window.confirm(
-          `Atención Administrador: El jugador #${player.dorsal} ${player.name} figura como sancionado (${suspReason(
+          `Atención: El jugador #${player.dorsal} ${player.name} figura como sancionado (${suspReason(
             player
           )}). ¿Deseas agregarlo a la nómina de todos modos?`
         );
@@ -355,7 +364,7 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
     if (isSusp(player)) {
       if (isCorrectionMode) {
         const ok = window.confirm(
-          `Atención Administrador:\n\nEl jugador ${player.name} (#${player.dorsal}) figura actualmente como sancionado (${suspReason(
+          `Atención:\n\nEl jugador ${player.name} (#${player.dorsal}) figura actualmente como sancionado (${suspReason(
             player
           )}).\n\n¿Deseas incluirlo de todos modos en la nómina de este partido?`
         );
@@ -448,6 +457,7 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
       refereeSigned: true,
       refereeNotes: finalNotes,
       signedAt: new Date().toLocaleString(),
+      signedBy: editorName || undefined,
     });
   };
 
@@ -712,8 +722,12 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
                   <UserCheck className="w-4 h-4" /> Planilla Firmada Oficialmente
                 </span>
                 <div className="flex items-center gap-3">
-                  <span>{sheet.signedAt || 'Firmado'}</span>
-                  {isAdmin && currentMatch.status === 'FINISHED' && !draft && (
+                  <span>
+                    {sheet.signedBy
+                      ? `Firmado por ${sheet.signedBy}${sheet.signedAt ? `, ${sheet.signedAt}` : ''}`
+                      : sheet.signedAt || 'Firmado'}
+                  </span>
+                  {canCorrect && currentMatch.status === 'FINISHED' && !draft && (
                     <button
                       type="button"
                       onClick={handleStartCorrection}

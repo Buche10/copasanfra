@@ -7,6 +7,58 @@ export interface ScoreContext {
   linkedMatrix: Uint8Array;
   shareMatrix: Uint8Array;
   costTable: Float64Array;
+  maxOwnerFreeSlots?: number;
+}
+
+export interface PlacedMatchSlot {
+  idx: number;
+  slot: number;
+}
+
+export function sortedPlacedSlots(
+  indices: readonly number[],
+  matchSlot: readonly number[]
+): PlacedMatchSlot[] {
+  const placed: PlacedMatchSlot[] = [];
+  for (let i = 0; i < indices.length; i++) {
+    const m = indices[i];
+    const s = matchSlot[m];
+    if (s !== -1) placed.push({ idx: m, slot: s });
+  }
+  if (placed.length <= 1) return placed;
+  if (placed.length === 2) {
+    if (placed[0].slot > placed[1].slot) {
+      const temp = placed[0];
+      placed[0] = placed[1];
+      placed[1] = temp;
+    }
+    return placed;
+  }
+  return placed.sort((a, b) => a.slot - b.slot);
+}
+
+export function computeOwnerGapViolations(
+  ctx: ScoreContext,
+  matchSlot: readonly number[],
+  maxFree = 1
+): number {
+  const { multiClubs, clubMatchIndices, n, shareMatrix } = ctx;
+  if (multiClubs.length === 0) return 0;
+  let violations = 0;
+
+  for (let c = 0; c < multiClubs.length; c++) {
+    const ms = clubMatchIndices.get(multiClubs[c]);
+    if (!ms || ms.length <= 1) continue;
+
+    const placed = sortedPlacedSlots(ms, matchSlot);
+    for (let i = 1; i < placed.length; i++) {
+      const gap = placed[i].slot - placed[i - 1].slot - 1;
+      const shares = shareMatrix[placed[i - 1].idx * n + placed[i].idx] === 1;
+      const allowedMax = shares ? maxFree : 0;
+      if (gap > allowedMax) violations += gap - allowedMax;
+    }
+  }
+  return violations;
 }
 
 export function computeCanchasLlenas(
@@ -55,12 +107,14 @@ export function computeSoftPenalties(ctx: ScoreContext, matchSlot: readonly numb
   }
 
   let ownerGaps = 0;
-  for (const club of multiClubs) {
-    const ms = (clubMatchIndices.get(club) ?? []).filter((idx) => matchSlot[idx] !== -1);
-    const sorted = ms.map((idx) => ({ idx, s: matchSlot[idx] })).sort((a, b) => a.s - b.s);
-    for (let i = 1; i < sorted.length; i++) {
-      const rawGap = Math.max(0, sorted[i].s - sorted[i - 1].s - 1);
-      const shares = shareMatrix[sorted[i - 1].idx * n + sorted[i].idx] === 1;
+  for (let c = 0; c < multiClubs.length; c++) {
+    const ms = clubMatchIndices.get(multiClubs[c]);
+    if (!ms || ms.length <= 1) continue;
+
+    const placed = sortedPlacedSlots(ms, matchSlot);
+    for (let i = 1; i < placed.length; i++) {
+      const rawGap = Math.max(0, placed[i].slot - placed[i - 1].slot - 1);
+      const shares = shareMatrix[placed[i - 1].idx * n + placed[i].idx] === 1;
       ownerGaps += shares ? Math.max(0, rawGap - 1) : rawGap;
     }
   }
@@ -94,6 +148,9 @@ export function computeScore(
       }
     }
   }
+
+  const maxFree = ctx.maxOwnerFreeSlots ?? 1;
+  hard += computeOwnerGapViolations(ctx, matchSlot, maxFree);
 
   const canchasLlenas = computeCanchasLlenas(n, fieldsPerSlot, slotMatches);
   const soft = computeSoftPenalties(ctx, matchSlot);

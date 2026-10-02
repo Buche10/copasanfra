@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Category, MAX_PLAYERS_PER_TEAM, Player, PlayerPosition, Team } from '@/types';
+import { Category, maxPlayersForCategory, Player, PlayerPosition, Team } from '@/types';
 import { applyWatermarkToPhoto } from '@/lib/watermark';
 import { checkCedula } from '@/lib/store';
 import { canRegisterInTeam, isRlsRegistrationError, REGISTRATION_CLOSED_MESSAGE } from '@/lib/registration';
@@ -119,7 +119,7 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
 
   // Roster count per team (to enforce the max players per team).
   const teamCount = (teamId: string) => players.filter((p) => p.teamId === teamId).length;
-  const selectedTeamFull = selectedTeam ? teamCount(selectedTeam.id) >= MAX_PLAYERS_PER_TEAM : false;
+  const selectedTeamFull = selectedTeam ? teamCount(selectedTeam.id) >= maxPlayersForCategory(selectedTeam.category) : false;
 
   // Handle Photo Upload & Automatic Watermarking
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -167,7 +167,7 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
       alert(REGISTRATION_CLOSED_MESSAGE);
       return;
     }
-    if (teamCount(selectedTeam.id) >= MAX_PLAYERS_PER_TEAM) {
+    if (teamCount(selectedTeam.id) >= maxPlayersForCategory(selectedTeam.category)) {
       setStep(1);
       return;
     }
@@ -324,8 +324,9 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
                   {filteredTeams.map((t) => {
+                    const maxLimit = maxPlayersForCategory(t.category);
                     const count = teamCount(t.id);
-                    const full = count >= MAX_PLAYERS_PER_TEAM;
+                    const full = count >= maxLimit;
                     return (
                       <div
                         key={t.id}
@@ -353,7 +354,7 @@ export const RegistrationView: React.FC<RegistrationViewProps> = ({
                           <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
                             full ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'
                           }`}>
-                            {full ? 'Cupo lleno' : `${count}/${MAX_PLAYERS_PER_TEAM}`}
+                            {full ? 'Cupo lleno' : `${count}/${maxLimit}`}
                           </span>
                           {selectedTeamId === t.id && !full && (
                             <CheckCircle2 className="w-5 h-5 text-[#00A859]" />
