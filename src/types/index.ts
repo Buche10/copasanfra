@@ -34,6 +34,8 @@ export interface AppSettings {
   registrationsOpen: boolean;
   // Categorías con la inscripción CERRADA (aunque la inscripción global esté abierta).
   closedRegistrationCategories: Category[];
+  // Habilitación pública de refuerzos +40/+50 en categorías menores
+  reinforcementsOpen: boolean;
 }
 
 export type Role = 'PUBLIC' | 'REFEREE' | 'ADMIN';
@@ -83,6 +85,8 @@ export interface Player {
   // Suspensión MANUAL (fijada por el Admin): fechas/jornadas en las que el
   // jugador NO puede jugar. Complementa la sanción automática por tarjetas.
   suspendedRounds?: number[];
+  // Si este jugador es un refuerzo de otra categoría, ID del registro de origen.
+  reinforcementOf?: string;
   // Campo transitorio (solo lectura vista players_admin): indica si el jugador
   // tiene documento de respaldo, sin traer la imagen pesada. No se persiste.
   hasDoc?: boolean;

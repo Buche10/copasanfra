@@ -1,28 +1,15 @@
 import {
-  Team,
-  Player,
-  Match,
-  User,
-  TeamStanding,
-  PlayerScorer,
-  Category,
-  GoalkeeperStat,
-  ArbitrajePayment,
-  CardFinePayment,
-  AppSettings,
-  SUSPENDED_CATEGORIES,
-  COMING_SOON_CATEGORIES
+  Team, Player, PlayerPosition, Match, User, TeamStanding,
+  PlayerScorer, Category, GoalkeeperStat, ArbitrajePayment,
+  CardFinePayment, AppSettings
 } from '@/types';
-import {
-  INITIAL_TEAMS,
-  INITIAL_PLAYERS,
-  INITIAL_MATCHES,
-  INITIAL_USERS
-} from './mockData';
+import { INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_MATCHES, INITIAL_USERS } from './mockData';
 import { supabase, TABLES, RECEIPTS_BUCKET, isSupabaseConfigured } from './supabase';
 import { getCurrentSessionEmail } from './auth';
 import { replaceUsers, validateUsersContainAdmin } from './usersSync';
 import { isRlsRegistrationError, RegistrationClosedError } from './registration';
+import { normalizeAppSettings } from './settings';
+import { ReinforcementStatus } from './reinforcement';
 
 // ----------------------------------------------------
 // DATA ACCESS (Supabase)
@@ -125,38 +112,86 @@ export async function getUsers(): Promise<User[]> {
 }
 
 // ---- Ajustes globales ----
-// Default: mientras no exista la fila (o falle la lectura), se usan las
-// categorías suspendidas definidas en el código, para no cambiar el comportamiento.
-const DEFAULT_SETTINGS: AppSettings = {
-  suspendedCategories: [...SUSPENDED_CATEGORIES],
-  comingSoonCategories: [...COMING_SOON_CATEGORIES],
-  pausedCategories: [],
-  registrationsOpen: true,
-  closedRegistrationCategories: [],
-};
+export { DEFAULT_SETTINGS, normalizeAppSettings } from './settings';
 
 export async function getSettings(): Promise<AppSettings> {
   assertConfigured();
   const { data, error } = await supabase.from(TABLES.SETTINGS).select('data').eq('id', 'app').maybeSingle();
   if (error) throw new Error(`Error al leer los ajustes: ${error.message}`);
-  const s = (data as { data: Partial<AppSettings> } | null)?.data;
-  return {
-    suspendedCategories: Array.isArray(s?.suspendedCategories)
-      ? s!.suspendedCategories!
-      : DEFAULT_SETTINGS.suspendedCategories,
-    comingSoonCategories: Array.isArray(s?.comingSoonCategories)
-      ? s!.comingSoonCategories!
-      : DEFAULT_SETTINGS.comingSoonCategories,
-    pausedCategories: Array.isArray(s?.pausedCategories)
-      ? s!.pausedCategories!
-      : DEFAULT_SETTINGS.pausedCategories,
-    registrationsOpen: typeof s?.registrationsOpen === 'boolean'
-      ? s!.registrationsOpen!
-      : DEFAULT_SETTINGS.registrationsOpen,
-    closedRegistrationCategories: Array.isArray(s?.closedRegistrationCategories)
-      ? s!.closedRegistrationCategories!
-      : DEFAULT_SETTINGS.closedRegistrationCategories,
-  };
+  return normalizeAppSettings(data);
+}
+
+export interface ReinforcementResult {
+  status: ReinforcementStatus;
+  player?: Player;
+}
+
+export async function registerReinforcement(input: {
+  pin: string;
+  cedula: string;
+  teamId: string;
+  dorsal: number;
+  position?: PlayerPosition;
+}): Promise<ReinforcementResult> {
+  assertConfigured();
+  try {
+    const { data, error } = await supabase.rpc('register_reinforcement', {
+      p_pin: input.pin,
+      p_cedula: input.cedula,
+      p_team_id: input.teamId,
+      p_dorsal: input.dorsal,
+      p_position: input.position || null,
+    });
+    if (error) throw new Error(error.message);
+    return (data as ReinforcementResult) ?? { status: 'INVALID' };
+  } catch (err) {
+    if (err instanceof Error && (err.message.includes('Supabase no está configurado') || err.message.startsWith('Error al leer'))) {
+      throw err;
+    }
+    throw new Error('No se pudo habilitar el refuerzo. Inténtalo más tarde.');
+  }
+}
+
+export async function adminSetTeamPin(teamId: string): Promise<string> {
+  assertConfigured();
+  try {
+    const { data, error } = await supabase.rpc('admin_set_team_pin', { p_team_id: teamId });
+    if (error) throw new Error(error.message);
+    return data as string;
+  } catch {
+    throw new Error('No se pudo generar el código del equipo. Inténtalo más tarde.');
+  }
+}
+
+export async function adminListTeamPins(): Promise<{ teamId: string; updatedAt: string; locked: boolean; failures24h: number }[]> {
+  assertConfigured();
+  try {
+    const { data, error } = await supabase.rpc('admin_list_team_pins');
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r: { team_id: string; updated_at: string; locked: boolean; failures_24h: number }) => ({
+      teamId: r.team_id,
+      updatedAt: r.updated_at,
+      locked: Boolean(r.locked),
+      failures24h: Number(r.failures_24h || 0),
+    }));
+  } catch {
+    throw new Error('No se pudo cargar la lista de códigos. Inténtalo más tarde.');
+  }
+}
+
+export async function adminClientIpSource(): Promise<'cloudflare' | 'forwarded' | 'desconocida'> {
+  assertConfigured();
+  try {
+    const { data, error } = await supabase.rpc('admin_client_ip_source');
+    if (error) throw new Error(error.message);
+    const val = (data as string) || 'desconocida';
+    if (val === 'cloudflare' || val === 'forwarded' || val === 'desconocida') {
+      return val;
+    }
+    return 'desconocida';
+  } catch {
+    throw new Error('No se pudo verificar la protección por conexión.');
+  }
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {
@@ -630,7 +665,7 @@ export function calculateScorers(players: Player[], teams: Team[], matches: Matc
           position: player.position,
           teamId: player.teamId,
           teamName: team?.name || 'Equipo',
-          teamLogo: team?.logo || '⚽',
+          teamLogo: team?.logo || '',
           goals: stat.goals,
           penalties: stat.penalties,
           matchesPlayed: stat.matchesSet.size,

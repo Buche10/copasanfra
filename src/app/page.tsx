@@ -66,7 +66,7 @@ import { AdminModal } from '@/components/AdminModal';
 import { LoginModal } from '@/components/LoginModal';
 import { TeamProfileModal } from '@/components/TeamProfileModal';
 import { PlayerProfileModal } from '@/components/PlayerProfileModal';
-import { RegistrationView } from '@/components/RegistrationView';
+import { RegistrationHub } from '@/components/RegistrationHub';
 import { QRScannerModal } from '@/components/QRScannerModal';
 import { ArbitrajeView } from '@/components/ArbitrajeView';
 import { CalendarExport } from '@/components/CalendarExport';
@@ -92,6 +92,7 @@ export default function Home() {
   const [comingSoonCategories, setComingSoonCategories] = useState<Category[]>([...COMING_SOON_CATEGORIES]);
   const [pausedCategories, setPausedCategories] = useState<Category[]>([]);
   const [registrationsOpen, setRegistrationsOpen] = useState<boolean>(true);
+  const [reinforcementsOpen, setReinforcementsOpen] = useState<boolean>(true);
   const [closedRegistrationCategories, setClosedRegistrationCategories] = useState<Category[]>([]);
   // Categorías visibles en el selector = todas menos las suspendidas. Las de
   // "próximamente" y "en pausa" SÍ se muestran (las próximamente sin calendario;
@@ -164,6 +165,7 @@ export default function Home() {
             setComingSoonCategories(s.comingSoonCategories);
             setPausedCategories(s.pausedCategories);
             setRegistrationsOpen(s.registrationsOpen);
+            setReinforcementsOpen(s.reinforcementsOpen);
             setClosedRegistrationCategories(s.closedRegistrationCategories);
             // Si la categoría por defecto quedó suspendida, mostrar una visible.
             if (s.suspendedCategories.includes(selectedCategory)) {
@@ -610,6 +612,7 @@ export default function Home() {
         pausedCategories: nextPaused,
         registrationsOpen,
         closedRegistrationCategories,
+        reinforcementsOpen,
       });
     } catch (err) {
       setSuspendedCategories(prevS);
@@ -630,10 +633,30 @@ export default function Home() {
         pausedCategories,
         registrationsOpen: open,
         closedRegistrationCategories,
+        reinforcementsOpen,
       });
     } catch (err) {
       setRegistrationsOpen(prev);
       alert(`No se pudo guardar el cambio de inscripciones: ${errMsg(err)}`);
+    }
+  };
+
+  // Abrir / cerrar la habilitación de refuerzos +40/+50 (global).
+  const handleSetReinforcements = async (open: boolean) => {
+    const prev = reinforcementsOpen;
+    setReinforcementsOpen(open);
+    try {
+      await saveSettings({
+        suspendedCategories,
+        comingSoonCategories,
+        pausedCategories,
+        registrationsOpen,
+        closedRegistrationCategories,
+        reinforcementsOpen: open,
+      });
+    } catch (err) {
+      setReinforcementsOpen(prev);
+      alert(`No se pudo guardar el cambio de refuerzos: ${errMsg(err)}`);
     }
   };
 
@@ -651,6 +674,7 @@ export default function Home() {
         pausedCategories,
         registrationsOpen,
         closedRegistrationCategories: next,
+        reinforcementsOpen,
       });
     } catch (err) {
       setClosedRegistrationCategories(prev);
@@ -892,6 +916,8 @@ export default function Home() {
             onSetCategoryStatus={handleSetCategoryStatus}
             registrationsOpen={registrationsOpen}
             onSetRegistrations={handleSetRegistrations}
+            reinforcementsOpen={reinforcementsOpen}
+            onSetReinforcements={handleSetReinforcements}
             closedRegistrationCategories={closedRegistrationCategories}
             onSetCategoryRegistration={handleSetCategoryRegistration}
             activeCategories={activeCategories}
@@ -902,12 +928,16 @@ export default function Home() {
           />
         )}
         {activeTab === 'registration' && (
-          <RegistrationView
+          <RegistrationHub
             teams={teams}
             categories={registrableCategories}
             registrationsOpen={registrationsOpen}
+            reinforcementsOpen={reinforcementsOpen}
+            suspendedCategories={suspendedCategories}
+            pausedCategories={pausedCategories}
             players={players}
             onAddPlayer={handleAddPlayer}
+            onReinforcementAdded={(player) => setPlayers((prev) => [...prev, player])}
             onCancel={() => setActiveTab('standings')}
           />
         )}

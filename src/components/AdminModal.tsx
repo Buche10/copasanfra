@@ -19,6 +19,7 @@ import { AdminScheduleFairness } from './AdminScheduleFairness';
 import { AdminArrangeCalendar } from './AdminArrangeCalendar';
 import { ArrangePlan } from '@/lib/scheduling/arrangeCalendar';
 import { canChangeCategory } from '@/lib/registration';
+import { AdminTeamPins } from './AdminTeamPins';
 
 interface AdminModalProps {
   teams: Team[];
@@ -41,6 +42,8 @@ interface AdminModalProps {
   onSetCategoryStatus: (category: Category, status: CategoryStatus) => void;
   registrationsOpen: boolean;
   onSetRegistrations: (open: boolean) => void;
+  reinforcementsOpen?: boolean;
+  onSetReinforcements?: (open: boolean) => void;
   closedRegistrationCategories: Category[];
   onSetCategoryRegistration: (category: Category, open: boolean) => void;
   activeCategories?: Category[];
@@ -71,6 +74,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onSetCategoryStatus,
   registrationsOpen,
   onSetRegistrations,
+  reinforcementsOpen = true,
+  onSetReinforcements,
   closedRegistrationCategories,
   onSetCategoryRegistration,
   activeCategories,
@@ -800,6 +805,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         <td className="p-3 font-bold text-slate-800">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span>{p.name}</span>
+                            {p.reinforcementOf && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                                Refuerzo
+                              </span>
+                            )}
                             {otherCats.map((cat) => (
                               <span
                                 key={cat}
@@ -1095,6 +1105,23 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 {registrationsOpen ? 'Cerrar todas' : 'Abrir todas'}
               </button>
             </div>
+
+            <div className={`flex items-center justify-between gap-3 p-4 rounded-2xl border ${reinforcementsOpen ? 'bg-purple-50 border-purple-200' : 'bg-slate-100 border-slate-300'}`}>
+              <div className="min-w-0">
+                <span className="text-sm font-black text-slate-800">Refuerzos +40/+50: </span>
+                <span className={`text-sm font-black ${reinforcementsOpen ? 'text-purple-700' : 'text-slate-600'}`}>{reinforcementsOpen ? 'Habilitados' : 'Cerrados'}</span>
+              </div>
+              {onSetReinforcements && (
+                <button
+                  onClick={() => onSetReinforcements(!reinforcementsOpen)}
+                  className={`px-5 py-2.5 text-white text-xs font-extrabold rounded-xl shadow-sm transition-colors whitespace-nowrap ${reinforcementsOpen ? 'bg-rose-600 hover:bg-rose-700' : 'bg-[#00A859] hover:bg-emerald-700'}`}
+                >
+                  {reinforcementsOpen ? 'Cerrar refuerzos' : 'Abrir refuerzos'}
+                </button>
+              )}
+            </div>
+
+            <AdminTeamPins teams={teams} />
 
             {/* Inscripción por categoría (solo aplica si la general está abierta) */}
             <div className="space-y-2">

@@ -22,6 +22,8 @@ export default defineConfig({
         'src/lib/scheduling/arrangeCalendar.ts',
         'src/lib/crossCategory.ts',
         'src/lib/sanctions.ts',
+        'src/lib/reinforcement.ts',
+        'src/lib/teamPins.ts',
       ],
       thresholds: {
         lines: 80,
