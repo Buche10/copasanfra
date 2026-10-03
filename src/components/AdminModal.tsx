@@ -20,6 +20,7 @@ import { AdminArrangeCalendar } from './AdminArrangeCalendar';
 import { ArrangePlan } from '@/lib/scheduling/arrangeCalendar';
 import { canChangeCategory } from '@/lib/registration';
 import { AdminTeamPins } from './AdminTeamPins';
+import { isRosterFull } from '@/lib/roster';
 
 interface AdminModalProps {
   teams: Team[];
@@ -239,8 +240,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     }
 
     const targetTeam = teams.find((t) => t.id === playerTeamId);
-    const maxLimit = maxPlayersForCategory(targetTeam?.category);
-    if (players.filter((p) => p.teamId === playerTeamId).length >= maxLimit) {
+    if (targetTeam && isRosterFull(players, targetTeam)) {
+      const maxLimit = maxPlayersForCategory(targetTeam.category);
       alert(`Este equipo ya tiene ${maxLimit} jugadores (máximo permitido).`);
       return;
     }

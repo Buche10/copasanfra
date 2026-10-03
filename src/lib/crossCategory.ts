@@ -1,4 +1,4 @@
-import { Category, Player, Team, maxPlayersForCategory } from '@/types';
+import { Category, Player, Team } from '@/types';
 import { normalizeCedula } from '@/lib/scheduling/sharedPlayers';
 
 /**
@@ -120,12 +120,6 @@ export function validateCrossCategory(
     return 'INVALID_DORSAL';
   }
 
-  const maxLimit = maxPlayersForCategory(targetTeam.category);
-  const teamPlayerCount = players.filter((p) => p.teamId === input.targetTeamId).length;
-  if (teamPlayerCount >= maxLimit) {
-    return 'TEAM_FULL';
-  }
-
   const dorsalTaken = players.some(
     (p) => p.teamId === input.targetTeamId && p.dorsal === input.dorsal
   );
@@ -156,6 +150,7 @@ export function buildCrossCategoryPlayer(
     affiliation: source.affiliation,
     approvalStatus: 'APPROVED',
     registeredAt: now.toISOString(),
+    reinforcementOf: source.id,
   };
 }
 

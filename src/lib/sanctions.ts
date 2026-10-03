@@ -1,4 +1,4 @@
-import { Category, Match, MATCH_TIME_SLOTS, Player, PlayerSanction, Team } from '@/types';
+import { Category, Match, MATCH_TIME_SLOTS, PendingSanctionDetail, Player, PlayerSanction, Team } from '@/types';
 
 export const YELLOWS_FOR_SUSPENSION = 5;
 export const DOUBLE_YELLOW_MATCHES = 1;
@@ -79,20 +79,62 @@ export function orderTeamMatches(matches: Match[], teamId: string): Match[] {
     });
 }
 
+export type { PendingSanctionDetail };
+
 export interface CardSuspensionState {
   pending: number;
   yellowCycle: number;
   reasons: string[];
+  pendingDetails: PendingSanctionDetail[];
 }
 
-interface PendingSanctionItem {
-  label: string;
-  remaining: number;
+export function formatPendingSanction(d: PendingSanctionDetail): string {
+  const datesText = d.remaining === 1 ? '1 fecha por cumplir' : `${d.remaining} fechas por cumplir`;
+  if (d.kind === 'DOUBLE_YELLOW') {
+    return `Doble amarilla en la fecha ${d.round} contra ${d.opponentName}: ${datesText}`;
+  }
+  if (d.kind === 'DIRECT_RED') {
+    return `Roja directa en la fecha ${d.round} contra ${d.opponentName}: ${datesText}`;
+  }
+  return `5 amarillas acumuladas (la quinta en la fecha ${d.round} contra ${d.opponentName}): ${datesText}`;
 }
 
-function formatSanctionReason(label: string, remaining: number): string {
-  const matchWord = remaining === 1 ? 'partido' : 'partidos';
-  return `${label} (${remaining} ${matchWord})`;
+export function countDoubleYellowYellows(playerId: string, matches: Match[]): number {
+  let count = 0;
+  for (const m of matches) {
+    if (m.status !== 'FINISHED') continue;
+    const playerEvents = (m.events || []).filter((e) => e.playerId === playerId);
+    const yellows = playerEvents.filter((e) => e.type === 'YELLOW_CARD').length;
+    const hasDoubleYellowRed = playerEvents.some((e) => e.type === 'RED_CARD' && e.isDoubleYellow);
+    if (yellows >= 2) {
+      count += yellows;
+    } else if (hasDoubleYellowRed) {
+      count += 2;
+    }
+  }
+  return count;
+}
+
+function resolveOpponent(
+  match: Match,
+  playerId: string,
+  teamId?: string,
+  teamNames?: ReadonlyMap<string, string>
+): { opponentTeamId: string; opponentName: string } {
+  let resolvedTeamId = teamId;
+  if (!resolvedTeamId) {
+    const isHome = match.homeLineup?.some((l) => l.playerId === playerId)
+      || match.events?.some((e) => e.playerId === playerId && e.teamId === match.homeTeamId);
+    const isAway = match.awayLineup?.some((l) => l.playerId === playerId)
+      || match.events?.some((e) => e.playerId === playerId && e.teamId === match.awayTeamId);
+    if (isHome) resolvedTeamId = match.homeTeamId;
+    else if (isAway) resolvedTeamId = match.awayTeamId;
+  }
+  const opponentTeamId = resolvedTeamId
+    ? (match.homeTeamId === resolvedTeamId ? match.awayTeamId : match.homeTeamId)
+    : match.awayTeamId;
+  const opponentName = (opponentTeamId && teamNames?.get(opponentTeamId)) || 'rival';
+  return { opponentTeamId: opponentTeamId || '', opponentName };
 }
 
 /**
@@ -103,13 +145,14 @@ function formatSanctionReason(label: string, remaining: number): string {
  */
 export function computeCardSuspension(
   playerId: string,
-  teamMatches: Match[]
+  teamMatches: Match[],
+  teamId?: string,
+  teamNames?: ReadonlyMap<string, string>
 ): CardSuspensionState {
   let yellowCycle = 0;
-  const queue: PendingSanctionItem[] = [];
+  const queue: PendingSanctionDetail[] = [];
 
   for (const match of teamMatches) {
-    // 1. Primero descuenta 1 si hay suspensiones pendientes (partido cumplido)
     if (queue.length > 0) {
       queue[0].remaining -= 1;
       if (queue[0].remaining <= 0) {
@@ -117,7 +160,7 @@ export function computeCardSuspension(
       }
     }
 
-    // 2. Luego procesa las tarjetas generadas en este partido
+    const { opponentTeamId, opponentName } = resolveOpponent(match, playerId, teamId, teamNames);
     const cards = classifyPlayerCards(match, playerId);
 
     yellowCycle += cards.accumulableYellows;
@@ -125,24 +168,47 @@ export function computeCardSuspension(
       const cycles = Math.floor(yellowCycle / YELLOWS_FOR_SUSPENSION);
       yellowCycle = yellowCycle % YELLOWS_FOR_SUSPENSION;
       for (let i = 0; i < cycles; i++) {
-        queue.push({ label: '5 Amarillas', remaining: 1 });
+        queue.push({
+          kind: 'YELLOW_ACCUMULATION',
+          round: match.round,
+          date: match.date || '',
+          opponentTeamId,
+          opponentName,
+          remaining: 1,
+        });
       }
     }
 
     if (cards.directRed) {
-      queue.push({ label: 'Roja Directa', remaining: DIRECT_RED_MATCHES });
+      queue.push({
+        kind: 'DIRECT_RED',
+        round: match.round,
+        date: match.date || '',
+        opponentTeamId,
+        opponentName,
+        remaining: DIRECT_RED_MATCHES,
+      });
     } else if (cards.doubleYellow) {
-      queue.push({ label: 'Doble Amarilla', remaining: DOUBLE_YELLOW_MATCHES });
+      queue.push({
+        kind: 'DOUBLE_YELLOW',
+        round: match.round,
+        date: match.date || '',
+        opponentTeamId,
+        opponentName,
+        remaining: DOUBLE_YELLOW_MATCHES,
+      });
     }
   }
 
   const pending = queue.reduce((sum, item) => sum + item.remaining, 0);
-  const reasons = queue.map((item) => formatSanctionReason(item.label, item.remaining));
+  const reasons = queue.map((item) => formatPendingSanction(item));
+  const pendingDetails = queue.map((item) => ({ ...item }));
 
   return {
     pending,
     yellowCycle,
     reasons,
+    pendingDetails,
   };
 }
 
@@ -224,6 +290,7 @@ export function calculateSanctions(
     !category || category === 'ALL' ? matches : matches.filter((m) => m.category === category);
 
   const teamMap = new Map(filteredTeams.map((t) => [t.id, t]));
+  const teamNames = new Map(teams.map((t) => [t.id, t.name]));
   const cardTotalsMap = aggregateTournamentCards(filteredMatches);
   const teamMatchesMap = buildTeamFinishedMatchesMap(filteredMatches, filteredTeams);
 
@@ -234,7 +301,7 @@ export function calculateSanctions(
     const team = teamMap.get(p.teamId);
     const teamMatches = teamMatchesMap.get(p.teamId) || [];
 
-    const cardState = computeCardSuspension(p.id, teamMatches);
+    const cardState = computeCardSuspension(p.id, teamMatches, p.teamId, teamNames);
     const manualRounds = (p.suspendedRounds || []).slice().sort((a, b) => a - b);
 
     const cardSuspended = cardState.pending > 0;
@@ -258,12 +325,14 @@ export function calculateSanctions(
         teamLogo: team?.logo || 'shield',
         yellowCards: stats.yellowCards,
         redCards: totalRedCards,
+        expulsions: totalRedCards,
         isSuspended,
         cardSuspended,
         suspendedRounds: manualRounds,
-        suspensionReason: reasons.length > 0 ? reasons.join(' • ') : '',
+        suspensionReason: reasons.length > 0 ? reasons.join('\n') : '',
         matchesRemaining: totalMatchesRemaining,
         yellowsTowardNext: cardState.yellowCycle,
+        pendingDetails: cardState.pendingDetails,
       });
     }
   }

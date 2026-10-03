@@ -7,6 +7,8 @@ import {
   orderTeamMatches,
   computeCardSuspension,
   calculateSanctions,
+  formatPendingSanction,
+  countDoubleYellowYellows,
 } from './sanctions';
 import { Match, MatchEvent, Player, Team } from '@/types';
 
@@ -258,7 +260,9 @@ describe('sanctions', () => {
       const resAfter5 = computeCardSuspension('p-1', matches5);
       expect(resAfter5.pending).toBe(1);
       expect(resAfter5.yellowCycle).toBe(0);
-      expect(resAfter5.reasons).toEqual(['5 Amarillas (1 partido)']);
+      expect(resAfter5.reasons).toEqual([
+        '5 amarillas acumuladas (la quinta en la fecha 5 contra rival): 1 fecha por cumplir',
+      ]);
 
       // Se juega el partido 6 (el jugador cumple su sancion)
       const matches6 = [
@@ -325,7 +329,7 @@ describe('sanctions', () => {
       const res = computeCardSuspension('p-1', matches);
       expect(res.pending).toBe(1);
       expect(res.yellowCycle).toBe(4);
-      expect(res.reasons).toEqual(['Doble Amarilla (1 partido)']);
+      expect(res.reasons).toEqual(['Doble amarilla en la fecha 5 contra rival: 1 fecha por cumplir']);
     });
 
     it('RED_CARD con isDoubleYellow: true y 1 amarilla en el mismo partido: 1 partido, la amarilla no suma', () => {
@@ -340,7 +344,7 @@ describe('sanctions', () => {
       const res = computeCardSuspension('p-1', matches);
       expect(res.pending).toBe(1);
       expect(res.yellowCycle).toBe(1); // Solo la amarilla del partido 1 suma
-      expect(res.reasons).toEqual(['Doble Amarilla (1 partido)']);
+      expect(res.reasons).toEqual(['Doble amarilla en la fecha 2 contra rival: 1 fecha por cumplir']);
     });
 
     it('Roja directa: 2 partidos; tras 1 partido terminado queda 1; tras 2 queda 0', () => {
@@ -349,13 +353,13 @@ describe('sanctions', () => {
       ]);
       const res1 = computeCardSuspension('p-1', [match1]);
       expect(res1.pending).toBe(2);
-      expect(res1.reasons).toEqual(['Roja Directa (2 partidos)']);
+      expect(res1.reasons).toEqual(['Roja directa en la fecha 1 contra rival: 2 fechas por cumplir']);
 
       // Tras 1 partido terminado
       const match2 = createMatch('m-2', 2, '2026-10-08', '08:00', 'team-a', 'team-c', 'FINISHED', []);
       const res2 = computeCardSuspension('p-1', [match1, match2]);
       expect(res2.pending).toBe(1);
-      expect(res2.reasons).toEqual(['Roja Directa (1 partido)']);
+      expect(res2.reasons).toEqual(['Roja directa en la fecha 1 contra rival: 1 fecha por cumplir']);
 
       // Tras 2 partidos terminados
       const match3 = createMatch('m-3', 3, '2026-10-15', '08:00', 'team-a', 'team-b', 'FINISHED', []);
@@ -372,7 +376,7 @@ describe('sanctions', () => {
       const res = computeCardSuspension('p-1', [match]);
       expect(res.pending).toBe(2);
       expect(res.yellowCycle).toBe(1);
-      expect(res.reasons).toEqual(['Roja Directa (2 partidos)']);
+      expect(res.reasons).toEqual(['Roja directa en la fecha 1 contra rival: 2 fechas por cumplir']);
     });
 
     it('Doble amarilla y roja directa en el mismo partido: 2 partidos (manda la roja) y las amarillas no suman al ciclo', () => {
@@ -384,7 +388,7 @@ describe('sanctions', () => {
       const res = computeCardSuspension('p-1', [match]);
       expect(res.pending).toBe(2);
       expect(res.yellowCycle).toBe(0);
-      expect(res.reasons).toEqual(['Roja Directa (2 partidos)']);
+      expect(res.reasons).toEqual(['Roja directa en la fecha 1 contra rival: 2 fechas por cumplir']);
     });
 
     it('RED_CARD con isDoubleYellow mas RED_CARD directa en el mismo partido: 2 partidos y se cumple tras 2 partidos', () => {
@@ -394,12 +398,13 @@ describe('sanctions', () => {
       ]);
       const res1 = computeCardSuspension('p-1', [match1]);
       expect(res1.pending).toBe(2);
-      expect(res1.reasons).toEqual(['Roja Directa (2 partidos)']);
+      expect(res1.reasons).toEqual(['Roja directa en la fecha 1 contra rival: 2 fechas por cumplir']);
 
       // 1er partido cumplido
       const match2 = createMatch('m-2', 2, '2026-10-08', '08:00', 'team-a', 'team-c', 'FINISHED', []);
       const res2 = computeCardSuspension('p-1', [match1, match2]);
       expect(res2.pending).toBe(1);
+      expect(res2.reasons).toEqual(['Roja directa en la fecha 1 contra rival: 1 fecha por cumplir']);
 
       // 2do partido cumplido
       const match3 = createMatch('m-3', 3, '2026-10-15', '08:00', 'team-a', 'team-b', 'FINISHED', []);
@@ -563,6 +568,83 @@ describe('sanctions', () => {
       expect(ids[1]).toBe('p-s1');
       expect(ids[2]).toBe('p-fr');
       expect(ids[3]).toBe('p-fy');
+    });
+
+    it('incluye expulsions y pendingDetails con nombres de rivales correctos', () => {
+      const match1 = createMatch('m-1', 4, '2026-10-01', '08:00', 'team-a', 'team-b', 'FINISHED', [
+        yellowEvent('m-1', 'p-1', 10),
+        yellowEvent('m-1', 'p-1', 50),
+      ]);
+      const res = calculateSanctions([player1], [teamA, teamB], [match1]);
+      expect(res[0].expulsions).toBe(1);
+      expect(res[0].redCards).toBe(1);
+      expect(res[0].pendingDetails).toBeDefined();
+      expect(res[0].pendingDetails?.length).toBe(1);
+      expect(res[0].pendingDetails?.[0]).toEqual({
+        kind: 'DOUBLE_YELLOW',
+        round: 4,
+        date: '2026-10-01',
+        opponentTeamId: 'team-b',
+        opponentName: 'Equipo B',
+        remaining: 1,
+      });
+      expect(res[0].suspensionReason).toBe(
+        'Doble amarilla en la fecha 4 contra Equipo B: 1 fecha por cumplir'
+      );
+    });
+
+    it('formatPendingSanction formatea correctamente cada tipo de sancion', () => {
+      expect(
+        formatPendingSanction({
+          kind: 'DOUBLE_YELLOW',
+          round: 4,
+          opponentName: 'Leones Q',
+          remaining: 1,
+        })
+      ).toBe('Doble amarilla en la fecha 4 contra Leones Q: 1 fecha por cumplir');
+
+      expect(
+        formatPendingSanction({
+          kind: 'DIRECT_RED',
+          round: 2,
+          opponentName: 'Aguilas',
+          remaining: 2,
+        })
+      ).toBe('Roja directa en la fecha 2 contra Aguilas: 2 fechas por cumplir');
+
+      expect(
+        formatPendingSanction({
+          kind: 'YELLOW_ACCUMULATION',
+          round: 5,
+          opponentName: 'Buhos',
+          remaining: 1,
+        })
+      ).toBe(
+        '5 amarillas acumuladas (la quinta en la fecha 5 contra Buhos): 1 fecha por cumplir'
+      );
+    });
+
+    it('countDoubleYellowYellows cuenta amarillas de partidos con doble amarilla', () => {
+      const m1 = createMatch('m-1', 1, '2026-10-01', '08:00', 'team-a', 'team-b', 'FINISHED', [
+        yellowEvent('m-1', 'p-1', 10),
+      ]);
+      const m2 = createMatch('m-2', 2, '2026-10-02', '08:00', 'team-a', 'team-b', 'FINISHED', [
+        yellowEvent('m-2', 'p-1', 20),
+        yellowEvent('m-2', 'p-1', 70),
+      ]);
+      const m3 = createMatch('m-3', 3, '2026-10-03', '08:00', 'team-a', 'team-b', 'FINISHED', [
+        yellowEvent('m-3', 'p-1', 15),
+        redEvent('m-3', 'p-1', true, 60),
+      ]);
+      const mUnfinished = createMatch('m-4', 4, '2026-10-04', '08:00', 'team-a', 'team-b', 'SCHEDULED', [
+        yellowEvent('m-4', 'p-1', 10),
+        yellowEvent('m-4', 'p-1', 50),
+      ]);
+
+      expect(countDoubleYellowYellows('p-1', [m1])).toBe(0);
+      expect(countDoubleYellowYellows('p-1', [m1, m2])).toBe(2);
+      expect(countDoubleYellowYellows('p-1', [m1, m2, m3])).toBe(4);
+      expect(countDoubleYellowYellows('p-1', [m1, m2, m3, mUnfinished])).toBe(4);
     });
   });
 });

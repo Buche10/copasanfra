@@ -1,4 +1,4 @@
-import { Category, Player, PlayerPosition, Team, maxPlayersForCategory } from '@/types';
+import { Category, Player, PlayerPosition, Team } from '@/types';
 import { CROSS_CATEGORY_TARGETS, isValidCedula } from '@/lib/crossCategory';
 
 export type ReinforcementStatus =
@@ -77,11 +77,6 @@ export function validateReinforcementInput(
   );
   if (dorsalTaken) {
     return 'DORSAL_TAKEN';
-  }
-
-  const teamPlayerCount = players.filter((p) => p.teamId === input.teamId).length;
-  if (teamPlayerCount >= maxPlayersForCategory(targetTeam.category)) {
-    return 'TEAM_FULL';
   }
 
   return null;

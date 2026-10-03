@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Category, Player, PlayerPosition, Team, maxPlayersForCategory } from '@/types';
+import { Category, Player, PlayerPosition, Team } from '@/types';
+import { rosterLabel } from '@/lib/roster';
 import { applyWatermarkToPhoto } from '@/lib/watermark';
 import { registerReinforcement } from '@/lib/store';
 import { reinforcementTargetCategories, validateReinforcementInput, reinforcementMessage } from '@/lib/reinforcement';
@@ -179,11 +180,11 @@ export const ReinforcementForm: React.FC<ReinforcementFormProps> = ({
             className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#00A859]"
           >
             <option value="">Selecciona un equipo</option>
-            {availableTeams.map((team) => {
-              const count = players.filter((p) => p.teamId === team.id).length;
-              const max = maxPlayersForCategory(team.category);
-              return (<option key={team.id} value={team.id}>{team.name} ({count}/{max})</option>);
-            })}
+            {availableTeams.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.name} ({rosterLabel(players, team)})
+              </option>
+            ))}
           </select>
         </div>
       </div>

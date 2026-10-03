@@ -54,6 +54,7 @@ import { recomputePlayoffs, changedPlayoffMatches } from '@/lib/playoffs';
 import { ArrangePlan } from '@/lib/scheduling/arrangeCalendar';
 import { diffMatches } from '@/lib/scheduling/matchDiff';
 import { planTeamDeletion } from '@/lib/teamDeletion';
+import { isReinforcement, isRosterFull } from '@/lib/roster';
 import { Header, TabType } from '@/components/Header';
 import { CategorySelector } from '@/components/CategorySelector';
 import { StandingsTable } from '@/components/StandingsTable';
@@ -407,12 +408,11 @@ export default function Home() {
 
   // Add Player. Persists FIRST, then updates local state only on success, and
   // returns whether it saved (so the registration UI doesn't show a false
-  // "success"). Enforces the 20-per-team cap as a safety net.
+  // "success"). Enforces the team quota cap as a safety net (reinforcements bypass it).
   const handleAddPlayer = async (newPlayer: Player): Promise<boolean> => {
     const targetTeam = teams.find((t) => t.id === newPlayer.teamId);
-    const maxLimit = maxPlayersForCategory(targetTeam?.category);
-    const teamCount = players.filter((p) => p.teamId === newPlayer.teamId).length;
-    if (teamCount >= maxLimit) {
+    if (!isReinforcement(newPlayer) && targetTeam && isRosterFull(players, targetTeam)) {
+      const maxLimit = maxPlayersForCategory(targetTeam.category);
       alert(`Este equipo ya alcanzó el máximo de ${maxLimit} jugadores. No se puede agregar más.`);
       return false;
     }

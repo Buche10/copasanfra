@@ -290,8 +290,9 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
               </div>
 
               {isSuspended && sanction && (
-                <div className="p-3 bg-rose-950/60 border border-rose-800 rounded-xl text-xs text-rose-200">
-                  <strong>Motivo de Suspensión:</strong> {sanction.suspensionReason}
+                <div className="p-3 bg-rose-950/60 border border-rose-800 rounded-xl text-xs text-rose-200 whitespace-pre-line leading-relaxed">
+                  <strong className="block font-bold mb-0.5">Motivo de Suspensión:</strong>
+                  {sanction.suspensionReason}
                 </div>
               )}
             </div>

@@ -76,7 +76,7 @@ export const SanctionsTable: React.FC<SanctionsTableProps> = ({
                     <p className="text-xs text-slate-500 font-medium">
                       {sp.teamName}
                     </p>
-                    <p className="text-[11px] font-semibold text-rose-600 mt-1">
+                    <p className="text-[11px] font-semibold text-rose-600 mt-1 whitespace-pre-line leading-relaxed">
                       {sp.suspensionReason}
                     </p>
                   </div>
@@ -144,7 +144,10 @@ export const SanctionsTable: React.FC<SanctionsTableProps> = ({
                         <span className="w-2.5 h-3.5 bg-amber-400 rounded-sm inline-block shadow-sm"></span>
                         <span>{sc.yellowCards}</span>
                         {!sc.isSuspended && sc.yellowCards > 0 && sc.yellowsTowardNext !== undefined && (
-                          <span className="text-[10px] text-amber-600 font-extrabold ml-0.5">
+                          <span
+                            title="Amarillas que cuentan para la suspensión por acumulación"
+                            className="text-[10px] text-amber-600 font-extrabold ml-0.5 cursor-help"
+                          >
                             ({sc.yellowsTowardNext}/{YELLOWS_FOR_SUSPENSION})
                           </span>
                         )}

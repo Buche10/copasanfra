@@ -339,11 +339,11 @@ with r as (select public.register_reinforcement('123456', '0977777777', 't-test-
 insert into _test_results (caso, esperado, obtenido, pasa)
 select 'Caso 12: Dorsal con REJECTED no bloquea (OK)', 'OK', s, s = 'OK' from r;
 
--- Caso 13: Cupo de equipo lleno (TEAM_FULL)
--- t-test-full tiene 20 jugadores registrados
+-- Caso 13: Refuerzo permitido en equipo con cupo completo (20 jugadores) (OK)
+-- t-test-full tiene 20 jugadores registrados; los refuerzos no ocupan cupo
 with r as (select public.register_reinforcement('123456', '0977777777', 't-test-full', 25, 'DEL')->>'status' as s)
 insert into _test_results (caso, esperado, obtenido, pasa)
-select 'Caso 13: Cupo de equipo lleno (TEAM_FULL)', 'TEAM_FULL', s, s = 'TEAM_FULL' from r;
+select 'Caso 13: Refuerzo permitido en equipo con cupo lleno (OK)', 'OK', s, s = 'OK' from r;
 
 -- Caso 14: Refuerzos cerrados por configuracion (CLOSED)
 -- Desactiva reinforcementsOpen en settings

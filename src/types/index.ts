@@ -271,6 +271,15 @@ export interface PlayerScorer {
   matchesPlayed: number;
 }
 
+export interface PendingSanctionDetail {
+  kind: 'DOUBLE_YELLOW' | 'DIRECT_RED' | 'YELLOW_ACCUMULATION';
+  round: number;
+  date?: string;
+  opponentTeamId?: string;
+  opponentName: string;
+  remaining: number;
+}
+
 export interface PlayerSanction {
   playerId: string;
   playerName: string;
@@ -279,7 +288,10 @@ export interface PlayerSanction {
   teamName: string;
   teamLogo: string;
   yellowCards: number;
+  // Total de expulsiones del jugador (rojas directas mas dobles amarillas).
   redCards: number;
+  // Expulsiones totales (rojas directas mas dobles amarillas), igual que redCards.
+  expulsions?: number;
   isSuspended: boolean;
   // Suspensión SOLO por tarjetas (para el bloqueo general en la Planilla).
   cardSuspended: boolean;
@@ -288,6 +300,7 @@ export interface PlayerSanction {
   suspensionReason?: string;
   matchesRemaining: number;
   yellowsTowardNext?: number;
+  pendingDetails?: PendingSanctionDetail[];
 }
 
 export interface GoalkeeperStat {

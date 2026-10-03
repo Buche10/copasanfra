@@ -353,7 +353,7 @@ describe('crossCategory', () => {
       expect(checkDorsal(-5)).toBe('INVALID_DORSAL');
     });
 
-    it('detecta TEAM_FULL con 20 jugadores', () => {
+    it('permite habilitacion en equipo con 20 jugadores (refuerzo no ocupa cupo)', () => {
       const fullTeamPlayers: Player[] = Array.from({ length: 20 }, (_, i) => ({
         id: `p-fill-${i}`,
         teamId: 'team-ab-1',
@@ -368,7 +368,7 @@ describe('crossCategory', () => {
         [basePlayer40, ...fullTeamPlayers],
         baseTeams
       );
-      expect(err).toBe('TEAM_FULL');
+      expect(err).toBeNull();
     });
 
     it('detecta DORSAL_TAKEN', () => {
@@ -415,6 +415,7 @@ describe('crossCategory', () => {
       expect(built.affiliation).toBe(basePlayer40.affiliation);
       expect(built.approvalStatus).toBe('APPROVED');
       expect(built.registeredAt).toBe('2026-10-02T12:00:00.000Z');
+      expect(built.reinforcementOf).toBe(basePlayer40.id);
 
       // Campos omitidos
       expect(built.photo).toBeUndefined();

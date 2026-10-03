@@ -24,6 +24,7 @@ export default defineConfig({
         'src/lib/sanctions.ts',
         'src/lib/reinforcement.ts',
         'src/lib/teamPins.ts',
+        'src/lib/roster.ts',
       ],
       thresholds: {
         lines: 80,

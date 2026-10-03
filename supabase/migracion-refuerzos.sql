@@ -259,7 +259,6 @@ declare
   v_source_name         text;
   v_source_position     text;
   v_source_affiliation  text;
-  v_player_count        int;
   v_new_id              text;
   v_iso_now             text;
   v_new_player_data     jsonb;
@@ -404,17 +403,7 @@ begin
     return jsonb_build_object('status', 'ALREADY_IN_CATEGORY');
   end if;
 
-  -- 8. Cupo del equipo destino (contando todos los registros)
-  select count(*)
-  into v_player_count
-  from public.players p
-  where p.data->>'teamId' = p_team_id;
-
-  if v_player_count >= public.max_players_for_category(v_target_category) then
-    return jsonb_build_object('status', 'TEAM_FULL');
-  end if;
-
-  -- 9. Dorsal en equipo destino (excluyendo REJECTED y validando que sea numerico)
+  -- 8. Dorsal en equipo destino (excluyendo REJECTED y validando que sea numerico)
   if exists (
     select 1
     from public.players p
@@ -426,7 +415,7 @@ begin
     return jsonb_build_object('status', 'DORSAL_TAKEN');
   end if;
 
-  -- 10. Insertar registro PENDING con reinforcementOf
+  -- 9. Insertar registro PENDING con reinforcementOf
   v_new_id := 'p-' || gen_random_uuid()::text;
   v_iso_now := to_char(now() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
 
@@ -446,7 +435,7 @@ begin
   insert into public.players (id, data)
   values (v_new_id, v_new_player_data);
 
-  -- 11. Devolver exito sin cedula
+  -- 10. Devolver exito sin cedula
   return jsonb_build_object(
     'status', 'OK',
     'player', jsonb_build_object(

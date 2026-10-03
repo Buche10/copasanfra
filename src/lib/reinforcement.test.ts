@@ -190,7 +190,7 @@ describe('validateReinforcementInput', () => {
     expect(res).toBeNull();
   });
 
-  it('rechaza cuando el equipo destino alcanzo el cupo maximo de 20 en Abierta', () => {
+  it('permite refuerzo cuando el equipo destino tiene el cupo de 20 completo en Abierta', () => {
     const players: Player[] = [];
     for (let i = 1; i <= 20; i++) {
       players.push(createMockPlayer(`p-${i}`, 't-abierta', i, `09000000${i < 10 ? '0' + i : i}`));
@@ -201,7 +201,7 @@ describe('validateReinforcementInput', () => {
       teams,
       players
     );
-    expect(res).toBe('TEAM_FULL');
+    expect(res).toBeNull();
   });
 
   it('retorna null cuando todos los datos son validos', () => {

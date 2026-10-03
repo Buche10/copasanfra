@@ -5,7 +5,7 @@ import { Player, Team, Match, User } from '@/types';
 import { TeamShield } from './TeamShield';
 import { CarnetDigital } from './CarnetDigital';
 import { X, Trophy, ShieldAlert, Award, Calendar, UserCheck, Activity, QrCode } from 'lucide-react';
-import { calculateSanctions } from '@/lib/sanctions';
+import { calculateSanctions, countDoubleYellowYellows, YELLOWS_FOR_SUSPENSION } from '@/lib/sanctions';
 
 interface PlayerProfileModalProps {
   player: Player | null;
@@ -31,8 +31,6 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
   // Compute individual stats for this player across all matches
   let totalGoals = 0;
   let penaltyGoals = 0;
-  let yellowCards = 0;
-  let redCards = 0;
   const matchesSet = new Set<string>();
 
   matches.forEach((m) => {
@@ -52,10 +50,6 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
             totalGoals += 1;
             if (ev.goalType === 'PENALTY') penaltyGoals += 1;
           }
-          if (ev.type === 'YELLOW_CARD') yellowCards += 1;
-          if (ev.type === 'RED_CARD') {
-            redCards += 1;
-          }
         }
       });
 
@@ -72,6 +66,10 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
   const playerSanction = sanctions.find((s) => s.playerId === player.id);
   const isSuspended = Boolean(playerSanction?.isSuspended);
   const suspensionReason = playerSanction?.suspensionReason || '';
+  const yellowCards = playerSanction?.yellowCards ?? 0;
+  const expulsions = playerSanction?.expulsions ?? playerSanction?.redCards ?? 0;
+  const yellowsTowardNext = playerSanction?.yellowsTowardNext ?? 0;
+  const doubleYellowsCount = countDoubleYellowYellows(player.id, matches);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn overflow-y-auto">
@@ -111,16 +109,24 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
         <div className="p-6 space-y-6">
           
           {/* Status Badge */}
-          <div className="flex items-center justify-between p-3 rounded-2xl border text-xs font-bold bg-slate-50 border-slate-200">
-            <span className="text-slate-500 font-semibold">Estado Disciplinario:</span>
-            {isSuspended ? (
-              <span className="px-3 py-1 rounded-full bg-rose-100 text-[#DC2626] font-extrabold flex items-center gap-1">
-                <ShieldAlert className="w-3.5 h-3.5" /> Suspendido ({suspensionReason})
-              </span>
-            ) : (
-              <span className="px-3 py-1 rounded-full bg-emerald-100 text-[#00A859] font-extrabold flex items-center gap-1">
-                <UserCheck className="w-3.5 h-3.5" /> Habilitado para Jugar
-              </span>
+          {/* Status Badge */}
+          <div className="p-3.5 rounded-2xl border text-xs bg-slate-50 border-slate-200 space-y-1.5">
+            <div className="flex items-center justify-between font-bold">
+              <span className="text-slate-500 font-semibold">Estado Disciplinario:</span>
+              {isSuspended ? (
+                <span className="px-3 py-1 rounded-full bg-rose-100 text-[#DC2626] font-extrabold flex items-center gap-1">
+                  <ShieldAlert className="w-3.5 h-3.5" /> Suspendido
+                </span>
+              ) : (
+                <span className="px-3 py-1 rounded-full bg-emerald-100 text-[#00A859] font-extrabold flex items-center gap-1">
+                  <UserCheck className="w-3.5 h-3.5" /> Habilitado
+                </span>
+              )}
+            </div>
+            {isSuspended && suspensionReason && (
+              <div className="pt-1.5 border-t border-rose-200/60 text-[11px] font-semibold text-rose-700 whitespace-pre-line leading-relaxed">
+                {suspensionReason}
+              </div>
             )}
           </div>
 
@@ -157,13 +163,28 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
               Historial de Tarjetas
             </h4>
             <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="flex items-center justify-between p-2.5 bg-amber-50 rounded-xl border border-amber-200 font-bold text-amber-900">
-                <span>Amarillas</span>
-                <span className="text-base font-black">{yellowCards}</span>
+              <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 space-y-1">
+                <div className="flex items-center justify-between font-bold">
+                  <span>Amarillas</span>
+                  <span className="text-base font-black">{yellowCards}</span>
+                </div>
+                <div className="text-[11px] text-amber-800 font-medium leading-tight">
+                  {yellowsTowardNext}/{YELLOWS_FOR_SUSPENSION} para suspensión por acumulación
+                  {doubleYellowsCount > 0 && (
+                    <span className="block text-[10px] text-amber-700 mt-0.5 font-normal">
+                      ({doubleYellowsCount} en dobles amarillas, no acumulan)
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center justify-between p-2.5 bg-rose-50 rounded-xl border border-rose-200 font-bold text-rose-900">
-                <span>Rojas</span>
-                <span className="text-base font-black">{redCards}</span>
+              <div className="p-2.5 bg-rose-50 rounded-xl border border-rose-200 text-rose-900 space-y-1">
+                <div className="flex items-center justify-between font-bold">
+                  <span>Expulsiones</span>
+                  <span className="text-base font-black">{expulsions}</span>
+                </div>
+                <div className="text-[11px] text-rose-700 font-medium">
+                  Rojas directas y dobles amarillas
+                </div>
               </div>
             </div>
           </div>

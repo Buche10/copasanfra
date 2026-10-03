@@ -117,9 +117,8 @@ export const MatchSheetModal: React.FC<MatchSheetModalProps> = ({
   const isManualSusp = (p: Player) => (p.suspendedRounds || []).includes(sheet.round);
   const isSusp = (p: Player) => Boolean(sanctionsMap.get(p.id)?.cardSuspended) || isManualSusp(p);
   const suspReason = (p: Player) =>
-    isManualSusp(p)
-      ? `Suspensión fecha ${sheet.round}`
-      : sanctionsMap.get(p.id)?.suspensionReason || 'Sancionado';
+    sanctionsMap.get(p.id)?.suspensionReason ||
+    (isManualSusp(p) ? `Suspensión fecha ${sheet.round}` : 'Sancionado');
 
   const suspendedHomePlayers = homePlayers.filter(isSusp);
   const suspendedAwayPlayers = awayPlayers.filter(isSusp);
