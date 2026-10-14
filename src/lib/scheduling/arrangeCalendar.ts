@@ -4,6 +4,7 @@ import { buildSharedPlayerPairs } from './sharedPlayers';
 import { buildSlotHistory, addToHistory, SlotHistory } from './fairness';
 import { generateRandomFixture, isDoubleRoundRobin } from '../fixtureGenerator';
 import { recomputePlayoffs } from '../playoffs';
+import { findCategoriesToComplete, completeCategoryMatches } from './completeCategory';
 
 export interface ArrangeInput {
   matches: Match[];
@@ -108,6 +109,26 @@ function describeCalendarMismatch(cat: Category, catTeams: Team[], catMatches: M
   }
 
   return describeRoundStructureMismatch(cat, n, regularMatches);
+}
+
+// Para una categoría ya empezada solo importa que estén todos los cruces y nadie
+// juegue dos veces en una jornada: al completarla con un equipo nuevo las
+// jornadas que quedan pueden tener menos partidos, y eso es correcto.
+function describeStartedCategoryMismatch(cat: Category, catTeams: Team[], catMatches: Match[]): string | null {
+  const regularMatches = catMatches.filter((m) => !m.isPlayoff);
+  const teamProblem = describeTeamMismatch(catTeams, regularMatches);
+  if (teamProblem) return teamProblem;
+
+  const n = catTeams.length;
+  const expectedMatches = isDoubleRoundRobin(cat) ? n * (n - 1) : (n * (n - 1)) / 2;
+  if (regularMatches.length !== expectedMatches) {
+    return `tiene ${regularMatches.length} partidos de fase regular y con ${n} equipos deben ser ${expectedMatches}`;
+  }
+
+  const byRound = new Map<number, string[]>();
+  regularMatches.forEach((m) => byRound.set(m.round, [...(byRound.get(m.round) ?? []), m.homeTeamId, m.awayTeamId]));
+  const repeats = [...byRound.values()].some((ids) => new Set(ids).size !== ids.length);
+  return repeats ? 'hay equipos que juegan dos veces en la misma jornada' : null;
 }
 
 export function findCategoriesToCreate(
@@ -271,7 +292,7 @@ function findWarnings(teams: Team[], matches: Match[], activeSet: Set<Category>)
     if (catTeams.length < 2) return;
     const catMatches = matches.filter((m) => m.category === cat);
     const hasPlayed = catMatches.some((m) => m.status === 'FINISHED' || m.status === 'IN_PROGRESS');
-    const mismatch = hasPlayed ? describeCalendarMismatch(cat, catTeams, catMatches) : null;
+    const mismatch = hasPlayed ? describeStartedCategoryMismatch(cat, catTeams, catMatches) : null;
     if (mismatch) {
       warnings.push(`${cat}: ${mismatch}, pero ya tiene partidos jugados; revísalo a mano`);
     }
@@ -426,6 +447,41 @@ function replaceCreatedCategories(
   return { currentMatches, createdCategories, removedStaleMatches };
 }
 
+// Categorías que ya empezaron y a las que les faltan cruces (p. ej. un equipo
+// inscrito a mitad de temporada): se completan sin tocar lo jugado.
+function completeStartedCategories(
+  activeCategories: Category[],
+  inputMatches: Match[],
+  teams: Team[],
+  nextSat: string
+) {
+  let currentMatches = inputMatches;
+  const completedCategories: ArrangePlan['createdCategories'] = [];
+  const existingIds = new Set(inputMatches.map((m) => m.id));
+
+  for (const { category: cat, newTeams, missingMatches } of findCategoriesToComplete(
+    activeCategories,
+    teams,
+    inputMatches
+  )) {
+    const catTeams = teams.filter((t) => t.category === cat);
+    const catMatches = currentMatches.filter((m) => m.category === cat);
+    const res = completeCategoryMatches(cat, catTeams, catMatches, nextSat, existingIds);
+    currentMatches = [...currentMatches.filter((m) => m.category !== cat), ...res.matches];
+
+    const who = newTeams.length > 0 ? `equipo nuevo: ${newTeams.map((t) => t.name).join(', ')}` : 'faltaban cruces';
+    completedCategories.push({
+      category: cat,
+      rounds: res.rounds,
+      firstDate: res.firstDate,
+      matches: res.addedMatches,
+      reason: `ya empezó (${who}); se agregan ${missingMatches} partidos y se reprograman los pendientes desde el ${nextSat} sin tocar lo jugado`,
+    });
+  }
+
+  return { currentMatches, completedCategories };
+}
+
 function prepareSchedulingContext(teams: Team[], players: Player[], matches: Match[], nextSat: string) {
   const clubOf = new Map<string, string>();
   teams.forEach((t) => clubOf.set(t.id, t.clubId || t.id));
@@ -451,7 +507,9 @@ export function planCalendarArrangement(input: ArrangeInput): ArrangePlan {
   const toCreate = findCategoriesToCreate(input.activeCategories, input.teams, input.matches, nextSat);
 
   const init = replaceCreatedCategories(toCreate, input.matches, input.teams, input.players, nextSat, input.rng);
-  const clearedRes = clearInactiveFutureMatches(init.currentMatches, activeSet, nextSat);
+  const completed = completeStartedCategories(input.activeCategories, init.currentMatches, input.teams, nextSat);
+  const createdCategories = [...init.createdCategories, ...completed.completedCategories];
+  const clearedRes = clearInactiveFutureMatches(completed.currentMatches, activeSet, nextSat);
   const matchesToSchedule = clearedRes.matches;
 
   const { clubOf, sharedPairs, history, byDate } = prepareSchedulingContext(
@@ -490,8 +548,8 @@ export function planCalendarArrangement(input: ArrangeInput): ArrangePlan {
     matches: finalMatches,
     baseMatches: input.matches,
     startDate: nextSat,
-    categoriesToCreate: init.createdCategories.map((c) => c.category),
-    createdCategories: init.createdCategories,
+    categoriesToCreate: createdCategories.map((c) => c.category),
+    createdCategories,
     removedStaleMatches: init.removedStaleMatches,
     retimedMatches: futureRes.retimedMatches,
     clearedMatches: clearedRes.clearedCount,

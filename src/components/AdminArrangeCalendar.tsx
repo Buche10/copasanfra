@@ -53,7 +53,7 @@ const CreatedCategoriesAlert: React.FC<CreatedCategoriesProps> = ({ categories }
     <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-1.5 text-emerald-900">
       <div className="flex items-center gap-2 font-bold uppercase tracking-wider text-emerald-800 text-[11px]">
         <PlusCircle className="w-4 h-4 text-[#00A859] shrink-0" />
-        <span>Categorias nuevas a programar ({categories.length})</span>
+        <span>Categorias a programar ({categories.length})</span>
       </div>
       {categories.map((c) => (
         <div key={c.category} className="text-xs">

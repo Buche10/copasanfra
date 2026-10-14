@@ -217,9 +217,10 @@ describe('findCategoriesToCreate - estructura de jornadas (Brief 14)', () => {
     expect(res[0].reason).toContain('dos veces en la misma jornada');
   });
 
-  it('con un partido jugado no regenera y avisa en warnings', () => {
+  it('con un partido jugado no regenera y avisa si sobran partidos', () => {
     const played = realCase.map((m, i) => (i === 0 ? { ...m, date: '2026-09-26', status: 'FINISHED' as const } : m));
     expect(findCategoriesToCreate(['+50 Varones'], teams50, played, nextSat)).toEqual([]);
+    played.push(createMatch('extra', '+50 Varones', '2026-12-05', 'akd50', 'ami', { round: 11 }));
     const plan = planCalendarArrangement({
       matches: played,
       teams: teams50,
@@ -490,5 +491,87 @@ describe('planCalendarArrangement - Simulacion del torneo', () => {
     });
 
     expect(plan.warnings.some((w) => w.includes('Equipo Solitario'))).toBe(true);
+  });
+});
+
+describe('planCalendarArrangement - equipo nuevo en categoria ya empezada', () => {
+  const ids50 = ['akd50', 'ami', 'iura', 'cefna'];
+  const teams50 = [...ids50, 'admin'].map((id) => createTeam(id, id.toUpperCase(), '+50 Varones'));
+  // 4 equipos a doble vuelta desde el 2026-09-12: jornadas 1-6 + final (jornada 7).
+  const base = fixtureMatches('+50 Varones', roundRobin(ids50, true), '2026-09-12');
+  // Jugadas las 5 primeras jornadas (hasta el 2026-10-10); la 6 sigue pendiente. Hoy es 2026-10-14.
+  const played = base.map((m) =>
+    m.round <= 5 ? { ...m, status: 'FINISHED' as const, homeScore: 1, awayScore: 0 } : m
+  );
+  const final = createMatch('final', '+50 Varones', '2026-10-24', 'akd50', 'ami', {
+    round: 7,
+    isPlayoff: true,
+    playoffStage: 'FINAL',
+    bracketSlot: 'F',
+  });
+  const matches = [...played, final];
+  const input: ArrangeInput = {
+    matches,
+    teams: teams50,
+    players: [],
+    activeCategories: ['+50 Varones'],
+    today: '2026-10-14',
+  };
+
+  it('programa los 8 partidos del equipo nuevo sin tocar lo jugado', () => {
+    const plan = planCalendarArrangement(input);
+    const out = plan.matches.filter((m) => m.category === '+50 Varones');
+    const regular = out.filter((m) => !m.isPlayoff);
+
+    expect(regular).toHaveLength(20);
+    const adminMatches = regular.filter((m) => m.homeTeamId === 'admin' || m.awayTeamId === 'admin');
+    expect(adminMatches).toHaveLength(8);
+    // Juega dos veces (ida y vuelta, una de local) contra cada rival.
+    ids50.forEach((id) => {
+      const vs = adminMatches.filter((m) => m.homeTeamId === id || m.awayTeamId === id);
+      expect(vs).toHaveLength(2);
+      expect(vs.filter((m) => m.homeTeamId === 'admin')).toHaveLength(1);
+    });
+
+    // Lo jugado queda igual.
+    played
+      .filter((m) => m.status === 'FINISHED')
+      .forEach((m) => expect(out.find((o) => o.id === m.id)).toEqual(m));
+
+    // Todo lo pendiente va desde el proximo sabado, con hora y cancha, y nadie juega dos veces el mismo dia.
+    const pending = regular.filter((m) => m.status === 'SCHEDULED');
+    pending.forEach((m) => {
+      expect(m.date >= '2026-10-17').toBe(true);
+      expect(m.time).not.toBe('');
+      expect(m.stadium).not.toBe('');
+    });
+    const byDate = new Map<string, string[]>();
+    pending.forEach((m) => byDate.set(m.date, [...(byDate.get(m.date) ?? []), m.homeTeamId, m.awayTeamId]));
+    byDate.forEach((ids) => expect(new Set(ids).size).toBe(ids.length));
+
+    // La final queda despues de la ultima jornada regular.
+    const lastRegular = pending.reduce((d, m) => (m.date > d ? m.date : d), '');
+    const outFinal = out.find((m) => m.id === 'final')!;
+    expect(outFinal.date > lastRegular).toBe(true);
+
+    expect(plan.createdCategories.map((c) => c.category)).toEqual(['+50 Varones']);
+    expect(plan.createdCategories[0].reason).toContain('ADMIN');
+    expect(plan.warnings).toEqual([]);
+  });
+
+  it('una vez aplicado, no vuelve a cambiar nada', () => {
+    const first = planCalendarArrangement(input);
+    const second = planCalendarArrangement({ ...input, matches: first.matches });
+    expect(second.createdCategories).toEqual([]);
+    expect(second.warnings).toEqual([]);
+  });
+
+  it('con toda la fase regular jugada, el equipo nuevo juega un partido por sabado', () => {
+    const allPlayed = base.map((m) => ({ ...m, status: 'FINISHED' as const, homeScore: 1, awayScore: 0 }));
+    const plan = planCalendarArrangement({ ...input, matches: [...allPlayed, final] });
+    const added = plan.matches.filter((m) => !m.isPlayoff && m.status === 'SCHEDULED');
+    expect(added).toHaveLength(8);
+    expect(new Set(added.map((m) => m.date)).size).toBe(8);
+    expect(added.every((m) => m.homeTeamId === 'admin' || m.awayTeamId === 'admin')).toBe(true);
   });
 });
