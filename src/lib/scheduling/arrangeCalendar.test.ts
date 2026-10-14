@@ -575,3 +575,88 @@ describe('planCalendarArrangement - equipo nuevo en categoria ya empezada', () =
     expect(added.every((m) => m.homeTeamId === 'admin' || m.awayTeamId === 'admin')).toBe(true);
   });
 });
+
+describe('planCalendarArrangement - fecha suspendida por feriado y "en vivo" por error', () => {
+  const ids50 = ['iura', 'ami', 'akd', 'cefna'];
+  const teams50 = [...ids50, 'admin'].map((id) => createTeam(id, id.toUpperCase(), '+50 Varones'));
+  // Caso real: jornada 1 jugada el 2026-10-03; la 2 (2026-10-10) no se jugo por
+  // feriado; los dos partidos de la jornada 5 (2026-10-31) quedaron "en vivo" 0-0.
+  const base = fixtureMatches('+50 Varones', roundRobin(ids50, true), '2026-10-03').map((m) => {
+    if (m.round === 1) return { ...m, status: 'FINISHED' as const, homeScore: 2, awayScore: 1 };
+    if (m.round === 5) return { ...m, status: 'IN_PROGRESS' as const };
+    return m;
+  });
+  const final = createMatch('final', '+50 Varones', '2026-11-14', 'iura', 'ami', {
+    round: 7,
+    isPlayoff: true,
+    playoffStage: 'FINAL',
+    bracketSlot: 'F',
+  });
+  const input: ArrangeInput = {
+    matches: [...base, final],
+    teams: teams50,
+    players: [],
+    activeCategories: ['+50 Varones'],
+    today: '2026-10-14',
+  };
+
+  it('reprograma la fecha suspendida desde el proximo sabado con el equipo nuevo jugando', () => {
+    const plan = planCalendarArrangement(input);
+    const regular = plan.matches.filter((m) => !m.isPlayoff);
+    expect(regular).toHaveLength(20);
+
+    // La jornada 1 jugada queda igual.
+    base.filter((m) => m.round === 1).forEach((m) => expect(plan.matches.find((o) => o.id === m.id)).toEqual(m));
+
+    // Nada queda pendiente en el pasado ni "en vivo".
+    const pending = regular.filter((m) => m.status !== 'FINISHED');
+    expect(pending).toHaveLength(18);
+    pending.forEach((m) => {
+      expect(m.status).toBe('SCHEDULED');
+      expect(m.date >= '2026-10-17').toBe(true);
+    });
+
+    // Jornada 2 el 2026-10-17, con el equipo nuevo y un partido de la fecha suspendida.
+    const j2 = regular.filter((m) => m.round === 2);
+    expect(j2).toHaveLength(2);
+    j2.forEach((m) => expect(m.date).toBe('2026-10-17'));
+    expect(j2.some((m) => m.homeTeamId === 'admin' || m.awayTeamId === 'admin')).toBe(true);
+    const suspended = base.filter((m) => m.round === 2).map((m) => m.id);
+    expect(j2.some((m) => suspended.includes(m.id))).toBe(true);
+
+    // Jornadas consecutivas 2..10, una por sabado, dos partidos y nadie repite.
+    const rounds = [...new Set(regular.map((m) => m.round))].sort((a, b) => a - b);
+    expect(rounds).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    rounds.slice(1).forEach((r) => {
+      const ms = regular.filter((m) => m.round === r);
+      expect(new Set(ms.map((m) => m.date)).size).toBe(1);
+      expect(ms).toHaveLength(2);
+      const ids = ms.flatMap((m) => [m.homeTeamId, m.awayTeamId]);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+    expect(new Set(pending.map((m) => m.date)).size).toBe(9);
+
+    const outFinal = plan.matches.find((m) => m.id === 'final')!;
+    expect(outFinal.date).toBe('2026-12-19');
+    expect(plan.warnings).toEqual([]);
+    expect(plan.createdCategories[0].reason).toContain('no se jugó la jornada 2');
+  });
+
+  it('una vez aplicado, no vuelve a cambiar nada', () => {
+    const first = planCalendarArrangement(input);
+    const second = planCalendarArrangement({ ...input, matches: first.matches });
+    expect(second.createdCategories).toEqual([]);
+  });
+
+  it('un partido "en vivo" con goles cargados no se toca', () => {
+    const withGoal = input.matches.map((m) => (m.round === 5 && !m.isPlayoff ? { ...m, homeScore: 1 } : m));
+    const plan = planCalendarArrangement({ ...input, matches: withGoal });
+    withGoal
+      .filter((m) => m.round === 5 && !m.isPlayoff)
+      .forEach((m) => {
+        const out = plan.matches.find((o) => o.id === m.id)!;
+        expect(out.status).toBe('IN_PROGRESS');
+        expect(out.date).toBe('2026-10-31');
+      });
+  });
+});
