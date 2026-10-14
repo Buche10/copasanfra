@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { restingTeamIds } from './resting';
+import { restingTeamIds, nextRoundToPlay } from './resting';
 import { Match } from '@/types';
 
 const match = (round: number, homeTeamId: string, awayTeamId: string): Match => ({
@@ -46,5 +46,19 @@ describe('restingTeamIds', () => {
     expect(restingTeamIds(lateJoin, 3)).toEqual([]);
     expect(restingTeamIds(lateJoin, 4).sort()).toEqual(['b', 'c', 'd']);
     expect(restingTeamIds(lateJoin, 5).sort()).toEqual(['a', 'c', 'd']);
+  });
+});
+
+describe('nextRoundToPlay', () => {
+  const done = (m: Match): Match => ({ ...m, status: 'FINISHED' });
+
+  it('abre en la primera jornada con partidos por jugar', () => {
+    const ms = [done(match(1, 'a', 'b')), done(match(1, 'c', 'd')), match(2, 'a', 'c'), done(match(2, 'b', 'd')), match(3, 'a', 'd')];
+    expect(nextRoundToPlay(ms)).toBe(2);
+  });
+
+  it('con todo jugado abre en la ultima, y sin partidos devuelve null', () => {
+    expect(nextRoundToPlay([done(match(1, 'a', 'b')), done(match(2, 'a', 'c'))])).toBe(2);
+    expect(nextRoundToPlay([])).toBeNull();
   });
 });

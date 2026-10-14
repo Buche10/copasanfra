@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Match, Team, Player } from '@/types';
 import { TeamShield } from './TeamShield';
-import { restingTeamIds } from '@/lib/resting';
+import { restingTeamIds, nextRoundToPlay } from '@/lib/resting';
 import { MatchDetailModal } from './MatchDetailModal';
 import { MatchEditModal } from './MatchEditModal';
 import { Calendar, MapPin, ChevronRight, ChevronLeft, Edit3, Trophy, ListOrdered, Clock, Coffee } from 'lucide-react';
@@ -30,7 +30,7 @@ export const FixtureView: React.FC<FixtureViewProps> = ({
   onUpdateMatch,
 }) => {
   const [phase, setPhase] = useState<'REGULAR' | 'PLAYOFFS'>('REGULAR');
-  const [selectedRound, setSelectedRound] = useState<number>(1);
+  const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'FINISHED' | 'IN_PROGRESS' | 'SCHEDULED'>('ALL');
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
@@ -44,7 +44,9 @@ export const FixtureView: React.FC<FixtureViewProps> = ({
   // Regular-season rounds
   const rounds = Array.from(new Set(regularMatches.map((m) => m.round))).sort((a, b) => a - b);
   if (rounds.length === 0) rounds.push(1);
-  const effectiveRound = rounds.includes(selectedRound) ? selectedRound : rounds[0];
+  // Sin elegir, se abre en la próxima jornada por jugar (no en la 1).
+  const effectiveRound =
+    selectedRound !== null && rounds.includes(selectedRound) ? selectedRound : nextRoundToPlay(regularMatches) ?? rounds[0];
 
   // Todos los partidos de la jornada (sin filtro de estado) — para fecha,
   // conteo y cálculo de quién descansa.
