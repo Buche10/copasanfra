@@ -459,23 +459,29 @@ function completeStartedCategories(
   const completedCategories: ArrangePlan['createdCategories'] = [];
   const existingIds = new Set(inputMatches.map((m) => m.id));
 
-  for (const { category: cat, newTeams, missingMatches } of findCategoriesToComplete(
-    activeCategories,
-    teams,
-    inputMatches
-  )) {
+  for (const c of findCategoriesToComplete(activeCategories, teams, inputMatches, nextSat)) {
+    const cat = c.category;
     const catTeams = teams.filter((t) => t.category === cat);
     const catMatches = currentMatches.filter((m) => m.category === cat);
     const res = completeCategoryMatches(cat, catTeams, catMatches, nextSat, existingIds);
     currentMatches = [...currentMatches.filter((m) => m.category !== cat), ...res.matches];
 
-    const who = newTeams.length > 0 ? `equipo nuevo: ${newTeams.map((t) => t.name).join(', ')}` : 'faltaban cruces';
+    const why: string[] = [];
+    if (c.newTeams.length > 0) why.push(`equipo nuevo: ${c.newTeams.map((t) => t.name).join(', ')}`);
+    else if (c.missingMatches > 0) why.push('faltaban cruces');
+    if (c.postponedRounds.length > 0) {
+      why.push(`no se jugó la jornada ${c.postponedRounds.join(', ')}`);
+    }
+    if (c.falseLiveMatches > 0) {
+      why.push(`${c.falseLiveMatches} partidos de fechas futuras estaban "en vivo" sin goles; vuelven a Por Jugar`);
+    }
+    const added = c.missingMatches > 0 ? `se agregan ${c.missingMatches} partidos y ` : '';
     completedCategories.push({
       category: cat,
       rounds: res.rounds,
       firstDate: res.firstDate,
-      matches: res.addedMatches,
-      reason: `ya empezó (${who}); se agregan ${missingMatches} partidos y se reprograman los pendientes desde el ${nextSat} sin tocar lo jugado`,
+      matches: res.matches.filter((m) => !m.isPlayoff && m.status === 'SCHEDULED' && m.date >= nextSat).length,
+      reason: `ya empezó (${why.join('; ')}); ${added}se reprograman los pendientes desde el ${nextSat} sin tocar lo jugado`,
     });
   }
 
