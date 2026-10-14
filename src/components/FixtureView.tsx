@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Match, Team, Player } from '@/types';
 import { TeamShield } from './TeamShield';
+import { restingTeamIds } from '@/lib/resting';
 import { MatchDetailModal } from './MatchDetailModal';
 import { MatchEditModal } from './MatchEditModal';
 import { Calendar, MapPin, ChevronRight, ChevronLeft, Edit3, Trophy, ListOrdered, Clock, Coffee } from 'lucide-react';
@@ -58,18 +59,7 @@ export const FixtureView: React.FC<FixtureViewProps> = ({
 
   // Equipos de la categoría que NO juegan esta jornada (descansan). Ocurre en
   // categorías con número impar de equipos.
-  const categoryTeamIds = new Set<string>();
-  regularMatches.forEach((m) => {
-    if (m.homeTeamId) categoryTeamIds.add(m.homeTeamId);
-    if (m.awayTeamId) categoryTeamIds.add(m.awayTeamId);
-  });
-  const playingIds = new Set<string>();
-  roundMatchesAll.forEach((m) => {
-    if (m.homeTeamId) playingIds.add(m.homeTeamId);
-    if (m.awayTeamId) playingIds.add(m.awayTeamId);
-  });
-  const restingTeams = [...categoryTeamIds]
-    .filter((id) => !playingIds.has(id))
+  const restingTeams = restingTeamIds(regularMatches, effectiveRound)
     .map((id) => teamMap.get(id))
     .filter(Boolean) as Team[];
 
