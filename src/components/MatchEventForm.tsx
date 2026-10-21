@@ -34,6 +34,7 @@ export const MatchEventForm: React.FC<MatchEventFormProps> = ({
   const [eventPlayerId, setEventPlayerId] = useState<string>(editingEvent?.playerId || '');
   const [eventMinute, setEventMinute] = useState<number>(editingEvent?.minute ?? 15);
   const [goalType, setGoalType] = useState<GoalType>(editingEvent?.goalType || 'REGULAR');
+  const [isDoubleYellow, setIsDoubleYellow] = useState<boolean>(Boolean(editingEvent?.isDoubleYellow));
   const [cardReason, setCardReason] = useState<CardReason>(
     editingEvent?.cardReason || 'UNSPORTING'
   );
@@ -59,6 +60,7 @@ export const MatchEventForm: React.FC<MatchEventFormProps> = ({
       goalType: eventType === 'GOAL' ? goalType : undefined,
       cardReason:
         eventType === 'YELLOW_CARD' || eventType === 'RED_CARD' ? cardReason : undefined,
+      isDoubleYellow: eventType === 'RED_CARD' && isDoubleYellow ? true : undefined,
     };
 
     onSaveEvent(ev);
@@ -104,13 +106,18 @@ export const MatchEventForm: React.FC<MatchEventFormProps> = ({
         <div>
           <label className="block text-xs font-bold text-slate-600 mb-1">Tipo de Evento</label>
           <select
-            value={eventType}
-            onChange={(e) => setEventType(e.target.value as EventType)}
+            value={eventType === 'RED_CARD' && isDoubleYellow ? 'RED_CARD_DOUBLE' : eventType}
+            onChange={(e) => {
+              const v = e.target.value;
+              setIsDoubleYellow(v === 'RED_CARD_DOUBLE');
+              setEventType((v === 'RED_CARD_DOUBLE' ? 'RED_CARD' : v) as EventType);
+            }}
             className="w-full bg-white text-slate-900 font-bold text-xs p-3 rounded-xl border border-slate-300"
           >
             <option value="GOAL">Gol Anotado</option>
             <option value="YELLOW_CARD">Tarjeta Amarilla</option>
-            <option value="RED_CARD">Tarjeta Roja Directa</option>
+            <option value="RED_CARD">Tarjeta Roja Directa (2 fechas)</option>
+            <option value="RED_CARD_DOUBLE">Roja por Doble Amarilla (1 fecha)</option>
           </select>
         </div>
 

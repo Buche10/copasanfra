@@ -49,7 +49,9 @@ export const MatchEventsList: React.FC<MatchEventsListProps> = ({
                 : ev.type === 'YELLOW_CARD'
                 ? 'Tarjeta Amarilla'
                 : ev.type === 'RED_CARD'
-                ? 'Tarjeta Roja'
+                ? ev.isDoubleYellow
+                  ? 'Roja (doble amarilla)'
+                  : 'Roja directa'
                 : 'Cambio';
 
             return (
