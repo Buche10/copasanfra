@@ -83,23 +83,28 @@ describe('findUnfilledCourtDays', () => {
 
 describe('planCalendarArrangement y aviso de canchas vacias', () => {
   it('avisa cuando el dueno obliga a usar mas turnos de los necesarios', () => {
+    // Dos categorias completas de 2 equipos (un solo cruce cada una), ambas con AKD.
     const teams = [
-      createTeam('akd-1', 'Abierta Varones', 'club-akd'),
-      createTeam('akd-2', 'Abierta Varones', 'club-akd'),
-      createTeam('r1', 'Abierta Varones'),
-      createTeam('r2', 'Abierta Varones'),
+      createTeam('akd-ab', 'Abierta Varones', 'club-akd'),
+      createTeam('r-ab', 'Abierta Varones'),
+      createTeam('akd-40', '+40 Varones', 'club-akd'),
+      createTeam('r-40', '+40 Varones'),
     ];
     const matches = [
-      createMatch('m-played', '2026-09-26', '08:00', { homeTeamId: 'akd-1', awayTeamId: 'akd-2', status: 'FINISHED' }),
-      createMatch('m1', '2026-10-03', '08:00', { homeTeamId: 'akd-1', awayTeamId: 'r1' }),
-      createMatch('m2', '2026-10-03', '08:00', { homeTeamId: 'akd-2', awayTeamId: 'r2', stadium: 'Cancha 2' }),
+      createMatch('m1', '2026-10-03', '08:00', { homeTeamId: 'akd-ab', awayTeamId: 'r-ab' }),
+      createMatch('m2', '2026-10-03', '08:00', {
+        homeTeamId: 'akd-40',
+        awayTeamId: 'r-40',
+        category: '+40 Varones',
+        stadium: 'Cancha 2',
+      }),
     ];
 
     const plan = planCalendarArrangement({
       matches,
       teams,
       players: [],
-      activeCategories: ['Abierta Varones'],
+      activeCategories: ['Abierta Varones', '+40 Varones'],
       today: '2026-09-30',
     });
 
