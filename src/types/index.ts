@@ -145,9 +145,14 @@ export function maxPlayersForCategory(category: Category | undefined): number {
 
 export const CANCHAS = ['Cancha 1', 'Cancha 2'] as const;
 export const STADIUMS = CANCHAS;
-export const MATCH_TIME_SLOTS = ['08:00', '09:10', '10:20', '11:30', '12:40', '13:50', '15:00', '16:10'] as const;
-// Turnos de 75 minutos usados hasta el 2026-10-17; los partidos jugados conservan estas horas.
-export const LEGACY_MATCH_TIME_SLOTS = ['08:00', '09:15', '10:30', '11:45', '13:00', '14:15', '15:30', '16:45'] as const;
+// El ultimo partido empieza como maximo a las 15:00: 7 turnos x 2 canchas = 14 partidos por dia.
+export const MATCH_TIME_SLOTS = ['08:00', '09:10', '10:20', '11:30', '12:40', '13:50', '15:00'] as const;
+// Turnos anteriores que pueden seguir en partidos ya guardados: los de 75 minutos (hasta
+// el 2026-10-17) y los de 70 minutos con un octavo turno a las 16:10 (2026-10-21).
+export const LEGACY_MATCH_TIME_SLOTS: readonly (readonly string[])[] = [
+  ['08:00', '09:15', '10:30', '11:45', '13:00', '14:15', '15:30', '16:45'],
+  ['08:00', '09:10', '10:20', '11:30', '12:40', '13:50', '15:00', '16:10'],
+];
 export const MATCH_TIMES = MATCH_TIME_SLOTS;
 
 export type PaymentMethod = 'EFECTIVO' | 'TRANSFERENCIA';

@@ -1,4 +1,4 @@
-import { ScoreContext, computeScore } from './score';
+import { ScoreContext, computeScore, firstSlotLimit, SCORE_WEIGHTS } from './score';
 
 export interface FullScheduleResult {
   matchSlot: number[];
@@ -17,6 +17,9 @@ interface SearchState {
   matchSlot: number[];
   slotMatches: number[][];
   maxFree: number;
+  restPairs: number;
+  firstSlotMatches: ReadonlySet<number>;
+  firstSlotLimit: number;
   nodes: number;
   nodeLimit: number;
   solutionsLeft: number;
@@ -48,32 +51,23 @@ function buildClubIndex(ctx: ScoreContext): { matchClubs: number[][]; clubMatche
 }
 
 /**
- * Indica si los partidos sin colocar del dueno aun pueden cerrar los huecos
- * que superan maxFree entre sus partidos ya colocados.
+ * Pares nuevos sin descanso (jugadores compartidos en turnos seguidos) al colocar el partido.
  */
-function ownerStillFeasible(st: SearchState, club: number): boolean {
-  const slots: number[] = [];
-  let unplaced = 0;
-  for (const m of st.clubMatches[club]) {
-    if (st.matchSlot[m] === -1) unplaced += 1;
-    else slots.push(st.matchSlot[m]);
+function newRestPairs(st: SearchState, mIdx: number, s: number): number {
+  const { n, shareMatrix } = st.ctx;
+  let pairs = 0;
+  for (let j = 0; j < n; j++) {
+    const sj = st.matchSlot[j];
+    if (sj !== -1 && j !== mIdx && Math.abs(sj - s) === 1 && shareMatrix[mIdx * n + j]) pairs += 1;
   }
-  slots.sort((a, b) => a - b);
-  let needed = 0;
-  for (let i = 1; i < slots.length; i++) {
-    const free = slots[i] - slots[i - 1] - 1;
-    if (free > st.maxFree) needed += Math.ceil((free - st.maxFree) / (st.maxFree + 1));
-  }
-  return needed <= unplaced;
+  return pairs;
 }
 
 function conflictsWithPlaced(st: SearchState, mIdx: number, s: number): boolean {
-  const { n, linkedMatrix, shareMatrix } = st.ctx;
+  if (st.firstSlotMatches.has(mIdx) && s >= st.firstSlotLimit) return true;
+  const { n, linkedMatrix } = st.ctx;
   for (let j = 0; j < n; j++) {
-    const sj = st.matchSlot[j];
-    if (sj === -1 || j === mIdx) continue;
-    if (sj === s && linkedMatrix[mIdx * n + j]) return true;
-    if (Math.abs(sj - s) === 1 && shareMatrix[mIdx * n + j]) return true;
+    if (st.matchSlot[j] === s && j !== mIdx && linkedMatrix[mIdx * n + j]) return true;
   }
   return false;
 }
@@ -91,25 +85,59 @@ function recordSolution(st: SearchState): void {
 }
 
 /**
- * Costo de colocar el partido en el turno respecto a lo ya colocado: equidad, descanso
- * exacto de un turno con jugadores compartidos y cercania con los otros partidos del dueno.
+ * Costo de colocar el partido en el turno respecto a lo ya colocado: equidad, hora de
+ * descanso con jugadores compartidos y cercania con los otros partidos del dueno.
  */
 function placementCost(st: SearchState, mIdx: number, s: number): number {
   const { n, slotCount, shareMatrix, costTable } = st.ctx;
   let cost = costTable[mIdx * slotCount + s];
   for (let j = 0; j < n; j++) {
     const sj = st.matchSlot[j];
-    if (sj === -1 || j === mIdx) continue;
-    if (shareMatrix[mIdx * n + j]) cost += Math.abs(Math.abs(s - sj) - 2) * 1000;
+    if (sj === -1 || j === mIdx || !shareMatrix[mIdx * n + j]) continue;
+    const dist = Math.abs(s - sj);
+    cost += (dist === 1 ? SCORE_WEIGHTS.REST : 0) + Math.abs(dist - 2) * SCORE_WEIGHTS.SOFT;
   }
   for (const c of st.matchClubs[mIdx]) {
     for (const j of st.clubMatches[c]) {
       const sj = st.matchSlot[j];
-      if (sj === -1 || j === mIdx || shareMatrix[mIdx * n + j]) continue;
-      cost += Math.max(0, Math.abs(s - sj) - 1) * 1000;
+      if (sj === -1 || j === mIdx) continue;
+      const free = Math.abs(s - sj) - 1;
+      cost += Math.max(0, free - st.maxFree) * SCORE_WEIGHTS.OWNER_GAP + Math.max(0, free) * SCORE_WEIGHTS.SOFT;
     }
   }
   return cost;
+}
+
+/**
+ * Cota inferior de turnos libres de mas por dueno: con k partidos repartidos en un tramo
+ * de W turnos hay al menos W - k - (k - 1) * maxFree turnos libres por encima del maximo.
+ */
+function ownerGapLowerBound(st: SearchState): number {
+  let bound = 0;
+  for (const group of st.clubMatches) {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const m of group) {
+      const s = st.matchSlot[m];
+      if (s === -1) continue;
+      min = Math.min(min, s);
+      max = Math.max(max, s);
+    }
+    if (max < min) continue;
+    const k = group.length;
+    bound += Math.max(0, max - min + 1 - k - (k - 1) * st.maxFree);
+  }
+  return bound;
+}
+
+/**
+ * Poda: si la rama ya acumula mas pares sin descanso y turnos libres de mas del dueno
+ * que el score de la mejor solucion, no puede mejorarla.
+ */
+function cannotBeatBest(st: SearchState, restPairs: number): boolean {
+  if (st.best === null) return false;
+  const bound = restPairs * SCORE_WEIGHTS.REST + ownerGapLowerBound(st) * SCORE_WEIGHTS.OWNER_GAP;
+  return bound >= st.best.score;
 }
 
 function orderedCandidates(st: SearchState, mIdx: number): number[] {
@@ -129,9 +157,12 @@ function search(st: SearchState, depth: number): void {
   }
   const mIdx = st.order[depth];
   for (const s of orderedCandidates(st, mIdx)) {
+    const added = newRestPairs(st, mIdx, s);
     st.matchSlot[mIdx] = s;
     st.slotMatches[s].push(mIdx);
-    if (st.matchClubs[mIdx].every((c) => ownerStillFeasible(st, c))) search(st, depth + 1);
+    st.restPairs += added;
+    if (!cannotBeatBest(st, st.restPairs)) search(st, depth + 1);
+    st.restPairs -= added;
     st.slotMatches[s].pop();
     st.matchSlot[mIdx] = -1;
     if (st.solutionsLeft <= 0 || st.nodes >= st.nodeLimit) return;
@@ -139,22 +170,25 @@ function search(st: SearchState, depth: number): void {
 }
 
 /**
- * Primero los partidos mas restringidos (mas partidos vinculados); empates al azar.
+ * Primero los partidos de primer turno y luego los mas restringidos (mas partidos
+ * vinculados); empates al azar.
  */
 function buildOrder(ctx: ScoreContext, rng: () => number): number[] {
+  const firstSlot = new Set(ctx.firstSlotMatches ?? []);
   const degree = Array.from({ length: ctx.n }, (_, i) => {
-    let d = 0;
+    let d = firstSlot.has(i) ? ctx.n : 0;
     for (let j = 0; j < ctx.n; j++) if (j !== i && ctx.linkedMatrix[i * ctx.n + j]) d += 1;
     return d + rng() * 0.5;
   });
   return Array.from({ length: ctx.n }, (_, i) => i).sort((a, b) => degree[b] - degree[a]);
 }
 
-// Limites de la busqueda: con 16 partidos como maximo por fecha, 6 reinicios de 8.000 nodos
-// encuentran solucion en las fechas reales en pocos milisegundos y acotan el peor caso.
+// Limites de la busqueda: con 14 partidos como maximo por fecha, 6 reinicios de 40.000 nodos
+// llegan al optimo de turnos libres por dueno en las fechas reales (octubre y noviembre de
+// 2026) en unos 30 ms por fecha y acotan el peor caso.
 const DEFAULT_RESTARTS = 6;
-const DEFAULT_NODE_LIMIT = 8_000;
-const DEFAULT_MAX_SOLUTIONS = 8;
+const DEFAULT_NODE_LIMIT = 40_000;
+const DEFAULT_MAX_SOLUTIONS = 50;
 // Reinicios sin ninguna solucion tras los que se da la fecha por imposible.
 const MAX_FAILED_RESTARTS = 2;
 
@@ -163,7 +197,8 @@ function runSearch(
   capacity: number[],
   rng: () => number,
   nodeLimit: number,
-  maxSolutions: number
+  maxSolutions: number,
+  incumbent: FullScheduleResult | null
 ): { best: FullScheduleResult | null; exhausted: boolean } {
   const { matchClubs, clubMatches } = buildClubIndex(ctx);
   const st: SearchState = {
@@ -177,10 +212,14 @@ function runSearch(
     matchSlot: new Array(ctx.n).fill(-1),
     slotMatches: Array.from({ length: ctx.slotCount }, () => []),
     maxFree: ctx.maxOwnerFreeSlots ?? 1,
+    restPairs: 0,
+    firstSlotMatches: new Set(ctx.firstSlotMatches ?? []),
+    firstSlotLimit: firstSlotLimit(ctx),
     nodes: 0,
     nodeLimit,
     solutionsLeft: maxSolutions,
-    best: null,
+    // La mejor solucion de reinicios anteriores sirve de cota para podar desde el inicio.
+    best: incumbent,
   };
   search(st, 0);
   // Agotada: recorrio todo el espacio sin cortar por limite de nodos ni de soluciones.
@@ -229,8 +268,8 @@ function improveBySwaps(ctx: ScoreContext, start: FullScheduleResult, maxRounds 
 
 /**
  * Busca por backtracking un horario con el minimo de turnos y canchas llenas que cumpla
- * las reglas duras: vinculados nunca a la vez, compartidos nunca seguidos y como maximo
- * maxOwnerFreeSlots turnos libres entre partidos seguidos del mismo dueno.
+ * las reglas obligatorias (vinculados nunca a la vez, +50 en el primer turno) y que deje
+ * la menor cantidad de jugadores compartidos sin hora de descanso.
  * Cada turno candidato se prueba del mas barato al mas caro; hace varios reinicios con
  * distinto orden, mejora la mejor solucion con intercambios y la devuelve, o null si no
  * encontro ninguna.
@@ -246,7 +285,7 @@ export function findFullSchedule(
   if (!capacity || ctx.n === 0) return null;
   let best: FullScheduleResult | null = null;
   for (let r = 0; r < restarts; r++) {
-    const { best: found, exhausted } = runSearch(ctx, capacity, rng, nodeLimit, maxSolutions);
+    const { best: found, exhausted } = runSearch(ctx, capacity, rng, nodeLimit, maxSolutions, best);
     if (found && (!best || found.score < best.score)) best = found;
     // Sin solucion y espacio agotado: es imposible; sin solucion en varios intentos: se abandona.
     if (!best && (exhausted || r + 1 >= MAX_FAILED_RESTARTS)) break;

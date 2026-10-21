@@ -154,3 +154,11 @@ Cobertura >= 80% del código nuevo.
 - [ ] Si una fecha no se puede llenar, "Revisar cambios" lo avisa con fecha, turnos usados y hora de término.
 - [ ] Consultas SQL reconocen horas nuevas y antiguas.
 - [ ] Tests en verde (sin fallos nuevos), lint y build sin errores; cero emojis.
+
+## Cambio posterior (2026-10-21, pedido del cliente)
+Con los jugadores compartidos reales (consulta `equipos-con-jugadores-compartidos.sql`) no cabían a la vez todas las reglas. El cliente fijó estas prioridades:
+1. Obligatorias: el último partido empieza como máximo a las 15:00 (`MATCH_TIME_SLOTS` pasa a 7 turnos, 14 partidos por día); la categoría +50 juega siempre a las 08:00 (`FIRST_SLOT_CATEGORIES`); dos equipos del mismo dueño o con jugadores compartidos nunca a la vez.
+2. Canchas llenas (terminar lo antes posible).
+3. Hora de descanso para los jugadores compartidos siempre que se pueda (antes era obligatoria).
+4. Dueño con máximo 1 turno libre siempre que se pueda (antes era obligatoria).
+Los pesos están en `SCORE_WEIGHTS` (`src/lib/scheduling/score.ts`). La búsqueda exacta (`exactFill.ts`) minimiza primero los compartidos sin descanso y luego los turnos libres de más por dueño; en las fechas reales del 24-oct al 14-nov llega al mínimo posible calculado por búsqueda exhaustiva (2, 4, 2 y 1 turnos libres de más). Las horas 16:10 ya guardadas se siguen reconociendo como turno antiguo.

@@ -52,10 +52,10 @@ describe('findUnfilledCourtDays', () => {
     expect(findUnfilledCourtDays(matches, 2)).toEqual([]);
   });
 
-  it('reporta 14 partidos repartidos en 8 turnos con canchas vacias', () => {
-    const matches = dayWithSlots('2026-10-24', [0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7]);
+  it('reporta 12 partidos repartidos en 7 turnos con canchas vacias', () => {
+    const matches = dayWithSlots('2026-10-24', [0, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 6]);
     expect(findUnfilledCourtDays(matches, 2)).toEqual([
-      { date: '2026-10-24', usedSlots: 8, minSlots: 7, emptyCells: 2, lastSlot: 7 },
+      { date: '2026-10-24', usedSlots: 7, minSlots: 6, emptyCells: 2, lastSlot: 6 },
     ]);
   });
 

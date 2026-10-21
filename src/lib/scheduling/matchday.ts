@@ -2,11 +2,14 @@ import { Category } from '@/types';
 import { SlotHistory, fairnessCost } from './fairness';
 import { sharesPlayers } from './sharedPlayers';
 import { shuffleWith } from './random';
-import { computeScore, computeCanchasLlenas, ScoreContext } from './score';
+import { computeScore, firstSlotLimit, ScoreContext, SCORE_WEIGHTS } from './score';
 import { compactSchedule, scoreWithoutCompact } from './compact';
 import { findFullSchedule } from './exactFill';
 
 export const MAX_OWNER_FREE_SLOTS = 1;
+
+// Categorias que juegan siempre en el primer turno del dia (08:00).
+export const FIRST_SLOT_CATEGORIES: readonly Category[] = ['+50 Varones'];
 
 export function ownerGapsWithinLimit(slots: readonly number[], maxFree = MAX_OWNER_FREE_SLOTS): boolean {
   if (slots.length <= 1) return true;
@@ -165,19 +168,29 @@ function buildContext(
     shareMatrix,
     costTable,
     maxOwnerFreeSlots: MAX_OWNER_FREE_SLOTS,
+    firstSlotMatches: dayMatches.flatMap((m, idx) => (FIRST_SLOT_CATEGORIES.includes(m.category) ? [idx] : [])),
     rng,
   };
 }
 
 
-function canPlace(ctx: MatchdayContext, slotMatches: number[][], mIdx: number, s: number): boolean {
+/**
+ * Reglas obligatorias para colocar un partido: cancha libre y ningun partido vinculado
+ * (mismo dueno o jugadores compartidos) en el mismo turno.
+ */
+function canPlaceHard(ctx: MatchdayContext, slotMatches: number[][], mIdx: number, s: number): boolean {
   if (s < 0 || s >= ctx.slotCount) return false;
   if (slotMatches[s].length >= ctx.fieldsPerSlot) return false;
-  const n = ctx.n;
+  return slotMatches[s].every((ex) => !ctx.linkedMatrix[mIdx * ctx.n + ex]);
+}
 
-  for (const ex of slotMatches[s]) {
-    if (ctx.linkedMatrix[mIdx * n + ex]) return false;
-  }
+/**
+ * Colocacion ideal: ademas de las reglas obligatorias, sin jugadores compartidos en
+ * turnos seguidos (con la hora de descanso).
+ */
+function canPlace(ctx: MatchdayContext, slotMatches: number[][], mIdx: number, s: number): boolean {
+  if (!canPlaceHard(ctx, slotMatches, mIdx, s)) return false;
+  const n = ctx.n;
   if (s > 0) {
     for (const prev of slotMatches[s - 1]) {
       if (ctx.shareMatrix[mIdx * n + prev]) return false;
@@ -204,9 +217,9 @@ function computePlacementGapCost(
     const rawGap = Math.max(0, items[i].slot - items[i - 1].slot - 1);
     const shares = ctx.shareMatrix[items[i - 1].otherIdx * ctx.n + items[i].otherIdx] === 1;
     const softGap = shares ? Math.max(0, rawGap - 1) : rawGap;
-    cost += softGap * 1000;
+    cost += softGap * SCORE_WEIGHTS.SOFT;
     if (rawGap > MAX_OWNER_FREE_SLOTS) {
-      cost += (rawGap - MAX_OWNER_FREE_SLOTS) * 1_000_000;
+      cost += (rawGap - MAX_OWNER_FREE_SLOTS) * SCORE_WEIGHTS.OWNER_GAP;
     }
   }
   return cost;
@@ -258,17 +271,21 @@ function placeAnywhere(ctx: MatchdayContext, matchSlot: number[], slotMatches: n
     }
   }
 
+  const isFirstSlot = (ctx.firstSlotMatches ?? []).includes(mIdx);
+  const limit = firstSlotLimit(ctx);
   for (let s = 0; s < ctx.slotCount; s++) {
-    if (canPlace(ctx, slotMatches, mIdx, s)) {
+    if (canPlaceHard(ctx, slotMatches, mIdx, s)) {
       const gapPenalty = computePlacementGapCost(ctx, mIdx, s, ownerMatches);
       let sharedRestCost = 0;
       for (let si = 0; si < sharedMatches.length; si++) {
-        sharedRestCost += Math.abs(Math.abs(s - sharedMatches[si].slot) - 2) * 1000;
+        const dist = Math.abs(s - sharedMatches[si].slot);
+        sharedRestCost += Math.abs(dist - 2) * SCORE_WEIGHTS.SOFT + (dist === 1 ? SCORE_WEIGHTS.REST : 0);
       }
       if (hasUnplacedShared && !hasUnplacedExactRestSlot(ctx, slotMatches, s)) {
-        sharedRestCost += 1000;
+        sharedRestCost += SCORE_WEIGHTS.SOFT;
       }
-      const cost = ctx.costTable[mIdx * ctx.slotCount + s] + gapPenalty + sharedRestCost;
+      const firstSlotCost = isFirstSlot && s >= limit ? SCORE_WEIGHTS.HARD : 0;
+      const cost = ctx.costTable[mIdx * ctx.slotCount + s] + gapPenalty + sharedRestCost + firstSlotCost;
       if (cost < minCost) {
         minCost = cost;
         bestSlot = s;
@@ -417,14 +434,14 @@ function findWindowPlan(
           const s = plan[i];
           for (let j = i + 1; j < unplaced.length; j++) {
             if (ctx.shareMatrix[m * ctx.n + unplaced[j]]) {
-              restPenalty += Math.abs(Math.abs(s - plan[j]) - 2) * 1000;
+              restPenalty += Math.abs(Math.abs(s - plan[j]) - 2) * SCORE_WEIGHTS.SOFT;
             }
           }
           for (let ex = 0; ex < ctx.n; ex++) {
             if (ctx.shareMatrix[m * ctx.n + ex]) {
               const exSlot = matchSlot[ex];
               if (exSlot !== -1) {
-                restPenalty += Math.abs(Math.abs(s - exSlot) - 2) * 1000;
+                restPenalty += Math.abs(Math.abs(s - exSlot) - 2) * SCORE_WEIGHTS.SOFT;
               }
             }
           }
@@ -463,9 +480,23 @@ function placeRemainingMatches(ctx: MatchdayContext, matchSlot: number[], slotMa
   }
 }
 
+/**
+ * Coloca primero los partidos de primer turno (categoria +50) en el turno mas temprano
+ * donde quepan, para que las ventanas de cada dueno se armen alrededor de ellos.
+ */
+function placeFirstSlotMatches(ctx: MatchdayContext, matchSlot: number[], slotMatches: number[][]): void {
+  for (const idx of ctx.firstSlotMatches ?? []) {
+    const slot = Array.from({ length: ctx.slotCount }, (_, s) => s).find((s) => canPlaceHard(ctx, slotMatches, idx, s));
+    if (slot === undefined) continue;
+    slotMatches[slot].push(idx);
+    matchSlot[idx] = slot;
+  }
+}
+
 function attemptOrder(ctx: MatchdayContext, clubOrder: string[]): AttemptResult {
   const slotMatches: number[][] = Array.from({ length: ctx.slotCount }, () => []);
   const matchSlot: number[] = new Array(ctx.n).fill(-1);
+  placeFirstSlotMatches(ctx, matchSlot, slotMatches);
 
   for (const club of clubOrder) {
     const cms = ctx.clubMatchIndices.get(club) ?? [];
@@ -517,7 +548,7 @@ function trySingleMoveStep(
       matchSlot[i] = s2;
 
       const testScore = scoreWithoutCompact(ctx, matchSlot, slotMatches);
-      const acceptTie = testScore === currentScore && testScore < 1_000_000 && ctx.rng() < 0.15;
+      const acceptTie = testScore === currentScore && testScore < SCORE_WEIGHTS.HARD && ctx.rng() < 0.15;
       if (testScore < currentScore || acceptTie) {
         return { score: testScore, improved: true };
       }
@@ -547,7 +578,7 @@ function trySwapStep(
       matchSlot[j] = s1;
 
       const testScore = scoreWithoutCompact(ctx, matchSlot, slotMatches);
-      const acceptTie = testScore === currentScore && testScore < 1_000_000 && ctx.rng() < 0.15;
+      const acceptTie = testScore === currentScore && testScore < SCORE_WEIGHTS.HARD && ctx.rng() < 0.15;
       if (testScore < currentScore || acceptTie) {
         return { score: testScore, improved: true };
       }
@@ -607,7 +638,7 @@ function searchBestSchedule(
   for (let k = 0; k < 60; k++) {
     if (best.score === 0) break;
     const raw = attemptOrder(ctx, shuffleWith(rng, ctx.multiClubs));
-    const hasViolations = best.score >= 1_000_000 || (best.score % 100_000) >= 1000;
+    const hasViolations = best.score >= SCORE_WEIGHTS.SOFT;
     if (raw.score < best.score || hasViolations) {
       const candidate = repairSchedule(ctx, raw);
       if (candidate.score < best.score) {
@@ -619,7 +650,7 @@ function searchBestSchedule(
     } else {
       unimprovedCount++;
     }
-    if (best.score < 1_000_000 && unimprovedCount >= 15) {
+    if (best.score < SCORE_WEIGHTS.HARD && unimprovedCount >= 15) {
       break;
     }
   }
@@ -631,9 +662,9 @@ function searchBestSchedule(
  * con el minimo de turnos y se queda con ella solo si mejora el score.
  */
 function fillCourtsIfNeeded(ctx: MatchdayContext, current: AttemptResult): AttemptResult {
-  const hasHardViolations = current.score >= 1_000_000;
-  const hasEmptyCourts = computeCanchasLlenas(ctx.n, ctx.fieldsPerSlot, current.slotMatches) > 0;
-  if (!hasHardViolations && !hasEmptyCourts) return current;
+  // Hay algo por mejorar si quedan reglas obligatorias, canchas vacias, compartidos sin
+  // descanso o duenos con mas de un turno libre entre partidos.
+  if (current.score < SCORE_WEIGHTS.OWNER_GAP) return current;
   const exact = findFullSchedule(ctx, ctx.rng);
   return exact && exact.score < current.score ? exact : current;
 }

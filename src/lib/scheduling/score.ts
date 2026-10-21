@@ -8,6 +8,87 @@ export interface ScoreContext {
   shareMatrix: Uint8Array;
   costTable: Float64Array;
   maxOwnerFreeSlots?: number;
+  // Partidos que deben ir en los primeros turnos (categoria +50 a las 08:00).
+  firstSlotMatches?: readonly number[];
+}
+
+/**
+ * Turnos permitidos para los partidos de primer turno: los justos para que quepan
+ * todos (con 2 partidos y 2 canchas, solo el turno 0).
+ */
+export function firstSlotLimit(ctx: ScoreContext): number {
+  const count = ctx.firstSlotMatches?.length ?? 0;
+  return Math.ceil(count / ctx.fieldsPerSlot);
+}
+
+/**
+ * Cuenta los partidos de primer turno colocados fuera de los turnos permitidos.
+ */
+export function computeFirstSlotViolations(ctx: ScoreContext, matchSlot: readonly number[]): number {
+  const matches = ctx.firstSlotMatches ?? [];
+  const limit = firstSlotLimit(ctx);
+  return matches.filter((m) => matchSlot[m] >= limit).length;
+}
+
+/**
+ * Pesos del score, de mayor a menor prioridad. Cada nivel supera con holgura la suma
+ * maxima realista del siguiente, asi que una sola falta de un nivel pesa mas que todas
+ * las del nivel inferior.
+ * - HARD: canchas desbordadas, mismo dueno o jugadores compartidos a la vez, +50 fuera
+ *   de las 08:00.
+ * - CANCHAS: canchas vacias o turnos de mas (terminar lo antes posible).
+ * - REST: jugadores compartidos en turnos seguidos (sin la hora de descanso).
+ * - OWNER_GAP: cada turno libre por encima de 1 entre partidos del mismo dueno.
+ * - SOFT: descanso exacto de un turno y dueno sin huecos.
+ */
+export const SCORE_WEIGHTS = {
+  HARD: 1e11,
+  CANCHAS: 1e9,
+  REST: 1e7,
+  OWNER_GAP: 1e5,
+  SOFT: 1e3,
+} as const;
+
+/**
+ * Reglas obligatorias: canchas desbordadas, partidos vinculados (mismo dueno o jugadores
+ * compartidos) en el mismo turno y partidos de primer turno fuera de su turno.
+ */
+export function computeHardViolations(
+  ctx: ScoreContext,
+  matchSlot: readonly number[],
+  slotMatches: readonly (readonly number[])[]
+): number {
+  const { n, slotCount, fieldsPerSlot, linkedMatrix } = ctx;
+  let hard = computeFirstSlotViolations(ctx, matchSlot);
+  for (let s = 0; s < slotCount; s++) {
+    const arr = slotMatches[s];
+    if (arr.length > fieldsPerSlot) hard += arr.length - fieldsPerSlot;
+    for (let i = 0; i < arr.length; i++) {
+      for (let j = i + 1; j < arr.length; j++) {
+        if (linkedMatrix[arr[i] * n + arr[j]]) hard += 1;
+      }
+    }
+  }
+  return hard;
+}
+
+/**
+ * Pares de partidos con jugadores compartidos en turnos seguidos (sin descanso).
+ */
+export function computeConsecutiveSharedPairs(
+  ctx: ScoreContext,
+  slotMatches: readonly (readonly number[])[]
+): number {
+  const { n, slotCount, shareMatrix } = ctx;
+  let pairs = 0;
+  for (let s = 0; s < slotCount - 1; s++) {
+    for (const m1 of slotMatches[s]) {
+      for (const m2 of slotMatches[s + 1]) {
+        if (shareMatrix[m1 * n + m2]) pairs += 1;
+      }
+    }
+  }
+  return pairs;
 }
 
 export interface PlacedMatchSlot {
@@ -130,31 +211,11 @@ export function computeScore(
   slotMatches: readonly (readonly number[])[],
   baseHard = 0
 ): number {
-  const { n, slotCount, fieldsPerSlot, linkedMatrix, shareMatrix, costTable } = ctx;
-  let hard = baseHard;
-
-  for (let s = 0; s < slotCount; s++) {
-    const arr = slotMatches[s];
-    if (arr.length > fieldsPerSlot) hard += arr.length - fieldsPerSlot;
-    for (let i = 0; i < arr.length; i++) {
-      for (let j = i + 1; j < arr.length; j++) {
-        if (linkedMatrix[arr[i] * n + arr[j]]) hard += 1;
-      }
-    }
-  }
-
-  for (let s = 0; s < slotCount - 1; s++) {
-    for (const m1 of slotMatches[s]) {
-      for (const m2 of slotMatches[s + 1]) {
-        if (shareMatrix[m1 * n + m2]) hard += 1;
-      }
-    }
-  }
-
-  const maxFree = ctx.maxOwnerFreeSlots ?? 1;
-  hard += computeOwnerGapViolations(ctx, matchSlot, maxFree);
-
+  const { n, slotCount, fieldsPerSlot, costTable } = ctx;
+  const hard = baseHard + computeHardViolations(ctx, matchSlot, slotMatches);
   const canchasLlenas = computeCanchasLlenas(n, fieldsPerSlot, slotMatches);
+  const consecutiveShared = computeConsecutiveSharedPairs(ctx, slotMatches);
+  const ownerGaps = computeOwnerGapViolations(ctx, matchSlot, ctx.maxOwnerFreeSlots ?? 1);
   const soft = computeSoftPenalties(ctx, matchSlot);
 
   let equity = 0;
@@ -163,5 +224,12 @@ export function computeScore(
     if (s !== -1) equity += costTable[i * slotCount + s];
   }
 
-  return hard * 1_000_000 + canchasLlenas * 100_000 + soft * 1_000 + equity;
+  return (
+    hard * SCORE_WEIGHTS.HARD +
+    canchasLlenas * SCORE_WEIGHTS.CANCHAS +
+    consecutiveShared * SCORE_WEIGHTS.REST +
+    ownerGaps * SCORE_WEIGHTS.OWNER_GAP +
+    soft * SCORE_WEIGHTS.SOFT +
+    equity
+  );
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scheduleMatchday, UnscheduledMatch, MAX_OWNER_FREE_SLOTS } from './matchday';
+import { scheduleMatchday, UnscheduledMatch, MAX_OWNER_FREE_SLOTS, FIRST_SLOT_CATEGORIES } from './matchday';
 import { INITIAL_TEAMS } from '@/lib/mockData';
 import { generateRandomFixture } from '@/lib/fixtureGenerator';
 import { createRng } from './random';
@@ -64,10 +64,14 @@ describe('scheduleMatchday', () => {
 
     // Con canchas llenas en el minimo de turnos, el % temprano promedio depende de cuantos
     // partidos tiene cada fecha; lo que se exige es que ningun equipo se aleje del promedio.
-    const avgEarly = report.reduce((acc, r) => acc + r.earlyPct, 0) / report.length;
-    for (const r of report) {
+    // Las categorias de primer turno (+50) juegan siempre a las 08:00 y quedan fuera.
+    const isFirstSlot = (r: (typeof report)[number]) => FIRST_SLOT_CATEGORIES.includes(r.category);
+    const rest = report.filter((r) => !isFirstSlot(r));
+    const avgEarly = rest.reduce((acc, r) => acc + r.earlyPct, 0) / rest.length;
+    for (const r of rest) {
       expect(r.earlyPct).toBeLessThanOrEqual(avgEarly + 10);
     }
+    report.filter(isFirstSlot).forEach((r) => expect(r.earlyPct).toBe(100));
     // 60 s: con cobertura (instrumentacion v8) y el suite en paralelo supera los 30 s.
   }, 60000);
 

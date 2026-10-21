@@ -4,7 +4,7 @@
 -- Solo LECTURA. Pegar en Supabase: SQL Editor -> New query -> Run.
 -- Por cada equipo: cuantos partidos tiene programados, cuantos en los dos
 -- primeros turnos (08:00 y 09:10), cuantos en los dos ultimos, y el turno
--- promedio (0 = 08:00, 7 = 16:10). Ordenado de mas madrugador a menos.
+-- promedio (0 = 08:00, 6 = 15:00). Ordenado de mas madrugador a menos.
 with turnos as (
   select * from (values
     -- Turnos actuales de 70 minutos

@@ -3,6 +3,7 @@ import {
   computeScore,
   computeCanchasLlenas,
   computeOwnerGapViolations,
+  SCORE_WEIGHTS,
 } from './score';
 
 export interface CompactResult {
@@ -17,7 +18,7 @@ export function scoreWithoutCompact(
   slotMatches: number[][]
 ): number {
   const full = computeScore(ctx, matchSlot, slotMatches);
-  return full - computeCanchasLlenas(ctx.n, ctx.fieldsPerSlot, slotMatches) * 100_000;
+  return full - computeCanchasLlenas(ctx.n, ctx.fieldsPerSlot, slotMatches) * SCORE_WEIGHTS.CANCHAS;
 }
 
 export function shiftToStart(

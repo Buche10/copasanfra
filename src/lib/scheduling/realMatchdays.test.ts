@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scheduleMatchday, UnscheduledMatch, MatchdayPlacement, MAX_OWNER_FREE_SLOTS } from './matchday';
+import { scheduleMatchday, UnscheduledMatch, MatchdayPlacement, MAX_OWNER_FREE_SLOTS, FIRST_SLOT_CATEGORIES } from './matchday';
 import { createRng } from './random';
 import { makePairKey } from './sharedPlayers';
 import { Category, CANCHAS, MATCH_TIME_SLOTS } from '@/types';
@@ -102,6 +102,12 @@ function expectOwnerRules(placements: readonly MatchdayPlacement[], clubOf: Map<
   });
 }
 
+function expectFirstSlotCategories(placements: readonly MatchdayPlacement[]): void {
+  placements
+    .filter((p) => FIRST_SLOT_CATEGORIES.includes(p.match.category))
+    .forEach((p) => expect(p.slotIndex).toBe(0));
+}
+
 describe('scheduleMatchday con fechas reales del torneo', () => {
   Object.entries(DAYS).forEach(([date, rows]) => {
     it(`${date}: canchas llenas en el minimo de turnos y dueno con maximo 1 turno libre`, () => {
@@ -113,6 +119,7 @@ describe('scheduleMatchday con fechas reales del torneo', () => {
         expect(placements).toHaveLength(rows.length);
         expect(courtsAreFull(placements)).toBe(true);
         expectOwnerRules(placements, clubOf);
+        expectFirstSlotCategories(placements);
       }
     }, 30000);
   });
@@ -129,6 +136,7 @@ describe('scheduleMatchday con fechas reales del torneo', () => {
         sharedPairs,
       });
       expectOwnerRules(placements, clubOf);
+      expectFirstSlotCategories(placements);
       const slotOfTeam = new Map<string, number>();
       placements.forEach((p) => {
         slotOfTeam.set(p.match.homeTeamId, p.slotIndex);
@@ -143,4 +151,67 @@ describe('scheduleMatchday con fechas reales del torneo', () => {
     }
     expect(fullDays / SEEDS).toBeGreaterThanOrEqual(0.9);
   }, 30000);
+});
+
+// Jugadores compartidos reales entre equipos (consulta equipos-con-jugadores-compartidos.sql,
+// 2026-10-21). Con ellos no caben a la vez el descanso de todos y el dueno con maximo 1 turno
+// libre; el descanso manda y los turnos libres de mas por dueno quedan en el minimo posible
+// (calculado por busqueda exhaustiva).
+const REAL_SHARED: [string, string][] = [
+  ['p50-a', 'team-40-6'], ['team-40-2', 'team-ab-12'], ['team-40-5', 'team-50-2'], ['p50-a', 'team-ab-9'],
+  ['team-50-2', 'team-ab-8'], ['team-40-1', 'team-ab-12'], ['p50-a', 'team-40-1'], ['p50-a', 'team-40-4'],
+  ['team-40-2', 'team-ab-3'], ['team-40-2', 'team-ab-8'], ['team-40-4', 'team-ab-12'], ['team-40-4', 'team-ab-2'],
+  ['team-40-5', 'team-50-1'], ['team-40-7', 'team-50-1'], ['team-40-7', 'team-ab-4'], ['team-40-9', 'team-50-2'],
+  ['team-50-1', 'team-ab-7'], ['team-50-1', 'team-ab-8'], ['team-ab-13', 'team-ab-3'], ['team-40-5', 'team-ab-8'],
+  ['team-40-7', 'team-ab-11'], ['team-40-3', 'team-ab-4'], ['team-40-4', 'team-ab-7'], ['team-50-1', 'team-ab-4'],
+  ['team-40-2', 'team-ab-2'], ['team-40-6', 'team-ab-9'], ['legal-ab', 'legal-40'], ['team-40-1', 'team-ab-1'],
+];
+
+const MIN_OWNER_EXCESS: Record<string, number> = {
+  '2026-10-24': 2,
+  '2026-10-31': 4,
+  '2026-11-07': 2,
+  '2026-11-14': 1,
+};
+
+function ownerExcess(placements: readonly MatchdayPlacement[], clubOf: Map<string, string>): number {
+  let excess = 0;
+  slotsByOwner(placements, clubOf).forEach((slots) => {
+    const sorted = [...slots].sort((a, b) => a - b);
+    for (let i = 1; i < sorted.length; i++) {
+      excess += Math.max(0, sorted[i] - sorted[i - 1] - 1 - MAX_OWNER_FREE_SLOTS);
+    }
+  });
+  return excess;
+}
+
+describe('scheduleMatchday con los jugadores compartidos reales', () => {
+  const sharedPairs = new Set(REAL_SHARED.map(([a, b]) => makePairKey(a, b)));
+  const sharesWith = (a: string, b: string) => sharedPairs.has(makePairKey(a, b));
+
+  Object.entries(DAYS).forEach(([date, rows]) => {
+    it(`${date}: obligatorias, canchas llenas, descanso para todos y dueno en el minimo posible`, () => {
+      const clubOf = buildClubMap(rows);
+      for (let seed = 1; seed <= 10; seed++) {
+        const placements = scheduleMatchday(toUnscheduled(rows), clubOf, MATCH_TIME_SLOTS.length, CANCHAS.length, {
+          rng: createRng(seed),
+          sharedPairs,
+        });
+        expect(courtsAreFull(placements)).toBe(true);
+        expectFirstSlotCategories(placements);
+        for (const p of placements) {
+          for (const q of placements) {
+            if (p === q) continue;
+            const teamsP = [p.match.homeTeamId, p.match.awayTeamId];
+            const teamsQ = [q.match.homeTeamId, q.match.awayTeamId];
+            const shares = teamsP.some((a) => teamsQ.some((b) => sharesWith(a, b)));
+            const sameOwner = teamsP.some((a) => teamsQ.some((b) => clubOf.get(a) === clubOf.get(b)));
+            if (shares || sameOwner) expect(p.slotIndex).not.toBe(q.slotIndex);
+            if (shares) expect(Math.abs(p.slotIndex - q.slotIndex)).not.toBe(1);
+          }
+        }
+        expect(ownerExcess(placements, clubOf)).toBe(MIN_OWNER_EXCESS[date]);
+      }
+    }, 30000);
+  });
 });

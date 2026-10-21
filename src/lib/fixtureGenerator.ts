@@ -21,7 +21,7 @@ function shuffleArray<T>(array: T[]): T[] {
 
 // Fields and time slots come from the shared constants in @/types so the
 // generator and the manual match editor never drift apart.
-// Each match ~70 min (30 + 5 break + 30 + buffer). 8 slots x 2 fields = 16/day.
+// Each match ~70 min (30 + 5 break + 30 + buffer). 7 slots x 2 fields = 14/day, last at 15:00.
 const STADIUMS: readonly string[] = CANCHAS;
 const MATCH_TIMES: readonly string[] = MATCH_TIME_SLOTS;
 

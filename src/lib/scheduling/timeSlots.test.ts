@@ -6,6 +6,9 @@ describe('getTimeSlotIndex', () => {
     expect(getTimeSlotIndex('08:00')).toBe(0);
     expect(getTimeSlotIndex('09:10')).toBe(1);
     expect(getTimeSlotIndex('15:00')).toBe(6);
+  });
+
+  it('reconoce el turno retirado de las 16:10', () => {
     expect(getTimeSlotIndex('16:10')).toBe(7);
   });
 
