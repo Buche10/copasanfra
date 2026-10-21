@@ -1,4 +1,5 @@
-import { Match, Team, Category, MATCH_TIMES } from '@/types';
+import { Match, Team, Category } from '@/types';
+import { getTimeSlotIndex } from './timeSlots';
 
 export type SlotHistory = ReadonlyMap<string, readonly number[]>;
 
@@ -75,7 +76,7 @@ export function buildSlotHistory(
   for (const m of matches) {
     if (m.isPlayoff) continue;
     if (!m.homeTeamId || !m.awayTeamId) continue;
-    const slot = (MATCH_TIMES as readonly string[]).indexOf(m.time);
+    const slot = getTimeSlotIndex(m.time);
     if (slot < 0 || slot >= slotCount) continue;
 
     recordTeamSlot(m.homeTeamId, slot);
@@ -130,7 +131,7 @@ export function addToHistory(
 
 /**
  * Genera el informe de equidad de horarios por equipo sobre el calendario provisto.
- * % temprano corresponde a los dos primeros turnos (08:00 y 09:15).
+ * % temprano corresponde a los dos primeros turnos (08:00 y 09:10).
  * % tarde corresponde al ultimo tercio del dia.
  */
 interface TeamSlotStats {
@@ -152,7 +153,7 @@ function collectTeamSlotStats(
 
   for (const m of matches) {
     if (m.isPlayoff || !m.homeTeamId || !m.awayTeamId) continue;
-    const slot = (MATCH_TIMES as readonly string[]).indexOf(m.time);
+    const slot = getTimeSlotIndex(m.time);
     if (slot < 0 || slot >= slotCount) continue;
 
     const isEarly = slot <= 1;
@@ -173,7 +174,7 @@ function collectTeamSlotStats(
 
 /**
  * Genera el informe de equidad de horarios por equipo sobre el calendario provisto.
- * % temprano corresponde a los dos primeros turnos (08:00 y 09:15).
+ * % temprano corresponde a los dos primeros turnos (08:00 y 09:10).
  * % tarde corresponde al ultimo tercio del dia.
  */
 export function fairnessReport(

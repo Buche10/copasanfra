@@ -108,7 +108,7 @@ const FairnessTable: React.FC<FairnessTableProps> = ({ reports, avgEarlyPct }) =
               <th className="py-3 px-3">Equipo</th>
               <th className="py-3 px-3">Categoria</th>
               <th className="py-3 px-3 text-center">Partidos</th>
-              <th className="py-3 px-3 text-right">% Temprano (08:00-09:15)</th>
+              <th className="py-3 px-3 text-right">% Temprano (08:00-09:10)</th>
               <th className="py-3 px-3 text-right">% Tarde</th>
               <th className="py-3 px-3 text-right">Turno Promedio</th>
             </tr>

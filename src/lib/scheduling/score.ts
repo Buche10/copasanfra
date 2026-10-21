@@ -37,12 +37,16 @@ export function sortedPlacedSlots(
   return placed.sort((a, b) => a.slot - b.slot);
 }
 
+/**
+ * Cuenta los turnos libres que exceden maxFree entre partidos seguidos del mismo dueno
+ * en el dia. Aplica a todos los pares del dueno, compartan o no jugadores.
+ */
 export function computeOwnerGapViolations(
   ctx: ScoreContext,
   matchSlot: readonly number[],
   maxFree = 1
 ): number {
-  const { multiClubs, clubMatchIndices, n, shareMatrix } = ctx;
+  const { multiClubs, clubMatchIndices } = ctx;
   if (multiClubs.length === 0) return 0;
   let violations = 0;
 
@@ -53,9 +57,7 @@ export function computeOwnerGapViolations(
     const placed = sortedPlacedSlots(ms, matchSlot);
     for (let i = 1; i < placed.length; i++) {
       const gap = placed[i].slot - placed[i - 1].slot - 1;
-      const shares = shareMatrix[placed[i - 1].idx * n + placed[i].idx] === 1;
-      const allowedMax = shares ? maxFree : 0;
-      if (gap > allowedMax) violations += gap - allowedMax;
+      if (gap > maxFree) violations += gap - maxFree;
     }
   }
   return violations;

@@ -1,6 +1,7 @@
 import { Match, Team, Player, Category, CANCHAS, MATCH_TIME_SLOTS } from '@/types';
 import { scheduleMatchday, UnscheduledMatch, MAX_OWNER_FREE_SLOTS } from './matchday';
 import { buildSharedPlayerPairs } from './sharedPlayers';
+import { getTimeSlotIndex } from './timeSlots';
 import { buildSlotHistory, addToHistory, SlotHistory } from './fairness';
 import { generateRandomFixture, isDoubleRoundRobin } from '../fixtureGenerator';
 import { recomputePlayoffs } from '../playoffs';
@@ -343,7 +344,7 @@ export function findOwnerGapViolations(
     for (const [club, ms] of clubMatches.entries()) {
       if (ms.length <= 1) continue;
       const withSlot = ms
-        .map((m) => ({ match: m, slotIndex: MATCH_TIME_SLOTS.indexOf(m.time as (typeof MATCH_TIME_SLOTS)[number]) }))
+        .map((m) => ({ match: m, slotIndex: getTimeSlotIndex(m.time) }))
         .filter((item) => item.slotIndex !== -1)
         .sort((a, b) => a.slotIndex - b.slotIndex);
 
@@ -367,6 +368,58 @@ export function findOwnerGapViolations(
   return violations;
 }
 
+export interface UnfilledCourtDay {
+  date: string;
+  usedSlots: number;
+  minSlots: number;
+  emptyCells: number;
+  lastSlot: number;
+}
+
+function slotCountsByDate(matches: Match[]): Map<string, number[]> {
+  const byDate = new Map<string, number[]>();
+  for (const m of matches) {
+    const slot = getTimeSlotIndex(m.time);
+    if (!m.date || slot === -1) continue;
+    const prev = byDate.get(m.date) ?? [];
+    byDate.set(m.date, [...prev, slot]);
+  }
+  return byDate;
+}
+
+/**
+ * Detecta fechas que usan mas turnos de los necesarios o dejan canchas vacias
+ * antes del ultimo turno usado. Ignora partidos sin hora.
+ */
+export function findUnfilledCourtDays(matches: Match[], fieldsPerSlot: number): UnfilledCourtDay[] {
+  const result: UnfilledCourtDay[] = [];
+  for (const [date, slots] of slotCountsByDate(matches).entries()) {
+    const perSlot = new Map<number, number>();
+    slots.forEach((s) => perSlot.set(s, (perSlot.get(s) ?? 0) + 1));
+    const lastSlot = Math.max(...slots);
+    const minSlots = Math.ceil(slots.length / fieldsPerSlot);
+    let emptyCells = 0;
+    for (let s = 0; s < lastSlot; s++) {
+      emptyCells += Math.max(0, fieldsPerSlot - (perSlot.get(s) ?? 0));
+    }
+    const usedSlots = perSlot.size;
+    if (usedSlots > minSlots || emptyCells > 0) {
+      result.push({ date, usedSlots, minSlots, emptyCells, lastSlot });
+    }
+  }
+  return result.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function describeUnfilledCourtDay(d: UnfilledCourtDay): string {
+  const expectedLast = MATCH_TIME_SLOTS[d.minSlots - 1] ?? MATCH_TIME_SLOTS[MATCH_TIME_SLOTS.length - 1];
+  const actualLast = MATCH_TIME_SLOTS[d.lastSlot] ?? MATCH_TIME_SLOTS[MATCH_TIME_SLOTS.length - 1];
+  const empty = d.emptyCells === 1 ? '1 cancha vacía' : `${d.emptyCells} canchas vacías`;
+  return (
+    `${d.date}: se usaron ${d.usedSlots} turnos (mínimo ${d.minSlots}) con ${empty}; ` +
+    `el último partido empieza a las ${actualLast} en vez de las ${expectedLast}`
+  );
+}
+
 function processFutureDates(
   allDates: string[],
   byDate: Map<string, Match[]>,
@@ -382,6 +435,7 @@ function processFutureDates(
   const overCapacityDates: { date: string; matches: number; capacity: number }[] = [];
   const maxCapacity = MATCH_TIME_SLOTS.length * CANCHAS.length;
   const processedMatches: Match[] = [];
+  const scheduledDates: string[] = [];
 
   for (const date of allDates) {
     const dayMatches = byDate.get(date) ?? [];
@@ -409,11 +463,12 @@ function processFutureDates(
     const res = scheduleActiveDayMatches(activeMs, clubOf, sharedPairs, history, rng);
     retimedMatches += res.retimed;
     history = res.newHistory;
+    scheduledDates.push(date);
     res.dayMatches.forEach((m) => processedMatches.push(m));
     inactiveMs.forEach((m) => processedMatches.push(m));
   }
 
-  return { processedMatches, retimedMatches, overCapacityDates };
+  return { processedMatches, retimedMatches, overCapacityDates, scheduledDates };
 }
 
 function replaceCreatedCategories(
@@ -548,6 +603,11 @@ export function planCalendarArrangement(input: ArrangeInput): ArrangePlan {
     warnings.push(
       `${v.date}: el dueño ${v.club} tiene ${v.freeSlots} turnos libres entre ${v.fromTime} y ${v.toTime} (no se pudo dejar en máximo ${MAX_OWNER_FREE_SLOTS})`
     );
+  });
+  const scheduledDates = new Set(futureRes.scheduledDates);
+  const scheduledMatches = finalMatches.filter((m) => scheduledDates.has(m.date) && activeSet.has(m.category));
+  findUnfilledCourtDays(scheduledMatches, CANCHAS.length).forEach((d) => {
+    warnings.push(describeUnfilledCourtDay(d));
   });
 
   return {

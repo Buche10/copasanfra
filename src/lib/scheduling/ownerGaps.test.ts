@@ -110,6 +110,23 @@ describe('computeOwnerGapViolations', () => {
     expect(computeOwnerGapViolations(ctx, [0, 1, 2])).toBe(0);
   });
 
+  it('no penaliza 1 turno libre aunque no compartan jugadores y penaliza 2', () => {
+    const clubMatchIndices = new Map<string, number[]>([['AKD', [0, 1]]]);
+    const ctx: ScoreContext = {
+      n: 2,
+      slotCount: 8,
+      fieldsPerSlot: 2,
+      multiClubs: ['AKD'],
+      clubMatchIndices,
+      linkedMatrix: new Uint8Array(4),
+      shareMatrix: new Uint8Array(4),
+      costTable: new Float64Array(16),
+      maxOwnerFreeSlots: 1,
+    };
+    expect(computeOwnerGapViolations(ctx, [0, 2])).toBe(0);
+    expect(computeOwnerGapViolations(ctx, [0, 3])).toBe(1);
+  });
+
   it('devuelve 0 con 1 turno libre cuando comparten jugadores', () => {
     const clubMatchIndices = new Map<string, number[]>([['AKD', [0, 1, 2]]]);
     const shareMatrix = new Uint8Array(9);

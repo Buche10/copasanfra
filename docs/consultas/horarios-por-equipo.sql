@@ -3,11 +3,15 @@
 -- =====================================================================
 -- Solo LECTURA. Pegar en Supabase: SQL Editor -> New query -> Run.
 -- Por cada equipo: cuantos partidos tiene programados, cuantos en los dos
--- primeros turnos (08:00 y 09:15), cuantos en los dos ultimos, y el turno
--- promedio (0 = 08:00, 7 = 16:45). Ordenado de mas madrugador a menos.
+-- primeros turnos (08:00 y 09:10), cuantos en los dos ultimos, y el turno
+-- promedio (0 = 08:00, 7 = 16:10). Ordenado de mas madrugador a menos.
 with turnos as (
   select * from (values
-    ('08:00', 0), ('09:15', 1), ('10:30', 2), ('11:45', 3),
+    -- Turnos actuales de 70 minutos
+    ('08:00', 0), ('09:10', 1), ('10:20', 2), ('11:30', 3),
+    ('12:40', 4), ('13:50', 5), ('15:00', 6), ('16:10', 7),
+    -- Turnos antiguos de 75 minutos (partidos jugados hasta el 2026-10-17)
+    ('09:15', 1), ('10:30', 2), ('11:45', 3),
     ('13:00', 4), ('14:15', 5), ('15:30', 6), ('16:45', 7)
   ) as v(hora, idx)
 ),
@@ -25,7 +29,7 @@ select
   t.data->>'category'                               as categoria,
   coalesce(t.data->>'clubId', '-')                  as club,
   count(*)                                          as partidos,
-  count(*) filter (where tu.idx <= 1)               as en_08_00_o_09_15,
+  count(*) filter (where tu.idx <= 1)               as en_primeros_2_turnos,
   round(100.0 * count(*) filter (where tu.idx <= 1) / count(*)) as pct_temprano,
   count(*) filter (where tu.idx >= 6)               as en_ultimos_turnos,
   round(avg(tu.idx), 2)                             as turno_promedio

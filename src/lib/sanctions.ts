@@ -1,4 +1,5 @@
-import { Category, Match, MATCH_TIME_SLOTS, PendingSanctionDetail, Player, PlayerSanction, Team } from '@/types';
+import { Category, Match, PendingSanctionDetail, Player, PlayerSanction, Team } from '@/types';
+import { getTimeSlotIndex } from '@/lib/scheduling/timeSlots';
 
 export const YELLOWS_FOR_SUSPENSION = 5;
 export const DOUBLE_YELLOW_MATCHES = 1;
@@ -50,8 +51,7 @@ export function classifyPlayerCards(
 }
 
 function getSlotIndex(time?: string): number {
-  if (!time) return 999;
-  const idx = (MATCH_TIME_SLOTS as readonly string[]).indexOf(time);
+  const idx = getTimeSlotIndex(time);
   return idx === -1 ? 999 : idx;
 }
 

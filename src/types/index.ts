@@ -145,7 +145,9 @@ export function maxPlayersForCategory(category: Category | undefined): number {
 
 export const CANCHAS = ['Cancha 1', 'Cancha 2'] as const;
 export const STADIUMS = CANCHAS;
-export const MATCH_TIME_SLOTS = ['08:00', '09:15', '10:30', '11:45', '13:00', '14:15', '15:30', '16:45'] as const;
+export const MATCH_TIME_SLOTS = ['08:00', '09:10', '10:20', '11:30', '12:40', '13:50', '15:00', '16:10'] as const;
+// Turnos de 75 minutos usados hasta el 2026-10-17; los partidos jugados conservan estas horas.
+export const LEGACY_MATCH_TIME_SLOTS = ['08:00', '09:15', '10:30', '11:45', '13:00', '14:15', '15:30', '16:45'] as const;
 export const MATCH_TIMES = MATCH_TIME_SLOTS;
 
 export type PaymentMethod = 'EFECTIVO' | 'TRANSFERENCIA';

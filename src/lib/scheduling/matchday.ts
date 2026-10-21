@@ -2,8 +2,9 @@ import { Category } from '@/types';
 import { SlotHistory, fairnessCost } from './fairness';
 import { sharesPlayers } from './sharedPlayers';
 import { shuffleWith } from './random';
-import { computeScore, ScoreContext } from './score';
+import { computeScore, computeCanchasLlenas, ScoreContext } from './score';
 import { compactSchedule, scoreWithoutCompact } from './compact';
+import { findFullSchedule } from './exactFill';
 
 export const MAX_OWNER_FREE_SLOTS = 1;
 
@@ -204,9 +205,8 @@ function computePlacementGapCost(
     const shares = ctx.shareMatrix[items[i - 1].otherIdx * ctx.n + items[i].otherIdx] === 1;
     const softGap = shares ? Math.max(0, rawGap - 1) : rawGap;
     cost += softGap * 1000;
-    const allowedMax = shares ? MAX_OWNER_FREE_SLOTS : 0;
-    if (rawGap > allowedMax) {
-      cost += (rawGap - allowedMax) * 1_000_000;
+    if (rawGap > MAX_OWNER_FREE_SLOTS) {
+      cost += (rawGap - MAX_OWNER_FREE_SLOTS) * 1_000_000;
     }
   }
   return cost;
@@ -443,15 +443,6 @@ function findWindowPlan(
   return bestPlan;
 }
 
-function hasInternalClubShares(ctx: MatchdayContext, cms: readonly number[]): boolean {
-  for (let i = 0; i < cms.length; i++) {
-    for (let j = i + 1; j < cms.length; j++) {
-      if (ctx.shareMatrix[cms[i] * ctx.n + cms[j]]) return true;
-    }
-  }
-  return false;
-}
-
 function placeRemainingMatches(ctx: MatchdayContext, matchSlot: number[], slotMatches: number[][]): void {
   const remainingIndices: number[] = [];
   for (let i = 0; i < ctx.n; i++) {
@@ -485,12 +476,10 @@ function attemptOrder(ctx: MatchdayContext, clubOrder: string[]): AttemptResult 
       .filter((idx) => matchSlot[idx] !== -1)
       .map((idx) => ({ idx, slot: matchSlot[idx] }));
 
-    const hasInternalShares = hasInternalClubShares(ctx, cms);
+    // Ventana de k turnos (seguidos) hasta k + (k - 1) * MAX_OWNER_FREE_SLOTS.
     const k = cms.length;
     const minSpan = k;
-    const maxSpan = hasInternalShares
-      ? Math.min(ctx.slotCount, k + (k - 1) * MAX_OWNER_FREE_SLOTS)
-      : k;
+    const maxSpan = Math.min(ctx.slotCount, k + (k - 1) * MAX_OWNER_FREE_SLOTS);
     const plan = findWindowPlan(ctx, matchSlot, slotMatches, unplaced, placed, minSpan, maxSpan);
 
     if (plan) {
@@ -638,6 +627,18 @@ function searchBestSchedule(
 }
 
 /**
+ * Si quedaron canchas vacias o reglas duras sin cumplir, intenta una busqueda exacta
+ * con el minimo de turnos y se queda con ella solo si mejora el score.
+ */
+function fillCourtsIfNeeded(ctx: MatchdayContext, current: AttemptResult): AttemptResult {
+  const hasHardViolations = current.score >= 1_000_000;
+  const hasEmptyCourts = computeCanchasLlenas(ctx.n, ctx.fieldsPerSlot, current.slotMatches) > 0;
+  if (!hasHardViolations && !hasEmptyCourts) return current;
+  const exact = findFullSchedule(ctx, ctx.rng);
+  return exact && exact.score < current.score ? exact : current;
+}
+
+/**
  * Asigna los partidos de una sola fecha a turnos y canchas respetando:
  *   - DURA 1: equipos vinculados nunca juegan a la vez.
  *   - DURA 2: equipos con jugadores compartidos nunca en turnos consecutivos.
@@ -667,9 +668,10 @@ export function scheduleMatchday(
   const best = searchBestSchedule(ctx, baseOrder, rng);
   const repaired = repairSchedule(ctx, best);
   const compacted = compactSchedule(ctx, repaired);
+  const finalSchedule = fillCourtsIfNeeded(ctx, compacted);
 
   const out: MatchdayPlacement[] = [];
-  compacted.slotMatches.forEach((arr, s) => {
+  finalSchedule.slotMatches.forEach((arr, s) => {
     arr.forEach((mIdx, c) => {
       out.push({ match: dayMatches[mIdx], slotIndex: s, canchaIndex: c });
     });

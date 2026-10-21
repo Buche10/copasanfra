@@ -1,4 +1,5 @@
-import { Player, Team, Match, MATCH_TIMES } from '@/types';
+import { Player, Team, Match } from '@/types';
+import { getTimeSlotIndex } from './timeSlots';
 
 /**
  * Normaliza una cedula eliminando espacios, puntos y guiones.
@@ -157,8 +158,8 @@ function checkMatchesConflict(
   pairs: ReadonlySet<string>,
   teamMap: Map<string, string>
 ): SharedPlayerConflict | null {
-  const s1 = (MATCH_TIMES as readonly string[]).indexOf(m1.time);
-  const s2 = (MATCH_TIMES as readonly string[]).indexOf(m2.time);
+  const s1 = getTimeSlotIndex(m1.time);
+  const s2 = getTimeSlotIndex(m2.time);
   if (s1 === -1 || s2 === -1) return null;
 
   const diff = Math.abs(s1 - s2);
