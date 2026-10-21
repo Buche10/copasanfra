@@ -664,7 +664,7 @@ function searchBestSchedule(
 function fillCourtsIfNeeded(ctx: MatchdayContext, current: AttemptResult): AttemptResult {
   // Hay algo por mejorar si quedan reglas obligatorias, canchas vacias, compartidos sin
   // descanso o duenos con mas de un turno libre entre partidos.
-  if (current.score < SCORE_WEIGHTS.OWNER_GAP) return current;
+  if (current.score < SCORE_WEIGHTS.REST) return current;
   const exact = findFullSchedule(ctx, ctx.rng);
   return exact && exact.score < current.score ? exact : current;
 }

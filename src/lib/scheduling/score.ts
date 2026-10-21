@@ -37,15 +37,16 @@ export function computeFirstSlotViolations(ctx: ScoreContext, matchSlot: readonl
  * - HARD: canchas desbordadas, mismo dueno o jugadores compartidos a la vez, +50 fuera
  *   de las 08:00.
  * - CANCHAS: canchas vacias o turnos de mas (terminar lo antes posible).
+ * - OWNER_GAP: cada turno libre por encima de 1 entre partidos del mismo dueno (su
+ *   siguiente partido a maximo una hora).
  * - REST: jugadores compartidos en turnos seguidos (sin la hora de descanso).
- * - OWNER_GAP: cada turno libre por encima de 1 entre partidos del mismo dueno.
  * - SOFT: descanso exacto de un turno y dueno sin huecos.
  */
 export const SCORE_WEIGHTS = {
   HARD: 1e11,
   CANCHAS: 1e9,
-  REST: 1e7,
-  OWNER_GAP: 1e5,
+  OWNER_GAP: 1e7,
+  REST: 1e5,
   SOFT: 1e3,
 } as const;
 
