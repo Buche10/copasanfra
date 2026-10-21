@@ -80,7 +80,7 @@ describe('findFullSchedule', () => {
     }
   });
 
-  it('prefiere dar descanso a los compartidos antes que juntar al dueno', () => {
+  it('da descanso a los compartidos cuando el dueno igual queda con maximo 1 turno libre', () => {
     // AKD: partidos 0, 1 y 2. El 0 comparte jugadores con el 3 (otro dueno) y el 1 con el 4.
     const ctx = makeCtx({ n: 6, slotCount: 3, clubs: { AKD: [0, 1, 2] }, shared: [[0, 3], [1, 4]] });
     const res = findFullSchedule(ctx, createRng(1));
@@ -97,11 +97,11 @@ describe('findFullSchedule', () => {
 });
 
 describe('niveles del score', () => {
-  it('una falta obligatoria pesa mas que todo lo demas y el descanso mas que el dueno', () => {
+  it('una falta obligatoria pesa mas que todo lo demas y el dueno mas que el descanso', () => {
     expect(SCORE_WEIGHTS.HARD).toBeGreaterThan(SCORE_WEIGHTS.CANCHAS * 50);
-    expect(SCORE_WEIGHTS.CANCHAS).toBeGreaterThan(SCORE_WEIGHTS.REST * 50);
-    expect(SCORE_WEIGHTS.REST).toBeGreaterThan(SCORE_WEIGHTS.OWNER_GAP * 50);
-    expect(SCORE_WEIGHTS.OWNER_GAP).toBeGreaterThan(SCORE_WEIGHTS.SOFT * 50);
+    expect(SCORE_WEIGHTS.CANCHAS).toBeGreaterThan(SCORE_WEIGHTS.OWNER_GAP * 50);
+    expect(SCORE_WEIGHTS.OWNER_GAP).toBeGreaterThan(SCORE_WEIGHTS.REST * 50);
+    expect(SCORE_WEIGHTS.REST).toBeGreaterThan(SCORE_WEIGHTS.SOFT * 50);
   });
 
   it('cuenta +50 fuera de las 08:00 como falta obligatoria', () => {

@@ -97,13 +97,25 @@ function placementCost(st: SearchState, mIdx: number, s: number): number {
     const dist = Math.abs(s - sj);
     cost += (dist === 1 ? SCORE_WEIGHTS.REST : 0) + Math.abs(dist - 2) * SCORE_WEIGHTS.SOFT;
   }
+  // Dueno: lo que agrega este partido a los turnos libres entre partidos seguidos del
+  // dueno (no contra todos sus partidos, que castigaria de mas a un dueno con 3).
   for (const c of st.matchClubs[mIdx]) {
-    for (const j of st.clubMatches[c]) {
-      const sj = st.matchSlot[j];
-      if (sj === -1 || j === mIdx) continue;
-      const free = Math.abs(s - sj) - 1;
-      cost += Math.max(0, free - st.maxFree) * SCORE_WEIGHTS.OWNER_GAP + Math.max(0, free) * SCORE_WEIGHTS.SOFT;
-    }
+    const placed = st.clubMatches[c]
+      .filter((j) => j !== mIdx && st.matchSlot[j] !== -1)
+      .map((j) => st.matchSlot[j]);
+    if (placed.length === 0) continue;
+    const before = ownerGapCost(placed, st.maxFree);
+    cost += ownerGapCost([...placed, s], st.maxFree) - before;
+  }
+  return cost;
+}
+
+function ownerGapCost(slots: number[], maxFree: number): number {
+  const sorted = [...slots].sort((a, b) => a - b);
+  let cost = 0;
+  for (let i = 1; i < sorted.length; i++) {
+    const free = Math.max(0, sorted[i] - sorted[i - 1] - 1);
+    cost += Math.max(0, free - maxFree) * SCORE_WEIGHTS.OWNER_GAP + free * SCORE_WEIGHTS.SOFT;
   }
   return cost;
 }

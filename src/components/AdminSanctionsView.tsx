@@ -22,7 +22,7 @@ const MatchCardsEditor: React.FC<{
 }> = ({ match, teamMap, players, onUpdateMatch }) => {
   const [teamId, setTeamId] = useState(match.homeTeamId);
   const [playerId, setPlayerId] = useState('');
-  const [type, setType] = useState<'YELLOW_CARD' | 'RED_CARD'>('YELLOW_CARD');
+  const [type, setType] = useState<'YELLOW_CARD' | 'RED_CARD' | 'RED_CARD_DOUBLE'>('YELLOW_CARD');
   const [minute, setMinute] = useState('');
 
   const roster = players.filter((p) => p.teamId === teamId).sort((a, b) => a.dorsal - b.dorsal);
@@ -35,10 +35,11 @@ const MatchCardsEditor: React.FC<{
       id: `ev-${crypto.randomUUID()}`,
       matchId: match.id,
       minute: parseInt(minute, 10) || 0,
-      type,
+      type: type === 'RED_CARD_DOUBLE' ? 'RED_CARD' : type,
       teamId,
       playerId,
       cardReason: 'UNSPORTING',
+      ...(type === 'RED_CARD_DOUBLE' ? { isDoubleYellow: true } : {}),
     };
     onUpdateMatch({ ...match, events: [...match.events, ev] });
     setPlayerId('');
@@ -46,6 +47,13 @@ const MatchCardsEditor: React.FC<{
   };
 
   const remove = (id: string) => onUpdateMatch({ ...match, events: match.events.filter((e) => e.id !== id) });
+
+  // Cambia una roja ya cargada entre directa (2 fechas) y por doble amarilla (1 fecha).
+  const toggleRedKind = (id: string) =>
+    onUpdateMatch({
+      ...match,
+      events: match.events.map((e) => (e.id === id ? { ...e, isDoubleYellow: !e.isDoubleYellow } : e)),
+    });
 
   const field = 'bg-slate-50 text-slate-900 font-bold text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#00A859]';
 
@@ -67,7 +75,19 @@ const MatchCardsEditor: React.FC<{
                   <span className="font-bold text-slate-800 truncate">#{pl?.dorsal} {pl?.name || 'Jugador'}</span>
                   <span className="text-slate-400">({tm?.shortName})</span>
                   <span className="text-slate-400">{ev.minute ? `${ev.minute}'` : ''}</span>
+                  {isRed && (
+                    <span className="text-rose-700 font-bold">{ev.isDoubleYellow ? 'Doble amarilla' : 'Directa'}</span>
+                  )}
                 </span>
+                {isRed && (
+                  <button
+                    onClick={() => toggleRedKind(ev.id)}
+                    className="ml-auto mr-1 px-2 py-1 text-[10px] font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 rounded shrink-0"
+                    title="Cambiar el tipo de roja"
+                  >
+                    {ev.isDoubleYellow ? 'Pasar a directa' : 'Pasar a doble amarilla'}
+                  </button>
+                )}
                 <button onClick={() => remove(ev.id)} className="p-1 text-slate-400 hover:text-rose-600 rounded" title="Quitar">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -89,9 +109,10 @@ const MatchCardsEditor: React.FC<{
             <option key={p.id} value={p.id}>#{p.dorsal} {p.name}</option>
           ))}
         </select>
-        <select value={type} onChange={(e) => setType(e.target.value as 'YELLOW_CARD' | 'RED_CARD')} className={field}>
+        <select value={type} onChange={(e) => setType(e.target.value as 'YELLOW_CARD' | 'RED_CARD' | 'RED_CARD_DOUBLE')} className={field}>
           <option value="YELLOW_CARD">Amarilla</option>
-          <option value="RED_CARD">Roja</option>
+          <option value="RED_CARD">Roja directa</option>
+          <option value="RED_CARD_DOUBLE">Roja por doble amarilla</option>
         </select>
         <input
           value={minute}

@@ -648,3 +648,17 @@ describe('sanctions', () => {
     });
   });
 });
+
+describe('roja por doble amarilla cargada desde la planilla', () => {
+  it('una sola RED_CARD con isDoubleYellow (sin amarillas cargadas) es 1 fecha, no 2', () => {
+    const m: Match = {
+      id: 'm6', category: 'Abierta Varones', round: 6, date: '2026-10-10', time: '08:00', stadium: 'Cancha 1',
+      homeTeamId: 'futleg', awayTeamId: 'leones', homeScore: 0, awayScore: 0, status: 'FINISHED',
+      homeLineup: [], awayLineup: [],
+      events: [{ id: 'e1', matchId: 'm6', minute: 40, type: 'RED_CARD', teamId: 'futleg', playerId: 'garrido', isDoubleYellow: true }],
+    };
+    const res = computeCardSuspension('garrido', [m], 'futleg', new Map([['leones', 'Leones Q']]));
+    expect(res.pending).toBe(1);
+    expect(res.reasons).toEqual(['Doble amarilla en la fecha 6 contra Leones Q: 1 fecha por cumplir']);
+  });
+});
