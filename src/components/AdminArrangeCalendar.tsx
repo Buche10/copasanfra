@@ -90,7 +90,7 @@ const PlanCounts: React.FC<PlanCountsProps> = ({ stale, retimed, cleared, hasCha
       {cleared > 0 && (
         <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center gap-2 text-slate-700">
           <Clock className="w-4 h-4 text-slate-500 shrink-0" />
-          <span><strong>{cleared}</strong> partidos de categorias en pausa, proximamente o suspendidas quedaran sin hora hasta su activacion.</span>
+          <span><strong>{cleared}</strong> partidos de categorias en pausa, proximamente o suspendidas, o contra equipos retirados (W.O.), quedaran sin hora ni cancha.</span>
         </div>
       )}
       {!hasChanges && !hasOverCapacity && (

@@ -219,3 +219,27 @@ describe('scheduleMatchday con los jugadores compartidos reales', () => {
     }, 30000);
   });
 });
+
+describe('scheduleMatchday con todas las categorias y Camaradas retirado', () => {
+  // 2026-10-24 sin el partido de Camaradas (team-ab-5, retirado: W.O. sin hora) y con
+  // Damas de vuelta: 15 partidos en turnos de 65 minutos.
+  const rows: DayRow[] = [
+    ...DAYS['2026-10-24'].filter(([, h, a]) => h !== 'team-ab-5' && a !== 'team-ab-5'),
+    ['Damas', 'damas-1', 'damas-2'],
+    ['Damas', 'damas-3', 'damas-4'],
+  ];
+
+  it('usa 8 turnos (08:00 a 15:35) con las canchas llenas', () => {
+    expect(rows).toHaveLength(15);
+    const clubOf = buildClubMap(rows);
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const placements = scheduleMatchday(toUnscheduled(rows), clubOf, MATCH_TIME_SLOTS.length, CANCHAS.length, {
+        rng: createRng(seed),
+      });
+      expect(placements).toHaveLength(rows.length);
+      expect(courtsAreFull(placements)).toBe(true);
+      expect(MATCH_TIME_SLOTS[Math.max(...placements.map((p) => p.slotIndex))]).toBe('15:35');
+      expectFirstSlotCategories(placements);
+    }
+  }, 30000);
+});

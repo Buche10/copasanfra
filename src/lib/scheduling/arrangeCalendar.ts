@@ -205,14 +205,26 @@ function generateNewCategoryMatches(
   return { matches, rounds, firstDate };
 }
 
-function clearInactiveFutureMatches(
+// Equipos retirados del torneo: sus partidos se quedan (el rival recibe los
+// puntos por W.O. al pagar la programación) pero no ocupan hora ni cancha.
+export function findWithdrawnTeamIds(teams: Team[]): Set<string> {
+  return new Set(teams.filter((t) => t.withdrawn).map((t) => t.id));
+}
+
+export function isWithdrawnMatch(m: Match, withdrawn: ReadonlySet<string>): boolean {
+  return withdrawn.has(m.homeTeamId) || withdrawn.has(m.awayTeamId);
+}
+
+function clearUnplayableFutureMatches(
   matches: Match[],
   activeSet: Set<Category>,
+  withdrawn: ReadonlySet<string>,
   nextSat: string
 ): { matches: Match[]; clearedCount: number } {
   let clearedCount = 0;
   const result = matches.map((m) => {
-    if (!activeSet.has(m.category) && m.date >= nextSat && m.status === 'SCHEDULED') {
+    const unplayable = !activeSet.has(m.category) || isWithdrawnMatch(m, withdrawn);
+    if (unplayable && m.date >= nextSat && m.status === 'SCHEDULED') {
       if (m.time !== '' || m.stadium !== '') {
         clearedCount += 1;
         return { ...m, time: '', stadium: '' };
@@ -425,6 +437,7 @@ function processFutureDates(
   byDate: Map<string, Match[]>,
   nextSat: string,
   activeSet: Set<Category>,
+  withdrawn: ReadonlySet<string>,
   clubOf: Map<string, string>,
   sharedPairs: ReadonlySet<string>,
   initialHistory: SlotHistory,
@@ -439,15 +452,18 @@ function processFutureDates(
 
   for (const date of allDates) {
     const dayMatches = byDate.get(date) ?? [];
-    const isUntouched = date < nextSat || dayMatches.some((m) => m.status !== 'SCHEDULED');
+    // Un W.O. ya registrado contra un equipo retirado no congela la fecha.
+    const isUntouched =
+      date < nextSat || dayMatches.some((m) => m.status !== 'SCHEDULED' && !isWithdrawnMatch(m, withdrawn));
 
     if (isUntouched) {
       dayMatches.forEach((m) => processedMatches.push(m));
       continue;
     }
 
-    const activeMs = dayMatches.filter((m) => activeSet.has(m.category));
-    const inactiveMs = dayMatches.filter((m) => !activeSet.has(m.category));
+    const isPlayable = (m: Match) => activeSet.has(m.category) && !isWithdrawnMatch(m, withdrawn);
+    const activeMs = dayMatches.filter(isPlayable);
+    const inactiveMs = dayMatches.filter((m) => !isPlayable(m));
 
     if (activeMs.length > maxCapacity) {
       overCapacityDates.push({ date, matches: activeMs.length, capacity: maxCapacity });
@@ -570,7 +586,8 @@ export function planCalendarArrangement(input: ArrangeInput): ArrangePlan {
   const init = replaceCreatedCategories(toCreate, input.matches, input.teams, input.players, nextSat, input.rng);
   const completed = completeStartedCategories(input.activeCategories, init.currentMatches, input.teams, nextSat);
   const createdCategories = [...init.createdCategories, ...completed.completedCategories];
-  const clearedRes = clearInactiveFutureMatches(completed.currentMatches, activeSet, nextSat);
+  const withdrawn = findWithdrawnTeamIds(input.teams);
+  const clearedRes = clearUnplayableFutureMatches(completed.currentMatches, activeSet, withdrawn, nextSat);
   const matchesToSchedule = clearedRes.matches;
 
   const { clubOf, sharedPairs, history, byDate } = prepareSchedulingContext(
@@ -585,6 +602,7 @@ export function planCalendarArrangement(input: ArrangeInput): ArrangePlan {
     byDate,
     nextSat,
     activeSet,
+    withdrawn,
     clubOf,
     sharedPairs,
     history,
@@ -605,7 +623,9 @@ export function planCalendarArrangement(input: ArrangeInput): ArrangePlan {
     );
   });
   const scheduledDates = new Set(futureRes.scheduledDates);
-  const scheduledMatches = finalMatches.filter((m) => scheduledDates.has(m.date) && activeSet.has(m.category));
+  const scheduledMatches = finalMatches.filter(
+    (m) => scheduledDates.has(m.date) && activeSet.has(m.category) && !isWithdrawnMatch(m, withdrawn)
+  );
   findUnfilledCourtDays(scheduledMatches, CANCHAS.length).forEach((d) => {
     warnings.push(describeUnfilledCourtDay(d));
   });
