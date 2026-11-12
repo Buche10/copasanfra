@@ -109,9 +109,9 @@ describe('planCalendarArrangement y aviso de canchas vacias', () => {
     });
 
     const oct3 = plan.matches.filter((m) => m.date === '2026-10-03');
-    expect(oct3.map((m) => m.time).sort()).toEqual(['08:00', '09:10']);
+    expect(oct3.map((m) => m.time).sort()).toEqual(['08:00', '09:05']);
     expect(plan.warnings).toContain(
-      '2026-10-03: se usaron 2 turnos (mínimo 1) con 1 cancha vacía; el último partido empieza a las 09:10 en vez de las 08:00'
+      '2026-10-03: se usaron 2 turnos (mínimo 1) con 1 cancha vacía; el último partido empieza a las 09:05 en vez de las 08:00'
     );
   });
 });

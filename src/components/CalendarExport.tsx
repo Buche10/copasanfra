@@ -39,6 +39,12 @@ export const CalendarExport: React.FC<CalendarExportProps> = ({ matches: allMatc
     return (id: string) => map.get(id)?.name ?? 'Por definir';
   }, [teams]);
 
+  // Partidos contra un equipo retirado: no se juegan (W.O.), no van en la programación del día.
+  const isWalkover = useMemo(() => {
+    const withdrawn = new Set(teams.filter((t) => t.withdrawn).map((t) => t.id));
+    return (m: Match) => withdrawn.has(m.homeTeamId) || withdrawn.has(m.awayTeamId);
+  }, [teams]);
+
   // Fechas (sábados) disponibles según el calendario.
   const dates = useMemo(
     () => [...new Set(matches.map((m) => m.date).filter(Boolean))].sort(),
@@ -60,9 +66,9 @@ export const CalendarExport: React.FC<CalendarExportProps> = ({ matches: allMatc
   const dayMatches = useMemo(
     () =>
       matches
-        .filter((m) => m.date === activeDate)
+        .filter((m) => m.date === activeDate && !isWalkover(m))
         .sort((a, b) => (a.time || '').localeCompare(b.time || '') || (a.stadium || '').localeCompare(b.stadium || '')),
-    [matches, activeDate]
+    [matches, activeDate, isWalkover]
   );
 
   // Partidos de la categoría, agrupados por jornada.
@@ -228,7 +234,7 @@ export const CalendarExport: React.FC<CalendarExportProps> = ({ matches: allMatc
                         <tbody>
                           {g.items.map((m) => (
                             <tr key={m.id} className="border-b border-slate-100 last:border-0">
-                              <td className="px-4 py-2 font-black text-slate-900 whitespace-nowrap w-16">{m.time || '--:--'}</td>
+                              <td className="px-4 py-2 font-black text-slate-900 whitespace-nowrap w-16">{isWalkover(m) ? 'W.O.' : m.time || '--:--'}</td>
                               <td className="px-4 py-2 text-slate-600 whitespace-nowrap w-24">{m.stadium || 'Cancha 1'}</td>
                               <td className="px-4 py-2 font-bold text-slate-900">
                                 {teamName(m.homeTeamId)} <span className="text-slate-400 font-normal">vs</span> {teamName(m.awayTeamId)}

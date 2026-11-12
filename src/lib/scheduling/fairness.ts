@@ -131,7 +131,7 @@ export function addToHistory(
 
 /**
  * Genera el informe de equidad de horarios por equipo sobre el calendario provisto.
- * % temprano corresponde a los dos primeros turnos (08:00 y 09:10).
+ * % temprano corresponde a los dos primeros turnos (08:00 y 09:05).
  * % tarde corresponde al ultimo tercio del dia.
  */
 interface TeamSlotStats {
@@ -174,7 +174,7 @@ function collectTeamSlotStats(
 
 /**
  * Genera el informe de equidad de horarios por equipo sobre el calendario provisto.
- * % temprano corresponde a los dos primeros turnos (08:00 y 09:10).
+ * % temprano corresponde a los dos primeros turnos (08:00 y 09:05).
  * % tarde corresponde al ultimo tercio del dia.
  */
 export function fairnessReport(

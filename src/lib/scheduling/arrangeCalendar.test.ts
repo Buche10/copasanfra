@@ -6,7 +6,7 @@ import {
   ArrangeInput,
 } from './arrangeCalendar';
 import { canChangeCategory } from '../registration';
-import { Team, Player, Match, Category } from '@/types';
+import { Team, Player, Match, Category, CANCHAS, MATCH_TIME_SLOTS } from '@/types';
 
 function createTeam(id: string, name: string, category: Category, clubId?: string): Team {
   return {
@@ -440,7 +440,7 @@ describe('planCalendarArrangement - Simulacion del torneo', () => {
     }
   });
 
-  it('detecta y reporta fechas con mas de 16 partidos activos sin modificarlas', () => {
+  it('detecta y reporta fechas con mas partidos activos que la capacidad sin modificarlas', () => {
     const { teams, players } = buildRealTournamentScenario();
     const playedPastMatch = createMatch('m-past', 'Abierta Varones', '2026-09-05', 'ab-1', 'ab-2', {
       status: 'FINISHED',
@@ -449,7 +449,7 @@ describe('planCalendarArrangement - Simulacion del torneo', () => {
     });
     const overCapacityMatches: Match[] = [
       playedPastMatch,
-      ...Array.from({ length: 17 }, (_, i) =>
+      ...Array.from({ length: MATCH_TIME_SLOTS.length * CANCHAS.length + 1 }, (_, i) =>
         createMatch(`m-over-${i}`, 'Abierta Varones', '2026-10-03', 'ab-1', 'ab-2', {
           time: '12:00',
           stadium: 'Cancha 1',
@@ -658,5 +658,55 @@ describe('planCalendarArrangement - fecha suspendida por feriado y "en vivo" por
         expect(out.status).toBe('IN_PROGRESS');
         expect(out.date).toBe('2026-10-31');
       });
+  });
+});
+
+describe('planCalendarArrangement - equipo retirado', () => {
+  const teams = [
+    createTeam('t1', 'Equipo 1', 'Abierta Varones'),
+    createTeam('t2', 'Equipo 2', 'Abierta Varones'),
+    createTeam('t3', 'Equipo 3', 'Abierta Varones'),
+    { ...createTeam('t4', 'Camaradas', 'Abierta Varones'), withdrawn: true },
+  ];
+  const matches = [
+    createMatch('r1-a', 'Abierta Varones', '2026-09-26', 't1', 't2', { status: 'FINISHED', homeScore: 1 }),
+    createMatch('r1-b', 'Abierta Varones', '2026-09-26', 't3', 't4', { status: 'FINISHED', awayScore: 2 }),
+    createMatch('r2-a', 'Abierta Varones', '2026-10-03', 't1', 't3', { round: 2, time: '12:40', stadium: 'Cancha 2' }),
+    createMatch('r2-b', 'Abierta Varones', '2026-10-03', 't2', 't4', { round: 2, time: '08:00' }),
+    createMatch('r3-a', 'Abierta Varones', '2026-10-10', 't1', 't4', {
+      round: 3,
+      status: 'FINISHED',
+      homeScore: 3,
+      time: '09:05',
+    }),
+    createMatch('r3-b', 'Abierta Varones', '2026-10-10', 't2', 't3', { round: 3, time: '13:50', stadium: 'Cancha 2' }),
+  ];
+  const plan = planCalendarArrangement({
+    matches,
+    teams,
+    players: [],
+    activeCategories: ['Abierta Varones'],
+    today: '2026-09-30',
+  });
+  const byId = new Map(plan.matches.map((m) => [m.id, m]));
+
+  it('conserva los partidos del retirado sin hora ni cancha', () => {
+    expect(plan.matches).toHaveLength(matches.length);
+    expect(byId.get('r2-b')).toMatchObject({ time: '', stadium: '', status: 'SCHEDULED', date: '2026-10-03' });
+    expect(plan.clearedMatches).toBe(1);
+  });
+
+  it('programa los demas partidos desde las 08:00 sin contar al retirado', () => {
+    expect(byId.get('r2-a')).toMatchObject({ time: '08:00', stadium: 'Cancha 1' });
+  });
+
+  it('un W.O. ya registrado no impide reprogramar el resto de la fecha', () => {
+    expect(byId.get('r3-a')).toMatchObject({ status: 'FINISHED', homeScore: 3, time: '09:05' });
+    expect(byId.get('r3-b')).toMatchObject({ time: '08:00', stadium: 'Cancha 1' });
+  });
+
+  it('no regenera ni completa la categoria por el retiro', () => {
+    expect(plan.createdCategories).toEqual([]);
+    expect(plan.warnings).toEqual([]);
   });
 });

@@ -8,8 +8,11 @@
 
 with turnos as (
   select * from (values
-    -- Turnos actuales de 70 minutos
-    ('08:00', 0), ('09:10', 1), ('10:20', 2), ('11:30', 3),
+    -- Turnos actuales de 65 minutos
+    ('08:00', 0), ('09:05', 1), ('10:10', 2), ('11:15', 3), ('12:20', 4),
+    ('13:25', 5), ('14:30', 6), ('15:35', 7), ('16:40', 8),
+    -- Turnos anteriores de 70 minutos (hasta 2026-11)
+    ('09:10', 1), ('10:20', 2), ('11:30', 3),
     ('12:40', 4), ('13:50', 5), ('15:00', 6), ('16:10', 7),
     -- Turnos antiguos de 75 minutos (partidos jugados hasta el 2026-10-17)
     ('09:15', 1), ('10:30', 2), ('11:45', 3),

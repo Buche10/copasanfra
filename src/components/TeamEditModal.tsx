@@ -33,6 +33,7 @@ export const TeamEditModal: React.FC<TeamEditModalProps> = ({ team, hasMatches =
   const [primaryColor, setPrimaryColor] = useState(team.primaryColor || '#00A859');
   const [phone, setPhone] = useState(team.phone || '');
   const [clubId, setClubId] = useState(team.clubId || '');
+  const [withdrawn, setWithdrawn] = useState(team.withdrawn === true);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +47,7 @@ export const TeamEditModal: React.FC<TeamEditModalProps> = ({ team, hasMatches =
       primaryColor,
       phone: phone.trim(),
       clubId: clubId.trim() || undefined,
+      withdrawn: withdrawn || undefined,
     });
     onClose();
   };
@@ -116,6 +118,21 @@ export const TeamEditModal: React.FC<TeamEditModalProps> = ({ team, hasMatches =
             <input type="text" value={clubId} onChange={(e) => setClubId(e.target.value)} placeholder="ej. club-akd" className={field} />
             <p className="text-[11px] text-slate-400 mt-1">Equipos con el mismo dueño se programan en horarios seguidos.</p>
           </div>
+          <label className="flex items-start gap-2 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={withdrawn}
+              onChange={(e) => setWithdrawn(e.target.checked)}
+              className="mt-0.5 accent-rose-600"
+            />
+            <span>
+              <span className="block text-xs font-bold text-slate-700">Equipo retirado del torneo</span>
+              <span className="block text-[11px] text-slate-500 leading-tight mt-0.5">
+                Sus partidos se conservan para dar los puntos al rival por W.O. (al pagar la programación), pero ya no se
+                programan con hora ni cancha. Luego pulsa Acomodar calendario.
+              </span>
+            </span>
+          </label>
 
           <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
             <button type="button" onClick={onClose} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors">

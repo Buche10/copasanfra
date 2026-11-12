@@ -2,13 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { getTimeSlotIndex } from './timeSlots';
 
 describe('getTimeSlotIndex', () => {
-  it('reconoce los turnos actuales de 70 minutos', () => {
+  it('reconoce los turnos actuales de 65 minutos', () => {
     expect(getTimeSlotIndex('08:00')).toBe(0);
-    expect(getTimeSlotIndex('09:10')).toBe(1);
-    expect(getTimeSlotIndex('15:00')).toBe(6);
+    expect(getTimeSlotIndex('09:05')).toBe(1);
+    expect(getTimeSlotIndex('10:10')).toBe(2);
+    expect(getTimeSlotIndex('15:35')).toBe(7);
+    expect(getTimeSlotIndex('16:40')).toBe(8);
   });
 
-  it('reconoce el turno retirado de las 16:10', () => {
+  it('reconoce los turnos anteriores de 70 minutos de partidos ya guardados', () => {
+    expect(getTimeSlotIndex('09:10')).toBe(1);
+    expect(getTimeSlotIndex('15:00')).toBe(6);
     expect(getTimeSlotIndex('16:10')).toBe(7);
   });
 

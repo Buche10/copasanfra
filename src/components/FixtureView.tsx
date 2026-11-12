@@ -75,6 +75,8 @@ export const FixtureView: React.FC<FixtureViewProps> = ({
     const home = m.homeTeamId ? teamMap.get(m.homeTeamId) : undefined;
     const away = m.awayTeamId ? teamMap.get(m.awayTeamId) : undefined;
     const accent = `linear-gradient(90deg, ${home?.primaryColor || '#00A859'}, ${away?.primaryColor || '#0f172a'})`;
+    // Partido contra un equipo retirado: no se juega, el rival gana por W.O.
+    const isWalkover = home?.withdrawn === true || away?.withdrawn === true;
 
     return (
       <div
@@ -89,10 +91,10 @@ export const FixtureView: React.FC<FixtureViewProps> = ({
           <div className="flex items-start justify-between gap-2 mb-4">
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="inline-flex items-center gap-1 text-[11px] font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg">
-                <Clock className="w-3.5 h-3.5 text-[#00A859]" /> {m.time || '--:--'}
+                <Clock className="w-3.5 h-3.5 text-[#00A859]" /> {isWalkover ? 'W.O.' : m.time || '--:--'}
               </span>
               <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
-                <MapPin className="w-3.5 h-3.5 text-rose-600" /> {m.stadium || 'Cancha 1'}
+                <MapPin className="w-3.5 h-3.5 text-rose-600" /> {isWalkover ? 'No se juega' : m.stadium || 'Cancha 1'}
               </span>
               {!compact && m.date && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">

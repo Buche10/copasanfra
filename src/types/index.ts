@@ -65,6 +65,9 @@ export interface Team {
   // share this value so the scheduler keeps their matches in consecutive,
   // non-overlapping time slots. When absent, the team is its own club.
   clubId?: string;
+  // Equipo retirado del torneo: sus partidos siguen en el calendario para dar los
+  // puntos al rival (W.O.), pero ya no se programan con hora ni cancha.
+  withdrawn?: boolean;
 }
 
 export type PlayerPosition = 'POR' | 'DEF' | 'MED' | 'DEL';
@@ -145,10 +148,12 @@ export function maxPlayersForCategory(category: Category | undefined): number {
 
 export const CANCHAS = ['Cancha 1', 'Cancha 2'] as const;
 export const STADIUMS = CANCHAS;
-// El ultimo partido empieza como maximo a las 15:00: 7 turnos x 2 canchas = 14 partidos por dia.
-export const MATCH_TIME_SLOTS = ['08:00', '09:10', '10:20', '11:30', '12:40', '13:50', '15:00'] as const;
+// Turnos de 65 minutos desde las 08:00 (08:00, 09:05, 10:10, ...). Con todas las
+// categorias jugando hacen falta mas de 7 turnos; el calendario usa solo los necesarios
+// (ceil(partidos / canchas)) empezando a las 08:00.
+export const MATCH_TIME_SLOTS = ['08:00', '09:05', '10:10', '11:15', '12:20', '13:25', '14:30', '15:35', '16:40'] as const;
 // Turnos anteriores que pueden seguir en partidos ya guardados: los de 75 minutos (hasta
-// el 2026-10-17) y los de 70 minutos con un octavo turno a las 16:10 (2026-10-21).
+// el 2026-10-17) y los de 70 minutos (09:10, 10:20, ..., hasta el 2026-11).
 export const LEGACY_MATCH_TIME_SLOTS: readonly (readonly string[])[] = [
   ['08:00', '09:15', '10:30', '11:45', '13:00', '14:15', '15:30', '16:45'],
   ['08:00', '09:10', '10:20', '11:30', '12:40', '13:50', '15:00', '16:10'],
