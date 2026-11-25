@@ -1,0 +1,85 @@
+{
+  "id": "m-abiertavarones-192",
+  "data": {
+    "id": "m-abiertavarones-192",
+    "date": "2026-10-24",
+    "time": "09:10",
+    "round": 7,
+    "events": [
+      {
+        "id": "ev-78eefb34-7381-4d9e-ba55-6405df2d8c50",
+        "type": "GOAL",
+        "minute": 15,
+        "teamId": "team-ab-3",
+        "matchId": "m-abiertavarones-192",
+        "goalType": "REGULAR",
+        "playerId": "player-1788552938837-0n3kh"
+      },
+      {
+        "id": "ev-ad519acf-8980-4066-89b3-14d7b75460c6",
+        "type": "GOAL",
+        "minute": 15,
+        "teamId": "team-ab-3",
+        "matchId": "m-abiertavarones-192",
+        "goalType": "REGULAR",
+        "playerId": "player-1788552938837-0n3kh"
+      },
+      {
+        "id": "ev-85d914c6-8602-4ab5-b698-551b5d30473e",
+        "type": "GOAL",
+        "minute": 15,
+        "teamId": "team-ab-3",
+        "matchId": "m-abiertavarones-192",
+        "goalType": "REGULAR",
+        "playerId": "player-1788552938837-0n3kh"
+      }
+    ],
+    "status": "FINISHED",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "signedAt": "26/10/2026, 15:43:59",
+    "signedBy": "Árbitro 1",
+    "awayScore": 0,
+    "homeScore": 3,
+    "awayLineup": [],
+    "awayTeamId": "team-ab-2",
+    "homeLineup": [
+      {
+        "dorsal": 10,
+        "playerId": "player-1788552938837-0n3kh",
+        "isStarter": true,
+        "isGoalkeeper": false
+      },
+      {
+        "dorsal": 5,
+        "playerId": "player-1788487561362-ninx5",
+        "isStarter": true,
+        "isGoalkeeper": false
+      },
+      {
+        "dorsal": 30,
+        "playerId": "player-1789151775237-pcxp7",
+        "isStarter": true,
+        "isGoalkeeper": false
+      },
+      {
+        "dorsal": 18,
+        "playerId": "player-1792192753842-kacyu",
+        "isStarter": true,
+        "isGoalkeeper": false
+      },
+      {
+        "dorsal": 16,
+        "playerId": "player-1788539493058-khb75",
+        "isStarter": true,
+        "isGoalkeeper": false
+      }
+    ],
+    "homeTeamId": "team-ab-3",
+    "refereeNotes": "Una vez culminado el tiempo de espera se da por legalizado el encuentro deportivo en donde abogadasos se presenta con plantilla completa otorgándole el triunfo 3x0.",
+    "refereeSigned": true,
+    "awayGoalkeeperId": "player-1788471182891-r31oc",
+    "homeGoalkeeperId": "player-1788490547115-k5d5x"
+  },
+  "updated_at": "2026-11-25T14:42:19.909+00:00"
+}
