@@ -12,7 +12,8 @@ import { changedPlayoffMatches, recomputePlayoffs } from './playoffs';
 export const GROUP_STAGE_CONFIG: Partial<
   Record<Category, { bonusByRegularPosition: number[] }>
 > = {
-  '+40 Varones': { bonusByRegularPosition: [2, 2, 1, 1] },
+  // Bonificación inicial en el grupo: 1.º de la fase regular 2 puntos, 2.º 1 punto, el resto 0.
+  '+40 Varones': { bonusByRegularPosition: [2, 1] },
 };
 
 export interface GroupEntry {

@@ -23,14 +23,14 @@ App Copa Sanfra 2026 (repo `Copa Abogados`): Next.js 16 con export estático (`o
 ## Reglas del nuevo formato (decididas por el cliente)
 
 1. **Grupos según la tabla final de la fase regular.** Al grupo A van los puestos 1, 3, 5, 7 y 9. Al grupo B, los puestos 2, 4, 6, 8 y 10.
-2. **Bonificación inicial en la tabla del grupo.** Los puestos 1 y 2 de la fase regular empiezan con 2 puntos, y los puestos 3 y 4 con 1 punto. Los demás empiezan en 0.
+2. **Bonificación inicial en la tabla del grupo.** El puesto 1 de la fase regular empieza con 2 puntos y el puesto 2 con 1 punto. Los demás empiezan en 0. (Corregido el 2026-11-25: antes decía 2/2/1/1.)
 3. **Dentro de cada grupo, todos contra todos a una vuelta.** Con 5 equipos son 10 partidos y 5 fechas por grupo; en cada fecha juegan 2 partidos y descansa 1 equipo. Las dos fases de grupos se juegan en paralelo, así que hay 4 partidos de +40 por sábado durante 5 sábados.
 4. **Orden de la tabla de cada grupo:** primero los puntos, contando la bonificación y solo los partidos de ese grupo. Si dos o más equipos empatan en puntos, queda arriba el que terminó mejor en la fase regular. No se usan enfrentamiento directo, diferencia de goles ni goles a favor para desempatar en grupos. Como cada equipo tiene un puesto regular distinto, nunca queda un empate sin resolver.
 5. **Cruces entre grupos, que reemplazan a los cuartos.** C1 = 1A vs 4B, C2 = 2A vs 3B, C3 = 3A vs 2B, C4 = 4A vs 1B. En cada cruce es local el equipo del grupo A.
 6. **Semifinales y final.** S1 = ganador de C1 vs ganador de C3, y S2 = ganador de C2 vs ganador de C4. Así, los primeros de cada grupo solo pueden encontrarse en la final. La final enfrenta a los ganadores de S1 y S2. Un empate en cruces, semis o final se sigue definiendo a mano con `winnerTeamId`, como hoy.
 7. **Resultado esperado con los datos reales:**
-   - Grupo A: Fuerza Legal (+2), Club IDUS (+1), Lawyers (0), Alianza Legal (0), Boman Legal (0).
-   - Grupo B: Futleg (+40) (+2), Leones Q (+40) (+1), Vodka Jr. (0), AKD (+40) (0), Sporting Legal (0).
+   - Grupo A: Fuerza Legal (+2), Club IDUS (0), Lawyers (0), Alianza Legal (0), Boman Legal (0).
+   - Grupo B: Futleg (+40) (+1), Leones Q (+40) (0), Vodka Jr. (0), AKD (+40) (0), Sporting Legal (0).
 
 ## Objetivo
 
@@ -46,7 +46,7 @@ El administrador pulsa un botón y la app crea la fase de grupos de +40: 20 part
 2. **Configuración** en el nuevo archivo `src/lib/groupStage.ts`:
    ```ts
    export const GROUP_STAGE_CONFIG: Partial<Record<Category, { bonusByRegularPosition: number[] }>> = {
-     '+40 Varones': { bonusByRegularPosition: [2, 2, 1, 1] },
+     '+40 Varones': { bonusByRegularPosition: [2, 1] },
    };
    ```
    Ninguna otra categoría tiene fase de grupos. No metas `+40 Varones` en código fuera de esta constante.
@@ -122,7 +122,7 @@ El administrador pulsa un botón y la app crea la fase de grupos de +40: 20 part
 
 Usa Vitest. Pon los tests en `src/lib/groupStage.test.ts` y amplía `src/lib/playoffs` (créalo si no existe: `src/lib/playoffs.test.ts`) y los tests de scheduling que ya existen.
 
-1. `buildGroups` con 10 equipos: comprueba que los impares van al A y los pares al B, que las bonificaciones son 2/2/1/1/0..., y que se excluyen los equipos retirados. Incluye un caso con los 10 equipos reales en el orden de arriba y su resultado esperado (regla 7).
+1. `buildGroups` con 10 equipos: comprueba que los impares van al A y los pares al B, que solo el 1.º (2) y el 2.º (1) tienen bonificación, y que se excluyen los equipos retirados. Incluye un caso con los 10 equipos reales en el orden de arriba y su resultado esperado (regla 7).
 2. `calculateGroupStandings`:
    - la bonificación se suma a los puntos;
    - con empate en puntos queda arriba quien terminó mejor en la fase regular, aunque tenga peor diferencia de goles o haya perdido el enfrentamiento directo;
