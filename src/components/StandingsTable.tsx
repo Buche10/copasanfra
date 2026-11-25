@@ -9,12 +9,14 @@ interface StandingsTableProps {
   standings: TeamStanding[];
   teams: Team[];
   onSelectTeam: (team: Team) => void;
+  title?: string;
 }
 
 export const StandingsTable: React.FC<StandingsTableProps> = ({
   standings,
   teams,
   onSelectTeam,
+  title = 'Tabla General de Posiciones',
 }) => {
   const teamMap = new Map(teams.map((t) => [t.id, t]));
   const currentCat = teams.find((t) => t.id === standings[0]?.teamId)?.category || '';
@@ -30,7 +32,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#00A859]/20 text-[#00A859] border border-[#00A859]/30 text-xs font-bold uppercase tracking-wider">
             <span>Campeonato Oficial</span> • <span>Tungurahua</span>
           </div>
-          <h2 className="text-2xl font-black tracking-tight">Tabla General de Posiciones</h2>
+          <h2 className="text-2xl font-black tracking-tight">{title}</h2>
           <p className="text-slate-300 text-sm">
             {isTopTwo ? (
               <>Los <span className="text-[#00A859] font-bold">2 primeros</span> disputan la Gran Final.</>

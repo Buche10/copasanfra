@@ -200,11 +200,14 @@ export interface Match {
   financials?: MatchFinancials;
   // Play offs
   isPlayoff?: boolean;
-  playoffStage?: 'CUARTOS' | 'SEMIS' | 'FINAL';
+  playoffStage?: 'GRUPOS' | 'CUARTOS' | 'SEMIS' | 'FINAL';
+  groupName?: 'A' | 'B';
   // Posición en el cuadro: C1-C4 (cuartos), S1-S2 (semis), F (final).
   bracketSlot?: 'C1' | 'C2' | 'C3' | 'C4' | 'S1' | 'S2' | 'F';
   // Ganador definido a mano cuando el partido de play off termina empatado.
   winnerTeamId?: string;
+  // Programación original del cuadro antes de insertar la fase de grupos (para deshacer).
+  preGroupSchedule?: { date: string; time: string; stadium: string };
   // Historial de correcciones de planilla realizadas por administradores o árbitros.
   corrections?: SheetCorrection[];
 }
@@ -267,6 +270,8 @@ export interface TeamStanding {
   redCards: number;
   fairPlayPoints: number; // Penalizaciones por tarjetas
   pts: number; // Puntos
+  bonus?: number;
+  regularPosition?: number;
 }
 
 export interface PlayerScorer {

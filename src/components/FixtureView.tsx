@@ -6,6 +6,8 @@ import { TeamShield } from './TeamShield';
 import { restingTeamIds, nextRoundToPlay } from '@/lib/resting';
 import { MatchDetailModal } from './MatchDetailModal';
 import { MatchEditModal } from './MatchEditModal';
+import { GroupStandings } from './GroupStandings';
+import { getGroupMemberIds } from '@/lib/groupStage';
 import { Calendar, MapPin, ChevronRight, ChevronLeft, Edit3, Trophy, ListOrdered, Clock, Coffee } from 'lucide-react';
 
 interface FixtureViewProps {
@@ -17,16 +19,18 @@ interface FixtureViewProps {
 }
 
 const STAGE_LABEL: Record<string, string> = {
-  CUARTOS: '⚡ Cuartos de Final',
-  SEMIS: '🔥 Semifinales',
-  FINAL: '🏆 Gran Final',
+  GRUPOS: 'Fase de grupos',
+  CUARTOS: 'Cuartos de Final',
+  SEMIS: 'Semifinales',
+  FINAL: 'Gran Final',
 };
-const STAGE_ORDER = ['CUARTOS', 'SEMIS', 'FINAL'];
+const STAGE_ORDER = ['GRUPOS', 'CUARTOS', 'SEMIS', 'FINAL'];
 
 export const FixtureView: React.FC<FixtureViewProps> = ({
   matches,
   teams,
   players,
+  onSelectTeam,
   onUpdateMatch,
 }) => {
   const [phase, setPhase] = useState<'REGULAR' | 'PLAYOFFS'>('REGULAR');
@@ -312,19 +316,109 @@ export const FixtureView: React.FC<FixtureViewProps> = ({
         </>
       ) : (
         <div className="space-y-6">
-          {STAGE_ORDER.filter((stage) => playoffMatches.some((m) => m.playoffStage === stage)).map((stage) => (
-            <div key={stage} className="space-y-3">
-              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                <span>{STAGE_LABEL[stage]}</span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {playoffMatches.filter((m) => m.playoffStage === stage).map((m) => renderMatch(m, false))}
-              </div>
-            </div>
-          ))}
-          <p className="text-xs text-slate-500 text-center bg-white p-3 rounded-2xl border border-slate-200">
-            El cuadro se arma solo con las posiciones de la fase regular y avanza con los ganadores. Si un partido queda empatado, defínelo a mano en <strong>Editar</strong>.
-          </p>
+          {(() => {
+            const groupMatches = playoffMatches.filter((m) => m.playoffStage === 'GRUPOS');
+            const hasGroups = groupMatches.length > 0;
+            const groupCategory = groupMatches[0]?.category ?? viewCategory;
+            const groupMembers =
+              hasGroups && groupCategory
+                ? {
+                    A: getGroupMemberIds(groupCategory, matches, 'A'),
+                    B: getGroupMemberIds(groupCategory, matches, 'B'),
+                  }
+                : null;
+            const groupRounds = Array.from(new Set(groupMatches.map((m) => m.round))).sort((a, b) => a - b);
+
+            return (
+              <>
+                {STAGE_ORDER.filter((stage) => playoffMatches.some((m) => m.playoffStage === stage)).map((stage) => {
+                  const stageTitle =
+                    stage === 'CUARTOS' && hasGroups
+                      ? 'Cruces de grupos (cuartos de final)'
+                      : STAGE_LABEL[stage];
+
+                  if (stage === 'GRUPOS' && groupCategory) {
+                    return (
+                      <div key={stage} className="space-y-5">
+                        <h3 className="text-lg font-black text-slate-900">{stageTitle}</h3>
+                        <GroupStandings
+                          category={groupCategory}
+                          teams={teams}
+                          matches={matches}
+                          onSelectTeam={onSelectTeam}
+                        />
+                        <div className="space-y-5">
+                          {groupRounds.map((r) => {
+                            const rMatches = groupMatches.filter((m) => m.round === r);
+                            const rDate = rMatches[0]?.date;
+                            const restingByGroup = (['A', 'B'] as const)
+                              .map((g) => {
+                                const memberIds = groupMembers?.[g] ?? [];
+                                const playing = new Set(
+                                  rMatches
+                                    .filter((m) => m.groupName === g)
+                                    .flatMap((m) => [m.homeTeamId, m.awayTeamId])
+                                );
+                                const restTeam = memberIds
+                                  .map((id) => teamMap.get(id))
+                                  .find((t) => t && !playing.has(t.id));
+                                return restTeam ? { group: g, team: restTeam } : null;
+                              })
+                              .filter(Boolean) as Array<{ group: 'A' | 'B'; team: Team }>;
+
+                            return (
+                              <div key={r} className="space-y-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2 bg-white rounded-2xl border border-slate-200 px-4 py-3">
+                                  <div className="flex items-baseline gap-2">
+                                    <span className="font-black text-slate-900 text-sm">Jornada {r}</span>
+                                    {rDate && <span className="text-xs font-bold text-slate-500">{rDate}</span>}
+                                  </div>
+                                  {restingByGroup.length > 0 && (
+                                    <div className="flex flex-wrap items-center gap-3 text-xs text-amber-800 font-semibold">
+                                      {restingByGroup.map(({ group, team }) => (
+                                        <span key={group} className="bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-xl">
+                                          Grupo {group} descansa: <strong>{team.shortName || team.name}</strong>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {rMatches.map((m) => renderMatch(m, false))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={stage} className="space-y-3">
+                      <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                        <span>{stageTitle}</span>
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {playoffMatches.filter((m) => m.playoffStage === stage).map((m) => renderMatch(m, false))}
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="text-xs text-slate-500 text-center bg-white p-3 rounded-2xl border border-slate-200">
+                  {hasGroups ? (
+                    <>
+                      Los cruces de cuartos de final se arman con las tablas de grupo y avanzan con los ganadores. Si un cruce, semifinal o final queda empatado, defínelo a mano en <strong>Editar</strong>.
+                    </>
+                  ) : (
+                    <>
+                      El cuadro se arma solo con las posiciones de la fase regular y avanza con los ganadores. Si un partido queda empatado, defínelo a mano en <strong>Editar</strong>.
+                    </>
+                  )}
+                </p>
+              </>
+            );
+          })()}
         </div>
       )}
 

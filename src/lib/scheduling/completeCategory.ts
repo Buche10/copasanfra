@@ -105,7 +105,7 @@ export function findCategoriesToComplete(
     if (catTeams.length < 2) continue;
     const catMatches = matches.filter((m) => m.category === cat);
     if (!catMatches.some((m) => isPlayedOrLive(m, nextSat))) continue; // sin jugar: se regenera completa
-    if (catMatches.some((m) => m.isPlayoff && isPlayedOrLive(m, nextSat))) continue; // fase regular cerrada
+    if (catMatches.some((m) => m.isPlayoff && (m.playoffStage === 'GRUPOS' || isPlayedOrLive(m, nextSat)))) continue; // fase regular cerrada
 
     const regular = catMatches.filter((m) => !m.isPlayoff);
     const missing = findMissingPairs(cat, catTeams, regular);

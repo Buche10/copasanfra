@@ -51,6 +51,8 @@ import { signIn, signOut, getCurrentSessionEmail } from '@/lib/auth';
 import { asset } from '@/lib/basePath';
 import { isRlsRegistrationError, REGISTRATION_CLOSED_MESSAGE, canChangeCategory } from '@/lib/registration';
 import { recomputePlayoffs, changedPlayoffMatches } from '@/lib/playoffs';
+import { hasGroupStage } from '@/lib/groupStage';
+import { GroupStandings } from '@/components/GroupStandings';
 import { ArrangePlan } from '@/lib/scheduling/arrangeCalendar';
 import { diffMatches } from '@/lib/scheduling/matchDiff';
 import { planTeamDeletion } from '@/lib/teamDeletion';
@@ -727,7 +729,11 @@ export default function Home() {
   // Derived Stats filtered by active category
   const filteredMatches = matches.filter((m) => m.category === selectedCategory);
 
-  const standings: TeamStanding[] = calculateStandings(teams, matches, selectedCategory);
+  const categoryHasGroupStage = hasGroupStage(selectedCategory, matches);
+  const standingsMatches = categoryHasGroupStage
+    ? matches.filter((m) => !m.isPlayoff)
+    : matches;
+  const standings: TeamStanding[] = calculateStandings(teams, standingsMatches, selectedCategory);
   const scorers: PlayerScorer[] = calculateScorers(players, teams, matches, selectedCategory);
   const goalkeepers: GoalkeeperStat[] = calculateGoalkeepers(players, teams, matches, selectedCategory);
   const sanctions: PlayerSanction[] = calculateSanctions(players, teams, matches, selectedCategory);
@@ -799,11 +805,25 @@ export default function Home() {
         {/* Dynamic Tab Views */}
         {activeTab === 'standings' && (
           isComingSoon ? comingSoonView : (
-            <StandingsTable
-              standings={standings}
-              teams={teams}
-              onSelectTeam={(t) => setSelectedTeam(t)}
-            />
+            <div className="space-y-8">
+              {categoryHasGroupStage && (
+                <div className="space-y-4">
+                  <h2 className="text-xl font-black text-slate-900">Fase de grupos</h2>
+                  <GroupStandings
+                    category={selectedCategory}
+                    teams={teams}
+                    matches={matches}
+                    onSelectTeam={(t) => setSelectedTeam(t)}
+                  />
+                </div>
+              )}
+              <StandingsTable
+                standings={standings}
+                teams={teams}
+                onSelectTeam={(t) => setSelectedTeam(t)}
+                title={categoryHasGroupStage ? 'Fase regular (cerrada)' : undefined}
+              />
+            </div>
           )
         )}
         {activeTab === 'stats' && (isComingSoon ? comingSoonView : (
@@ -923,6 +943,7 @@ export default function Home() {
             activeCategories={activeCategories}
             loadPlayers={ensureFullPlayers}
             onApplyCalendarPlan={handleApplyCalendarPlan}
+            onMatchesUpdated={setMatches}
             onSaveResults={handleSaveResults}
             onUpdateMatch={handleUpdateMatch}
           />

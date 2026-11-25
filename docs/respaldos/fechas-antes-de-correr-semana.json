@@ -1,0 +1,474 @@
+[
+  {
+    "id": "m-40varones-146",
+    "date": "2026-11-21",
+    "time": "10:10",
+    "stadium": "Cancha 1",
+    "category": "+40 Varones",
+    "round": 10
+  },
+  {
+    "id": "m-damas-188",
+    "date": "2026-11-21",
+    "time": "14:30",
+    "stadium": "Cancha 1",
+    "category": "Damas",
+    "round": 6
+  },
+  {
+    "id": "m-abiertavarones-226",
+    "date": "2026-11-21",
+    "time": "13:25",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 10
+  },
+  {
+    "id": "m-move-909",
+    "date": "2026-11-21",
+    "time": "12:20",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "round": 10
+  },
+  {
+    "id": "m-abiertavarones-230",
+    "date": "2026-11-21",
+    "time": "12:20",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 10
+  },
+  {
+    "id": "m-abiertavarones-227",
+    "date": "2026-11-21",
+    "time": "",
+    "stadium": "",
+    "category": "Abierta Varones",
+    "round": 10
+  },
+  {
+    "id": "m-abiertavarones-265",
+    "date": "2026-12-12",
+    "time": "10:10",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 13
+  },
+  {
+    "id": "m-abiertavarones-269",
+    "date": "2026-12-19",
+    "time": "10:10",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "round": 14
+  },
+  {
+    "id": "m-abiertavarones-268",
+    "date": "2026-12-19",
+    "time": "09:05",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 14
+  },
+  {
+    "id": "m-50varones-x5-mv8p7jao",
+    "date": "2026-12-19",
+    "time": "08:00",
+    "stadium": "Cancha 1",
+    "category": "+50 Varones",
+    "round": 13
+  },
+  {
+    "id": "m-50varones-110",
+    "date": "2026-11-28",
+    "time": "08:00",
+    "stadium": "Cancha 1",
+    "category": "+50 Varones",
+    "round": 10
+  },
+  {
+    "id": "m-40varones-148",
+    "date": "2026-11-21",
+    "time": "11:15",
+    "stadium": "Cancha 2",
+    "category": "+40 Varones",
+    "round": 10
+  },
+  {
+    "id": "m-40varones-149",
+    "date": "2026-11-21",
+    "time": "10:10",
+    "stadium": "Cancha 2",
+    "category": "+40 Varones",
+    "round": 10
+  },
+  {
+    "id": "m-abiertavarones-231",
+    "date": "2026-11-21",
+    "time": "09:05",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "round": 10
+  },
+  {
+    "id": "m-abiertavarones-246",
+    "date": "2026-11-28",
+    "time": "11:15",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "round": 11
+  },
+  {
+    "id": "m-abiertavarones-267",
+    "date": "2026-12-19",
+    "time": "10:10",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 14
+  },
+  {
+    "id": "m-50varones-x2-mv8p7jao",
+    "date": "2026-11-21",
+    "time": "08:00",
+    "stadium": "Cancha 2",
+    "category": "+50 Varones",
+    "round": 9
+  },
+  {
+    "id": "m-abiertavarones-237",
+    "date": "2026-11-28",
+    "time": "11:15",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 11
+  },
+  {
+    "id": "m-abiertavarones-273",
+    "date": "2027-01-02",
+    "time": "08:00",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 16
+  },
+  {
+    "id": "m-abiertavarones-266",
+    "date": "2026-12-19",
+    "time": "09:05",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "round": 14
+  },
+  {
+    "id": "m-abiertavarones-234",
+    "date": "2026-11-21",
+    "time": "09:05",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 10
+  },
+  {
+    "id": "m-move-912",
+    "date": "2026-12-12",
+    "time": "09:05",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "round": 13
+  },
+  {
+    "id": "m-abiertavarones-258",
+    "date": "2026-12-12",
+    "time": "09:05",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 13
+  },
+  {
+    "id": "m-50varones-x7-mv8p7jao",
+    "date": "2026-11-28",
+    "time": "08:00",
+    "stadium": "Cancha 2",
+    "category": "+50 Varones",
+    "round": 10
+  },
+  {
+    "id": "m-abiertavarones-241",
+    "date": "2026-11-28",
+    "time": "10:10",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 11
+  },
+  {
+    "id": "m-40varones-151",
+    "date": "2026-11-28",
+    "time": "13:25",
+    "stadium": "Cancha 1",
+    "category": "+40 Varones",
+    "round": 11
+  },
+  {
+    "id": "m-abiertavarones-245",
+    "date": "2026-11-28",
+    "time": "12:20",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "round": 11
+  },
+  {
+    "id": "m-move-910",
+    "date": "2026-11-28",
+    "time": "09:05",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "round": 11
+  },
+  {
+    "id": "m-abiertavarones-238",
+    "date": "2026-11-28",
+    "time": "",
+    "stadium": "",
+    "category": "Abierta Varones",
+    "round": 11
+  },
+  {
+    "id": "m-50varones-x4-mv8p7jao",
+    "date": "2026-12-05",
+    "time": "08:00",
+    "stadium": "Cancha 1",
+    "category": "+50 Varones",
+    "round": 11
+  },
+  {
+    "id": "m-40varones-147",
+    "date": "2026-11-21",
+    "time": "11:15",
+    "stadium": "Cancha 1",
+    "category": "+40 Varones",
+    "round": 10
+  },
+  {
+    "id": "m-abiertavarones-235",
+    "date": "2026-11-21",
+    "time": "13:25",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "round": 10
+  },
+  {
+    "id": "m-40varones-150",
+    "date": "2026-11-28",
+    "time": "12:20",
+    "stadium": "Cancha 1",
+    "category": "+40 Varones",
+    "round": 11
+  },
+  {
+    "id": "m-abiertavarones-248",
+    "date": "2026-12-05",
+    "time": "12:20",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 12
+  },
+  {
+    "id": "m-move-911",
+    "date": "2026-12-05",
+    "time": "11:15",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 12
+  },
+  {
+    "id": "m-40varones-152",
+    "date": "2026-12-05",
+    "time": "09:05",
+    "stadium": "Cancha 2",
+    "category": "+40 Varones",
+    "round": 12
+  },
+  {
+    "id": "m-50varones-109",
+    "date": "2026-12-05",
+    "time": "08:00",
+    "stadium": "Cancha 2",
+    "category": "+50 Varones",
+    "round": 11
+  },
+  {
+    "id": "m-abiertavarones-263",
+    "date": "2026-12-12",
+    "time": "11:15",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 13
+  },
+  {
+    "id": "m-abiertavarones-264",
+    "date": "2026-12-12",
+    "time": "11:15",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "round": 13
+  },
+  {
+    "id": "m-abiertavarones-262",
+    "date": "2026-12-12",
+    "time": "10:10",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "round": 13
+  },
+  {
+    "id": "m-50varones-x6-mv8p7jao",
+    "date": "2026-12-12",
+    "time": "08:00",
+    "stadium": "Cancha 2",
+    "category": "+50 Varones",
+    "round": 12
+  },
+  {
+    "id": "m-abiertavarones-259",
+    "date": "2026-12-12",
+    "time": "",
+    "stadium": "",
+    "category": "Abierta Varones",
+    "round": 13
+  },
+  {
+    "id": "m-50varones-112",
+    "date": "2026-12-19",
+    "time": "08:00",
+    "stadium": "Cancha 2",
+    "category": "+50 Varones",
+    "round": 13
+  },
+  {
+    "id": "m-abiertavarones-271",
+    "date": "2026-12-26",
+    "time": "09:05",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 15
+  },
+  {
+    "id": "m-abiertavarones-272",
+    "date": "2026-12-26",
+    "time": "10:10",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 15
+  },
+  {
+    "id": "m-50varones-x8-mv8p7jao",
+    "date": "2026-12-26",
+    "time": "08:00",
+    "stadium": "Cancha 1",
+    "category": "+50 Varones",
+    "round": 14
+  },
+  {
+    "id": "m-50varones-111",
+    "date": "2026-12-26",
+    "time": "08:00",
+    "stadium": "Cancha 2",
+    "category": "+50 Varones",
+    "round": 14
+  },
+  {
+    "id": "m-50varones-113",
+    "date": "2027-01-02",
+    "time": "08:00",
+    "stadium": "Cancha 2",
+    "category": "+50 Varones",
+    "round": 15
+  },
+  {
+    "id": "m-damas-198",
+    "date": "2026-11-28",
+    "time": "09:05",
+    "stadium": "Cancha 1",
+    "category": "Damas",
+    "round": 7
+  },
+  {
+    "id": "m-50varones-103",
+    "date": "2026-11-21",
+    "time": "08:00",
+    "stadium": "Cancha 1",
+    "category": "+50 Varones",
+    "round": 9
+  },
+  {
+    "id": "m-abiertavarones-192",
+    "date": "2026-11-21",
+    "time": "15:35",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 7
+  },
+  {
+    "id": "m-damas-190",
+    "date": "2026-11-21",
+    "time": "14:30",
+    "stadium": "Cancha 2",
+    "category": "Damas",
+    "round": 6
+  },
+  {
+    "id": "m-50varones-108",
+    "date": "2026-12-12",
+    "time": "08:00",
+    "stadium": "Cancha 1",
+    "category": "+50 Varones",
+    "round": 12
+  },
+  {
+    "id": "m-abiertavarones-242",
+    "date": "2026-11-28",
+    "time": "10:10",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "round": 11
+  },
+  {
+    "id": "m-abiertavarones-252",
+    "date": "2026-12-05",
+    "time": "10:10",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "round": 12
+  },
+  {
+    "id": "m-abiertavarones-253",
+    "date": "2026-12-05",
+    "time": "11:15",
+    "stadium": "Cancha 2",
+    "category": "Abierta Varones",
+    "round": 12
+  },
+  {
+    "id": "m-abiertavarones-255",
+    "date": "2026-12-05",
+    "time": "10:10",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 12
+  },
+  {
+    "id": "m-abiertavarones-256",
+    "date": "2026-12-05",
+    "time": "09:05",
+    "stadium": "Cancha 1",
+    "category": "Abierta Varones",
+    "round": 12
+  },
+  {
+    "id": "m-abiertavarones-249",
+    "date": "2026-12-05",
+    "time": "",
+    "stadium": "",
+    "category": "Abierta Varones",
+    "round": 12
+  }
+]

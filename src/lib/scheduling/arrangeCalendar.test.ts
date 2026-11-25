@@ -710,3 +710,50 @@ describe('planCalendarArrangement - equipo retirado', () => {
     expect(plan.warnings).toEqual([]);
   });
 });
+
+describe('planCalendarArrangement - fase de grupos', () => {
+  it('ignora partidos GRUPOS, no los mueve ni marca la categoria como desalineada', () => {
+    const teams = Array.from({ length: 4 }, (_, i) =>
+      createTeam(`g${i + 1}`, `Equipo ${i + 1}`, '+40 Varones')
+    );
+    const regular: Match[] = [];
+    let r = 1;
+    for (let i = 0; i < 4; i++) {
+      for (let j = i + 1; j < 4; j++) {
+        regular.push(
+          createMatch(`reg-${r}`, '+40 Varones', '2026-10-03', `g${i + 1}`, `g${j + 1}`, {
+            round: r++,
+            status: 'FINISHED',
+            homeScore: 1,
+          })
+        );
+      }
+    }
+    const groupMatch: Match = {
+      ...createMatch('grp-1', '+40 Varones', '2026-11-28', 'g1', 'g3', {
+        round: 7,
+        time: '12:20',
+        stadium: 'Cancha 2',
+      }),
+      isPlayoff: true,
+      playoffStage: 'GRUPOS',
+      groupName: 'A',
+    };
+
+    const plan = planCalendarArrangement({
+      matches: [...regular, groupMatch],
+      teams,
+      players: [],
+      activeCategories: ['+40 Varones'],
+      today: '2026-11-25',
+    });
+
+    expect(plan.createdCategories).toEqual([]);
+    expect(plan.matches.find((m) => m.id === 'grp-1')).toMatchObject({
+      date: '2026-11-28',
+      time: '12:20',
+      stadium: 'Cancha 2',
+      playoffStage: 'GRUPOS',
+    });
+  });
+});

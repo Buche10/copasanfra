@@ -1,5 +1,10 @@
 import { Match, Team, Category } from '@/types';
 import { calculateStandings } from './store';
+import {
+  calculateGroupStandings,
+  groupStageComplete,
+  hasGroupStage,
+} from './groupStage';
 
 /**
  * Ganador de un partido de play off:
@@ -48,14 +53,32 @@ export function recomputePlayoffs(matches: Match[], teams: Team[]): Match[] {
     const hasFinal = !!slotMatch('F');
 
     if (hasCuartos) {
-      // Cuartos con las posiciones de la tabla
-      setTeams('C1', stdIds[0] || '', stdIds[7] || '');
-      setTeams('C2', stdIds[1] || '', stdIds[6] || '');
-      setTeams('C3', stdIds[2] || '', stdIds[5] || '');
-      setTeams('C4', stdIds[3] || '', stdIds[4] || '');
-      // Semis con los ganadores de cuartos
-      setTeams('S1', winnerOf(slotMatch('C1')), winnerOf(slotMatch('C4')));
-      setTeams('S2', winnerOf(slotMatch('C2')), winnerOf(slotMatch('C3')));
+      if (hasGroupStage(cat, matches)) {
+        if (groupStageComplete(cat, matches)) {
+          const groupA = calculateGroupStandings(cat, catTeams, matches, 'A').map((s) => s.teamId);
+          const groupB = calculateGroupStandings(cat, catTeams, matches, 'B').map((s) => s.teamId);
+          setTeams('C1', groupA[0] || '', groupB[3] || '');
+          setTeams('C2', groupA[1] || '', groupB[2] || '');
+          setTeams('C3', groupA[2] || '', groupB[1] || '');
+          setTeams('C4', groupA[3] || '', groupB[0] || '');
+        } else {
+          setTeams('C1', '', '');
+          setTeams('C2', '', '');
+          setTeams('C3', '', '');
+          setTeams('C4', '', '');
+        }
+        setTeams('S1', winnerOf(slotMatch('C1')), winnerOf(slotMatch('C3')));
+        setTeams('S2', winnerOf(slotMatch('C2')), winnerOf(slotMatch('C4')));
+      } else {
+        // Cuartos con las posiciones de la tabla
+        setTeams('C1', stdIds[0] || '', stdIds[7] || '');
+        setTeams('C2', stdIds[1] || '', stdIds[6] || '');
+        setTeams('C3', stdIds[2] || '', stdIds[5] || '');
+        setTeams('C4', stdIds[3] || '', stdIds[4] || '');
+        // Semis con los ganadores de cuartos
+        setTeams('S1', winnerOf(slotMatch('C1')), winnerOf(slotMatch('C4')));
+        setTeams('S2', winnerOf(slotMatch('C2')), winnerOf(slotMatch('C3')));
+      }
       // Final con los ganadores de semis
       setTeams('F', winnerOf(slotMatch('S1')), winnerOf(slotMatch('S2')));
     } else if (hasFinal) {
