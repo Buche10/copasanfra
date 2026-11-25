@@ -89,14 +89,14 @@ function buildTenTeamSetup(): { teams: Team[]; matches: Match[] } {
 }
 
 describe('groupStage', () => {
-  it('buildGroups divide 10 equipos reales en impares (A) y pares (B) con bonificaciones 2/2/1/1/0', () => {
+  it('buildGroups divide 10 equipos reales en impares (A) y pares (B); solo el 1.º (2) y el 2.º (1) tienen bonificacion', () => {
     const { teams, matches } = buildTenTeamSetup();
     const groups = buildGroups('+40 Varones', teams, matches);
 
     expect(groups.A.map((e) => e.teamId)).toEqual(['t1', 't3', 't5', 't7', 't9']);
     expect(groups.B.map((e) => e.teamId)).toEqual(['t2', 't4', 't6', 't8', 't10']);
-    expect(groups.A.map((e) => e.bonus)).toEqual([2, 1, 0, 0, 0]);
-    expect(groups.B.map((e) => e.bonus)).toEqual([2, 1, 0, 0, 0]);
+    expect(groups.A.map((e) => e.bonus)).toEqual([2, 0, 0, 0, 0]);
+    expect(groups.B.map((e) => e.bonus)).toEqual([1, 0, 0, 0, 0]);
   });
 
   it('buildGroups excluye equipos retirados', () => {
@@ -112,13 +112,19 @@ describe('groupStage', () => {
     const { teams, matches } = buildTenTeamSetup();
     const snapshot = JSON.stringify({ teams, matches });
 
-    // Triple empate en 4 pts en Grupo A: t1 (reg 1, DG -3, perdio H2H con t3),
-    // t3 (reg 3, DG +3) y t5 (reg 5, DG +5). Debe ordenar por posicion regular.
+    // Triple empate en 4 pts en Grupo A:
+    // t1 (reg 1, bonif 2): pierde 0-3 con t3 y empata con t5 y t7 -> 2 + 2 = 4, DG -3.
+    // t3 (reg 3, bonif 0): gana a t1 y empata con t9 -> 4, DG +3, gano el H2H a t1.
+    // t5 (reg 5, bonif 0): empata con t1 y gana 5-0 a t9 -> 4, DG +5.
+    // Debe ordenar por posicion regular: t1, t3, t5.
     const groupMatches: Match[] = [
       { ...makeRegularMatch('g1', 10, 't3', 't1', 3, 0), isPlayoff: true, playoffStage: 'GRUPOS', groupName: 'A' },
       { ...makeRegularMatch('g2', 11, 't1', 't5', 0, 0), isPlayoff: true, playoffStage: 'GRUPOS', groupName: 'A' },
       { ...makeRegularMatch('g3', 12, 't1', 't7', 0, 0), isPlayoff: true, playoffStage: 'GRUPOS', groupName: 'A' },
       { ...makeRegularMatch('g4', 13, 't5', 't9', 5, 0), isPlayoff: true, playoffStage: 'GRUPOS', groupName: 'A' },
+      { ...makeRegularMatch('g5', 14, 't3', 't9', 0, 0), isPlayoff: true, playoffStage: 'GRUPOS', groupName: 'A' },
+      { ...makeRegularMatch('g6', 10, 't4', 't6', 0, 0), isPlayoff: true, playoffStage: 'GRUPOS', groupName: 'B' },
+      { ...makeRegularMatch('g7', 11, 't2', 't8', 0, 0), isPlayoff: true, playoffStage: 'GRUPOS', groupName: 'B' },
     ];
 
     const allMatches = [...matches, ...groupMatches];
@@ -128,9 +134,16 @@ describe('groupStage', () => {
     expect(tableA[0].pts).toBe(4);
     expect(tableA[0].bonus).toBe(2);
     expect(tableA[1].pts).toBe(4);
-    expect(tableA[1].bonus).toBe(1);
+    expect(tableA[1].bonus).toBe(0);
     expect(tableA[2].pts).toBe(4);
     expect(tableA[2].bonus).toBe(0);
+
+    // Grupo B: el 2.º de la fase regular (t2) tiene 1 punto de bonificacion y el resto 0.
+    // t2 empata (1) + bonif (1) = 2; t4 y t6 empatan entre si (1 cada uno); t8 empata (1).
+    const tableB = calculateGroupStandings('+40 Varones', teams, allMatches, 'B');
+    expect(tableB[0]).toMatchObject({ teamId: 't2', bonus: 1, pts: 2 });
+    expect(tableB.slice(1).map((s) => s.bonus)).toEqual([0, 0, 0]);
+    expect(tableB.slice(1).map((s) => s.teamId)).toEqual(['t4', 't6', 't8']);
 
     // No muta entrada
     expect(JSON.stringify({ teams, matches })).toBe(snapshot);
