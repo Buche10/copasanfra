@@ -223,7 +223,7 @@ function clearUnplayableFutureMatches(
 ): { matches: Match[]; clearedCount: number } {
   let clearedCount = 0;
   const result = matches.map((m) => {
-    const unplayable = !activeSet.has(m.category) || isWithdrawnMatch(m, withdrawn);
+    const unplayable = m.playoffStage !== 'GRUPOS' && (!activeSet.has(m.category) || isWithdrawnMatch(m, withdrawn));
     if (unplayable && m.date >= nextSat && m.status === 'SCHEDULED') {
       if (m.time !== '' || m.stadium !== '') {
         clearedCount += 1;
@@ -461,7 +461,8 @@ function processFutureDates(
       continue;
     }
 
-    const isPlayable = (m: Match) => activeSet.has(m.category) && !isWithdrawnMatch(m, withdrawn);
+    const isPlayable = (m: Match) =>
+      m.playoffStage !== 'GRUPOS' && activeSet.has(m.category) && !isWithdrawnMatch(m, withdrawn);
     const activeMs = dayMatches.filter(isPlayable);
     const inactiveMs = dayMatches.filter((m) => !isPlayable(m));
 

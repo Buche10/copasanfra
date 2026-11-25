@@ -27,7 +27,8 @@ export interface UnscheduledMatch {
   homeTeamId: string;
   awayTeamId: string;
   isPlayoff?: boolean;
-  playoffStage?: 'CUARTOS' | 'SEMIS' | 'FINAL';
+  playoffStage?: 'GRUPOS' | 'CUARTOS' | 'SEMIS' | 'FINAL';
+  groupName?: 'A' | 'B';
   bracketSlot?: 'C1' | 'C2' | 'C3' | 'C4' | 'S1' | 'S2' | 'F';
 }
 

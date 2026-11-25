@@ -662,3 +662,38 @@ describe('roja por doble amarilla cargada desde la planilla', () => {
     expect(res.reasons).toEqual(['Doble amarilla en la fecha 6 contra Leones Q: 1 fecha por cumplir']);
   });
 });
+
+describe('tarjetas en fase de grupos', () => {
+  it('cuentan para sanciones igual que en la fase regular', () => {
+    const m: Match = {
+      id: 'mg1',
+      category: '+40 Varones',
+      round: 10,
+      date: '2026-11-28',
+      time: '08:00',
+      stadium: 'Cancha 1',
+      homeTeamId: 'team-a',
+      awayTeamId: 'team-b',
+      homeScore: 1,
+      awayScore: 1,
+      status: 'FINISHED',
+      homeLineup: [],
+      awayLineup: [],
+      isPlayoff: true,
+      playoffStage: 'GRUPOS',
+      groupName: 'A',
+      events: [
+        {
+          id: 'eg1',
+          matchId: 'mg1',
+          minute: 25,
+          type: 'RED_CARD',
+          teamId: 'team-a',
+          playerId: 'p-1',
+        },
+      ],
+    };
+    const res = computeCardSuspension('p-1', [m], 'team-a', new Map([['team-b', 'Equipo B']]));
+    expect(res.pending).toBe(2);
+  });
+});

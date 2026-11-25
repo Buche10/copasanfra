@@ -17,6 +17,7 @@ import { AdminSanctionsView } from './AdminSanctionsView';
 import { exportAllData, importAllData, getPlayerVerificationDoc } from '@/lib/store';
 import { AdminScheduleFairness } from './AdminScheduleFairness';
 import { AdminArrangeCalendar } from './AdminArrangeCalendar';
+import { AdminGroupStage } from './AdminGroupStage';
 import { ArrangePlan } from '@/lib/scheduling/arrangeCalendar';
 import { canChangeCategory } from '@/lib/registration';
 import { AdminTeamPins } from './AdminTeamPins';
@@ -50,6 +51,7 @@ interface AdminModalProps {
   activeCategories?: Category[];
   loadPlayers?: () => Promise<Player[]>;
   onApplyCalendarPlan?: (plan: ArrangePlan) => Promise<boolean>;
+  onMatchesUpdated?: (nextMatches: Match[]) => void;
   onSaveResults?: (results: { id: string; homeScore: number; awayScore: number }[]) => void;
   onUpdateMatch?: (match: Match) => void;
 }
@@ -82,6 +84,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   activeCategories,
   loadPlayers,
   onApplyCalendarPlan,
+  onMatchesUpdated,
   onSaveResults,
   onUpdateMatch,
 }) => {
@@ -1164,6 +1167,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               })}
             </div>
           </div>
+
+          {/* Card: Fase de grupos (+40 Varones) */}
+          {onMatchesUpdated && (
+            <AdminGroupStage
+              matches={matches}
+              teams={teams}
+              onMatchesUpdated={onMatchesUpdated}
+            />
+          )}
 
           {/* Card: Acomodar calendario según categorías activas */}
           {onApplyCalendarPlan && (

@@ -63,7 +63,7 @@ export const ArbitrajeView: React.FC<ArbitrajeViewProps> = ({
   const rounds = useMemo<RoundInfo[]>(() => {
     const map = new Map<number, RoundInfo>();
     matches
-      .filter((m) => m.category === category && !m.isPlayoff)
+      .filter((m) => m.category === category && (!m.isPlayoff || m.playoffStage === 'GRUPOS'))
       .forEach((m) => {
         const info = map.get(m.round) ?? { round: m.round, date: m.date, teamIds: [] };
         if (!info.date && m.date) info.date = m.date;

@@ -31,9 +31,10 @@ export const MatchEditModal: React.FC<MatchEditModalProps> = ({
   const homeTeam = teamMap.get(match.homeTeamId);
   const awayTeam = teamMap.get(match.awayTeamId);
 
-  // Empate en un partido de play off: el admin debe definir quién avanza.
+  // Empate en un partido de play off eliminatorio: el admin debe definir quién avanza.
   const isPlayoffTie =
     !!match.isPlayoff &&
+    match.playoffStage !== 'GRUPOS' &&
     match.status === 'FINISHED' &&
     !!match.homeTeamId &&
     !!match.awayTeamId &&
@@ -48,7 +49,10 @@ export const MatchEditModal: React.FC<MatchEditModalProps> = ({
       date,
       time: finalTime,
       stadium,
-      winnerTeamId: match.isPlayoff ? winnerTeamId || undefined : match.winnerTeamId,
+      winnerTeamId:
+        match.isPlayoff && match.playoffStage !== 'GRUPOS'
+          ? winnerTeamId || undefined
+          : match.winnerTeamId,
     });
     onClose();
   };

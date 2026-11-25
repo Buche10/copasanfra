@@ -28,6 +28,8 @@ export default defineConfig({
         'src/lib/reinforcement.ts',
         'src/lib/teamPins.ts',
         'src/lib/roster.ts',
+        'src/lib/groupStage.ts',
+        'src/lib/playoffs.ts',
       ],
       thresholds: {
         lines: 80,

@@ -237,7 +237,11 @@ export const CalendarExport: React.FC<CalendarExportProps> = ({ matches: allMatc
                         </td>
                         <td className="px-4 py-2.5 font-bold text-slate-900">
                           {teamName(m.homeTeamId)} <span className="text-slate-400 font-normal">vs</span> {teamName(m.awayTeamId)}
-                          {m.isPlayoff && <span className="ml-2 text-[10px] font-black text-amber-600">({m.playoffStage})</span>}
+                          {m.isPlayoff && (
+                            <span className="ml-2 text-[10px] font-black text-amber-600">
+                              {m.playoffStage === 'GRUPOS' && m.groupName ? `(Grupo ${m.groupName})` : `(${m.playoffStage})`}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -268,7 +272,11 @@ export const CalendarExport: React.FC<CalendarExportProps> = ({ matches: allMatc
                               <td className="px-4 py-2 text-slate-600 whitespace-nowrap w-24">{m.stadium || 'Cancha 1'}</td>
                               <td className="px-4 py-2 font-bold text-slate-900">
                                 {teamName(m.homeTeamId)} <span className="text-slate-400 font-normal">vs</span> {teamName(m.awayTeamId)}
-                                {m.isPlayoff && <span className="ml-2 text-[10px] font-black text-amber-600">({m.playoffStage})</span>}
+                                {m.isPlayoff && (
+                            <span className="ml-2 text-[10px] font-black text-amber-600">
+                              {m.playoffStage === 'GRUPOS' && m.groupName ? `(Grupo ${m.groupName})` : `(${m.playoffStage})`}
+                            </span>
+                          )}
                               </td>
                             </tr>
                           ))}
